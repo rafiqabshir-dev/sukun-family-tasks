@@ -82,7 +82,8 @@ export default function TodayScreen() {
   const renderTaskCard = (task: TaskInstance & { computedStatus: string }, showAssignee = false) => {
     const template = getTemplate(task.templateId);
     const assignee = getMember(task.assignedToMemberId);
-    const canComplete = task.assignedToMemberId === actingMemberId && task.computedStatus !== "done";
+    const isMyTask = task.assignedToMemberId === actingMemberId;
+    const canComplete = (isMyTask || isGuardian) && task.computedStatus !== "done";
 
     return (
       <View
@@ -102,7 +103,7 @@ export default function TodayScreen() {
             </View>
           </View>
           {showAssignee && assignee && (
-            <Text style={styles.taskAssignee}>Assigned to: {assignee.name}</Text>
+            <Text style={styles.taskAssignee}>For: {assignee.name}</Text>
           )}
           <Text style={styles.taskDue}>
             Due: {format(new Date(task.dueAt), "MMM d, yyyy")}
@@ -117,7 +118,7 @@ export default function TodayScreen() {
             onPress={() => completeTask(task.id)}
             data-testid={`button-complete-${task.id}`}
           >
-            <Ionicons name="checkmark-circle" size={32} color={colors.success} />
+            <Ionicons name="checkmark-circle" size={40} color={colors.success} />
           </TouchableOpacity>
         )}
         {task.computedStatus === "done" && (

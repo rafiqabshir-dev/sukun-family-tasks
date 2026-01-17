@@ -70,6 +70,19 @@ export interface Settings {
   soundsEnabled: boolean;
 }
 
+export type RewardStatus = "active" | "redeemed";
+
+export interface Reward {
+  id: string;
+  title: string;
+  description?: string;
+  starsCost: number;
+  createdAt: string;
+  redeemedAt?: string;
+  redeemedBy?: string;
+  status: RewardStatus;
+}
+
 export interface AppState {
   schemaVersion: number;
   onboardingComplete: boolean;
@@ -79,6 +92,7 @@ export interface AppState {
   taskInstances: TaskInstance[];
   spinQueue: StagedTask[];
   lastWinnerIds: string[];
+  rewards: Reward[];
   settings: Settings;
 }
 
@@ -91,6 +105,7 @@ export const DEFAULT_STATE: AppState = {
   taskInstances: [],
   spinQueue: [],
   lastWinnerIds: [],
+  rewards: [],
   settings: {
     islamicValuesMode: true,
     soundsEnabled: false

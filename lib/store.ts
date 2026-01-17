@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { AppState, Member, TaskTemplate, TaskInstance, StagedTask, DEFAULT_STATE, Power, PowerKey } from "./types";
+import { AppState, Member, TaskTemplate, TaskInstance, StagedTask, Reward, DEFAULT_STATE, Power, PowerKey } from "./types";
 
 const STORAGE_KEY = "barakah-kids-race:v1";
 const DEBOUNCE_MS = 300;
@@ -27,6 +27,10 @@ interface StoreActions {
   removeFromSpinQueue: (id: string) => void;
   clearSpinQueue: () => void;
   recordWinner: (memberId: string) => void;
+  addReward: (reward: Omit<Reward, "id" | "createdAt" | "status">) => Reward;
+  updateReward: (id: string, updates: Partial<Reward>) => void;
+  redeemReward: (rewardId: string, memberId: string) => boolean;
+  deleteReward: (id: string) => void;
   completeOnboarding: () => void;
   toggleSound: () => void;
   reset: () => Promise<void>;
@@ -45,6 +49,7 @@ function saveToStorage(state: AppState): void {
         taskInstances: state.taskInstances,
         spinQueue: state.spinQueue,
         lastWinnerIds: state.lastWinnerIds,
+        rewards: state.rewards,
         settings: state.settings
       };
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
@@ -52,6 +57,20 @@ function saveToStorage(state: AppState): void {
       console.error("Failed to save to AsyncStorage:", e);
     }
   }, DEBOUNCE_MS);
+}
+
+function migrateTemplates(templates: TaskTemplate[]): TaskTemplate[] {
+  return templates.map((t) => ({
+    ...t,
+    title: t.title || "Untitled Task",
+    iconKey: t.iconKey || "person",
+    category: t.category || "personal",
+    defaultStars: t.defaultStars || 1,
+    difficulty: t.difficulty || "medium",
+    preferredPowers: t.preferredPowers || [],
+    enabled: t.enabled !== undefined ? t.enabled : true,
+    isArchived: t.isArchived || false,
+  }));
 }
 
 export const useStore = create<AppState & StoreActions & { isReady: boolean }>((set, get) => ({
@@ -67,11 +86,14 @@ export const useStore = create<AppState & StoreActions & { isReady: boolean }>((
       if (stored) {
         const parsed = JSON.parse(stored);
         if (parsed.schemaVersion === DEFAULT_STATE.schemaVersion) {
+          const migratedTemplates = migrateTemplates(parsed.taskTemplates || []);
           set({ 
             ...DEFAULT_STATE, 
             ...parsed, 
+            taskTemplates: migratedTemplates,
             spinQueue: parsed.spinQueue || [],
             lastWinnerIds: parsed.lastWinnerIds || [],
+            rewards: parsed.rewards || [],
             isReady: true 
           });
           return;
@@ -143,7 +165,10 @@ export const useStore = create<AppState & StoreActions & { isReady: boolean }>((
   addTaskTemplate: (template) => {
     const newTemplate: TaskTemplate = {
       ...template,
-      id: `template-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      id: `template-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      title: template.title || "Untitled Task",
+      iconKey: template.iconKey || "person",
+      isArchived: template.isArchived || false,
     };
     const taskTemplates = [...get().taskTemplates, newTemplate];
     set({ taskTemplates });
@@ -237,6 +262,58 @@ export const useStore = create<AppState & StoreActions & { isReady: boolean }>((
     const lastWinnerIds = [memberId, ...get().lastWinnerIds].slice(0, 3);
     set({ lastWinnerIds });
     saveToStorage({ ...get(), lastWinnerIds });
+  },
+
+  addReward: (reward) => {
+    const newReward: Reward = {
+      ...reward,
+      id: `reward-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      createdAt: new Date().toISOString(),
+      status: "active"
+    };
+    const rewards = [...get().rewards, newReward];
+    set({ rewards });
+    saveToStorage({ ...get(), rewards });
+    return newReward;
+  },
+
+  updateReward: (id, updates) => {
+    const rewards = get().rewards.map((r) =>
+      r.id === id ? { ...r, ...updates } : r
+    );
+    set({ rewards });
+    saveToStorage({ ...get(), rewards });
+  },
+
+  redeemReward: (rewardId, memberId) => {
+    const state = get();
+    const reward = state.rewards.find((r) => r.id === rewardId);
+    const member = state.members.find((m) => m.id === memberId);
+    
+    if (!reward || !member || reward.status === "redeemed") return false;
+    if (member.starsTotal < reward.starsCost) return false;
+
+    const rewards = state.rewards.map((r) =>
+      r.id === rewardId
+        ? { ...r, status: "redeemed" as const, redeemedAt: new Date().toISOString(), redeemedBy: memberId }
+        : r
+    );
+
+    const members = state.members.map((m) =>
+      m.id === memberId
+        ? { ...m, starsTotal: m.starsTotal - reward.starsCost }
+        : m
+    );
+
+    set({ rewards, members });
+    saveToStorage({ ...get(), rewards, members });
+    return true;
+  },
+
+  deleteReward: (id) => {
+    const rewards = get().rewards.filter((r) => r.id !== id);
+    set({ rewards });
+    saveToStorage({ ...get(), rewards });
   },
 
   completeOnboarding: () => {
