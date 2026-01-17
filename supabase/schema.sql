@@ -138,6 +138,16 @@ CREATE UNIQUE INDEX idx_unique_stars_per_task ON stars_ledger(task_instance_id, 
 
 -- Row Level Security Policies
 
+-- Helper function to get current user's family_id without RLS recursion
+CREATE OR REPLACE FUNCTION get_my_family_id()
+RETURNS UUID
+LANGUAGE SQL
+SECURITY DEFINER
+STABLE
+AS $$
+  SELECT family_id FROM profiles WHERE id = auth.uid()
+$$;
+
 -- Enable RLS on all tables
 ALTER TABLE families ENABLE ROW LEVEL SECURITY;
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
@@ -161,7 +171,7 @@ CREATE POLICY "Users can create families"
 
 CREATE POLICY "Users can update their family"
   ON families FOR UPDATE
-  USING (id IN (SELECT family_id FROM profiles WHERE id = auth.uid()));
+  USING (id = get_my_family_id());
 
 -- Profiles: Two separate policies to avoid recursion
 CREATE POLICY "Users can view own profile"
@@ -172,7 +182,7 @@ CREATE POLICY "Users can view family members"
   ON profiles FOR SELECT
   USING (
     family_id IS NOT NULL AND 
-    family_id IN (SELECT p.family_id FROM profiles p WHERE p.id = auth.uid())
+    family_id = get_my_family_id()
   );
 
 CREATE POLICY "Users can create profile"
@@ -186,29 +196,32 @@ CREATE POLICY "Users can update own profile"
 -- Tasks: Family members can view, guardians can modify
 CREATE POLICY "Family members can view tasks"
   ON tasks FOR SELECT
-  USING (family_id IN (SELECT family_id FROM profiles WHERE id = auth.uid()));
+  USING (family_id = get_my_family_id());
 
 CREATE POLICY "Guardians can create tasks"
   ON tasks FOR INSERT
   WITH CHECK (
-    family_id IN (SELECT family_id FROM profiles WHERE id = auth.uid() AND role = 'guardian')
+    family_id = get_my_family_id() AND
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'guardian')
   );
 
 CREATE POLICY "Guardians can update tasks"
   ON tasks FOR UPDATE
   USING (
-    family_id IN (SELECT family_id FROM profiles WHERE id = auth.uid() AND role = 'guardian')
+    family_id = get_my_family_id() AND
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'guardian')
   );
 
 -- Task Instances: Family members can view, specific update rules
 CREATE POLICY "Family members can view task instances"
   ON task_instances FOR SELECT
-  USING (family_id IN (SELECT family_id FROM profiles WHERE id = auth.uid()));
+  USING (family_id = get_my_family_id());
 
 CREATE POLICY "Guardians can create task instances"
   ON task_instances FOR INSERT
   WITH CHECK (
-    family_id IN (SELECT family_id FROM profiles WHERE id = auth.uid() AND role = 'guardian')
+    family_id = get_my_family_id() AND
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'guardian')
   );
 
 CREATE POLICY "Kids can mark their own tasks pending"
@@ -220,7 +233,8 @@ CREATE POLICY "Kids can mark their own tasks pending"
 CREATE POLICY "Guardians can update task instances"
   ON task_instances FOR UPDATE
   USING (
-    family_id IN (SELECT family_id FROM profiles WHERE id = auth.uid() AND role = 'guardian')
+    family_id = get_my_family_id() AND
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'guardian')
   );
 
 -- Task Approvals: Family members can view, guardians can create
@@ -229,7 +243,7 @@ CREATE POLICY "Family members can view approvals"
   USING (
     task_instance_id IN (
       SELECT id FROM task_instances 
-      WHERE family_id IN (SELECT family_id FROM profiles WHERE id = auth.uid())
+      WHERE family_id = get_my_family_id()
     )
   );
 
@@ -237,7 +251,7 @@ CREATE POLICY "Guardians can create approvals"
   ON task_approvals FOR INSERT
   WITH CHECK (
     approver_profile_id = auth.uid() AND
-    approver_profile_id IN (SELECT id FROM profiles WHERE role = 'guardian') AND
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'guardian') AND
     task_instance_id IN (
       SELECT id FROM task_instances 
       WHERE completion_requested_by != auth.uid()
@@ -247,29 +261,32 @@ CREATE POLICY "Guardians can create approvals"
 -- Stars Ledger: Family members can view, guardians can modify
 CREATE POLICY "Family members can view stars ledger"
   ON stars_ledger FOR SELECT
-  USING (family_id IN (SELECT family_id FROM profiles WHERE id = auth.uid()));
+  USING (family_id = get_my_family_id());
 
 CREATE POLICY "Guardians can add to stars ledger"
   ON stars_ledger FOR INSERT
   WITH CHECK (
-    family_id IN (SELECT family_id FROM profiles WHERE id = auth.uid() AND role = 'guardian')
+    family_id = get_my_family_id() AND
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'guardian')
   );
 
 -- Rewards: Family members can view, guardians can modify
 CREATE POLICY "Family members can view rewards"
   ON rewards FOR SELECT
-  USING (family_id IN (SELECT family_id FROM profiles WHERE id = auth.uid()));
+  USING (family_id = get_my_family_id());
 
 CREATE POLICY "Guardians can create rewards"
   ON rewards FOR INSERT
   WITH CHECK (
-    family_id IN (SELECT family_id FROM profiles WHERE id = auth.uid() AND role = 'guardian')
+    family_id = get_my_family_id() AND
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'guardian')
   );
 
 CREATE POLICY "Guardians can update rewards"
   ON rewards FOR UPDATE
   USING (
-    family_id IN (SELECT family_id FROM profiles WHERE id = auth.uid() AND role = 'guardian')
+    family_id = get_my_family_id() AND
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'guardian')
   );
 
 -- Reward Claims: Family members can view
@@ -278,7 +295,7 @@ CREATE POLICY "Family members can view reward claims"
   USING (
     reward_id IN (
       SELECT id FROM rewards 
-      WHERE family_id IN (SELECT family_id FROM profiles WHERE id = auth.uid())
+      WHERE family_id = get_my_family_id()
     )
   );
 
@@ -286,29 +303,31 @@ CREATE POLICY "Guardians can create reward claims"
   ON reward_claims FOR INSERT
   WITH CHECK (
     granted_by_profile_id = auth.uid() AND
-    granted_by_profile_id IN (SELECT id FROM profiles WHERE role = 'guardian')
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'guardian')
   );
 
 -- Spin Queue: Family members can view, guardians can modify
 CREATE POLICY "Family members can view spin queue"
   ON spin_queue FOR SELECT
-  USING (family_id IN (SELECT family_id FROM profiles WHERE id = auth.uid()));
+  USING (family_id = get_my_family_id());
 
 CREATE POLICY "Guardians can modify spin queue"
   ON spin_queue FOR ALL
   USING (
-    family_id IN (SELECT family_id FROM profiles WHERE id = auth.uid() AND role = 'guardian')
+    family_id = get_my_family_id() AND
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'guardian')
   );
 
 -- Spin History: Family members can view
 CREATE POLICY "Family members can view spin history"
   ON spin_history FOR SELECT
-  USING (family_id IN (SELECT family_id FROM profiles WHERE id = auth.uid()));
+  USING (family_id = get_my_family_id());
 
 CREATE POLICY "Guardians can add spin history"
   ON spin_history FOR INSERT
   WITH CHECK (
-    family_id IN (SELECT family_id FROM profiles WHERE id = auth.uid() AND role = 'guardian')
+    family_id = get_my_family_id() AND
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'guardian')
   );
 
 -- Function to get total stars for a profile
