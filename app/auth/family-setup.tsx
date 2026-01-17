@@ -17,7 +17,7 @@ import { isSupabaseConfigured } from '../../lib/supabase';
 import { theme } from '../../lib/theme';
 
 export default function FamilySetupScreen() {
-  const { createFamily, joinFamily, profile, family } = useAuth();
+  const { createFamily, joinFamily, profile, family, signOut, user } = useAuth();
   const [mode, setMode] = useState<'choose' | 'create' | 'join'>('choose');
   const [familyName, setFamilyName] = useState('');
   const [inviteCode, setInviteCode] = useState('');
@@ -78,6 +78,11 @@ export default function FamilySetupScreen() {
     }
   }
 
+  async function handleSignOut() {
+    await signOut();
+    router.replace('/auth/sign-in');
+  }
+
   if (mode === 'choose') {
     return (
       <View style={styles.container}>
@@ -86,8 +91,16 @@ export default function FamilySetupScreen() {
             <View style={styles.iconContainer}>
               <Ionicons name="home" size={48} color={theme.colors.primary} />
             </View>
-            <Text style={styles.title}>Welcome, {profile?.display_name}!</Text>
+            <Text style={styles.title}>Welcome, {profile?.display_name || 'User'}!</Text>
             <Text style={styles.subtitle}>Let's set up your family</Text>
+            <Text style={styles.debugSmall}>
+              v2.7 | Profile: {profile ? 'OK' : 'MISSING'} | User: {user ? user.id.slice(0,8) : 'NONE'}
+            </Text>
+            {!profile && (
+              <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
+                <Text style={styles.signOutText}>Session issue - Tap to Sign Out & Re-login</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           <View style={styles.optionsContainer}>
@@ -277,6 +290,23 @@ const styles = StyleSheet.create({
     color: theme.colors.primary,
     marginTop: theme.spacing.xs,
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  debugSmall: {
+    fontSize: 10,
+    color: theme.colors.textMuted,
+    marginTop: theme.spacing.xs,
+    textAlign: 'center',
+  },
+  signOutButton: {
+    marginTop: theme.spacing.md,
+    padding: theme.spacing.sm,
+    backgroundColor: theme.colors.dangerLight,
+    borderRadius: theme.radius.md,
+  },
+  signOutText: {
+    color: theme.colors.danger,
+    fontSize: 14,
+    textAlign: 'center',
   },
   optionsContainer: {
     gap: theme.spacing.md,
