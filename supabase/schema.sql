@@ -150,14 +150,18 @@ ALTER TABLE reward_claims ENABLE ROW LEVEL SECURITY;
 ALTER TABLE spin_queue ENABLE ROW LEVEL SECURITY;
 ALTER TABLE spin_history ENABLE ROW LEVEL SECURITY;
 
--- Families: Users can only see their own family
-CREATE POLICY "Users can view their family"
+-- Families: Users can see their family or any family (for joining)
+CREATE POLICY "Users can view families"
   ON families FOR SELECT
-  USING (id IN (SELECT family_id FROM profiles WHERE id = auth.uid()));
+  USING (true);
 
 CREATE POLICY "Users can create families"
   ON families FOR INSERT
   WITH CHECK (true);
+
+CREATE POLICY "Users can update their family"
+  ON families FOR UPDATE
+  USING (id IN (SELECT family_id FROM profiles WHERE id = auth.uid()));
 
 -- Profiles: Two separate policies to avoid recursion
 CREATE POLICY "Users can view own profile"
