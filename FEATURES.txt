@@ -1,0 +1,58 @@
+BARAKAH KIDS RACE - FEATURE LIST
+
+CORE APP STRUCTURE
+- React Native mobile app with Expo SDK 54
+- File-based routing with Expo Router
+- Zustand state management with AsyncStorage persistence (auto-saves with 300ms debounce)
+- 6 bottom tabs: Today, Tasks, Spin, Leaderboard, Rewards, Setup
+
+ONBOARDING FLOW
+- Welcome screen introducing the app
+- Add family members (kids and guardians) with name, age, and role
+- Power selection for kids (1-2 powers each): Organizer, Fast Cleaner, Kitchen Helper, Study Coach, Calm Peacemaker, Discipline
+- Task template review with 40+ starter tasks across 7 categories
+
+FAMILY MANAGEMENT
+- "Act As" selector to switch between family members
+- Add new kids/guardians from Setup tab
+- Member Detail screen showing profile, powers, open tasks, and completion history
+
+TASK SYSTEM
+- 7 Categories: Cleaning, Kitchen, Learning, Kindness, Prayer, Outdoor, Personal
+- 40+ Starter Tasks: Real daily chores like "Make your bed", "Set the table", "Read for 15 minutes"
+- Task Templates: Add, edit, archive (soft-delete), enable/disable tasks
+- Task Assignment: Guardians assign tasks to kids with due dates
+- Task Completion with Approval Workflow:
+  - Marking complete sets status to "Pending Approval"
+  - A different person must approve or reject
+  - Stars only awarded after approval
+  - "Needs Approval" section on Today tab
+
+SPIN GAME
+- Spin Queue: Stage tasks before spinning
+- Quick-create tasks or add from templates
+- Spin picks random kid with fairness weighting (reduces repeat winners)
+- Proposal Flow: Shows selected kid + task, requires parent approval
+- Reroll or Accept options
+- Creates TaskInstance only when accepted
+
+STARS & LEADERBOARD
+- Kids earn stars for completing approved tasks
+- Table-style leaderboard with Rank, Name, Stars (trophy icons for top 3)
+- Star Deductions: Guardians can deduct stars for misbehavior
+  - Requires a reason to be entered
+  - Tracks who made the deduction and when
+  - Deduction history visible on Member Detail screen
+
+REWARDS SYSTEM
+- Parents set reward goals with star costs (5/10/20/50 or custom)
+- Kids see progress bars toward closest reward
+- Guardians grant rewards when kids have enough stars
+- Stars deducted on redemption
+- Claimed rewards history preserved
+
+ISLAMIC VALUES TONE
+- Positive, gentle wording throughout
+- Sounds disabled by default
+- No music autoplay
+- Focus on good deeds and family harmony
