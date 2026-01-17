@@ -1,6 +1,10 @@
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { Session, User } from '@supabase/supabase-js';
-import { supabase, Profile, Family, isSupabaseConfigured } from './supabase';
+import { supabase, Profile, Family, JoinRequest, isSupabaseConfigured } from './supabase';
+
+export type JoinRequestWithProfile = JoinRequest & {
+  requester_profile?: Profile;
+};
 
 type AuthContextType = {
   session: Session | null;
@@ -9,12 +13,18 @@ type AuthContextType = {
   family: Family | null;
   loading: boolean;
   isConfigured: boolean;
+  pendingJoinRequest: JoinRequest | null;
+  requestedFamily: Family | null;
   signUp: (email: string, password: string, displayName: string, role: 'guardian' | 'kid') => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   createFamily: (familyName: string, onProgress?: (step: string) => void) => Promise<{ error: Error | null; family: Family | null }>;
   joinFamily: (inviteCode: string) => Promise<{ error: Error | null }>;
   refreshProfile: () => Promise<void>;
+  cancelJoinRequest: () => Promise<{ error: Error | null }>;
+  getPendingJoinRequests: () => Promise<JoinRequestWithProfile[]>;
+  approveJoinRequest: (requestId: string) => Promise<{ error: Error | null }>;
+  rejectJoinRequest: (requestId: string) => Promise<{ error: Error | null }>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -27,6 +37,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [family, setFamily] = useState<Family | null>(null);
   const [loading, setLoading] = useState(true);
+  const [pendingJoinRequest, setPendingJoinRequest] = useState<JoinRequest | null>(null);
+  const [requestedFamily, setRequestedFamily] = useState<Family | null>(null);
   
   const authInProgress = useRef(false);
   const mounted = useRef(true);
@@ -281,8 +293,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           } else {
             setFamily(familyData as Family);
           }
+          // Clear any pending request since user is already in a family
+          setPendingJoinRequest(null);
+          setRequestedFamily(null);
         } else {
           setFamily(null);
+          // Check for pending join requests
+          await checkPendingJoinRequest(userId);
         }
       } else {
         setProfile(null);
@@ -413,18 +430,152 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { error: new Error('Invalid invite code') };
       }
 
-      if (user) {
-        const { error: updateError } = await supabase
-          .from('profiles')
-          .update({ family_id: familyData.id })
-          .eq('id', user.id);
+      if (!user) {
+        return { error: new Error('Not authenticated') };
+      }
 
-        if (updateError) {
-          return { error: new Error(updateError.message) };
+      // Check if there's already a pending request for this family
+      const { data: existingRequest } = await supabase
+        .from('join_requests')
+        .select('*')
+        .eq('family_id', familyData.id)
+        .eq('requester_profile_id', user.id)
+        .single();
+
+      if (existingRequest) {
+        if (existingRequest.status === 'pending') {
+          setPendingJoinRequest(existingRequest as JoinRequest);
+          setRequestedFamily(familyData as Family);
+          return { error: new Error('You already have a pending request to join this family') };
+        } else if (existingRequest.status === 'rejected') {
+          // Delete the old rejected request and create a new one
+          await supabase
+            .from('join_requests')
+            .delete()
+            .eq('id', existingRequest.id);
         }
+      }
 
-        setFamily(familyData as Family);
-        await refreshProfile();
+      // Create a join request instead of joining directly
+      const { data: requestData, error: requestError } = await supabase
+        .from('join_requests')
+        .insert({
+          family_id: familyData.id,
+          requester_profile_id: user.id,
+          status: 'pending'
+        })
+        .select()
+        .single();
+
+      if (requestError) {
+        return { error: new Error(requestError.message) };
+      }
+
+      setPendingJoinRequest(requestData as JoinRequest);
+      setRequestedFamily(familyData as Family);
+
+      return { error: null };
+    } catch (error) {
+      return { error: error as Error };
+    }
+  }
+
+  async function cancelJoinRequest(): Promise<{ error: Error | null }> {
+    if (!pendingJoinRequest) {
+      return { error: new Error('No pending request to cancel') };
+    }
+
+    try {
+      const { error } = await supabase
+        .from('join_requests')
+        .delete()
+        .eq('id', pendingJoinRequest.id);
+
+      if (error) {
+        return { error: new Error(error.message) };
+      }
+
+      setPendingJoinRequest(null);
+      setRequestedFamily(null);
+      return { error: null };
+    } catch (error) {
+      return { error: error as Error };
+    }
+  }
+
+  async function getPendingJoinRequests(): Promise<JoinRequestWithProfile[]> {
+    if (!family) return [];
+
+    try {
+      const { data: requests, error } = await supabase
+        .from('join_requests')
+        .select('*')
+        .eq('family_id', family.id)
+        .eq('status', 'pending');
+
+      if (error || !requests) return [];
+
+      // Fetch profile info for each requester
+      const requestsWithProfiles: JoinRequestWithProfile[] = [];
+      for (const request of requests) {
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', request.requester_profile_id)
+          .single();
+
+        requestsWithProfiles.push({
+          ...request,
+          requester_profile: profileData as Profile || undefined
+        });
+      }
+
+      return requestsWithProfiles;
+    } catch (error) {
+      console.error('Error fetching join requests:', error);
+      return [];
+    }
+  }
+
+  async function approveJoinRequest(requestId: string): Promise<{ error: Error | null }> {
+    if (!user || !family) {
+      return { error: new Error('Not authenticated or no family') };
+    }
+
+    try {
+      // Get the request
+      const { data: request, error: fetchError } = await supabase
+        .from('join_requests')
+        .select('*')
+        .eq('id', requestId)
+        .single();
+
+      if (fetchError || !request) {
+        return { error: new Error('Request not found') };
+      }
+
+      // Update the request status
+      const { error: updateError } = await supabase
+        .from('join_requests')
+        .update({
+          status: 'approved',
+          reviewed_by_profile_id: user.id,
+          reviewed_at: new Date().toISOString()
+        })
+        .eq('id', requestId);
+
+      if (updateError) {
+        return { error: new Error(updateError.message) };
+      }
+
+      // Add the user to the family
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({ family_id: family.id })
+        .eq('id', request.requester_profile_id);
+
+      if (profileError) {
+        return { error: new Error(profileError.message) };
       }
 
       return { error: null };
@@ -433,12 +584,70 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  async function rejectJoinRequest(requestId: string): Promise<{ error: Error | null }> {
+    if (!user) {
+      return { error: new Error('Not authenticated') };
+    }
+
+    try {
+      const { error } = await supabase
+        .from('join_requests')
+        .update({
+          status: 'rejected',
+          reviewed_by_profile_id: user.id,
+          reviewed_at: new Date().toISOString()
+        })
+        .eq('id', requestId);
+
+      if (error) {
+        return { error: new Error(error.message) };
+      }
+
+      return { error: null };
+    } catch (error) {
+      return { error: error as Error };
+    }
+  }
+
+  // Check for pending join requests on profile load
+  async function checkPendingJoinRequest(userId: string) {
+    try {
+      const { data: request } = await supabase
+        .from('join_requests')
+        .select('*')
+        .eq('requester_profile_id', userId)
+        .eq('status', 'pending')
+        .single();
+
+      if (request) {
+        setPendingJoinRequest(request as JoinRequest);
+        // Fetch the family info
+        const { data: familyData } = await supabase
+          .from('families')
+          .select('*')
+          .eq('id', request.family_id)
+          .single();
+
+        if (familyData) {
+          setRequestedFamily(familyData as Family);
+        }
+      } else {
+        setPendingJoinRequest(null);
+        setRequestedFamily(null);
+      }
+    } catch (error) {
+      console.error('Error checking pending join request:', error);
+    }
+  }
+
   return (
     <AuthContext.Provider
       value={{
         session, user, profile, family, loading,
         isConfigured: isSupabaseConfigured(),
+        pendingJoinRequest, requestedFamily,
         signUp, signIn, signOut, createFamily, joinFamily, refreshProfile,
+        cancelJoinRequest, getPendingJoinRequests, approveJoinRequest, rejectJoinRequest,
       }}
     >
       {children}

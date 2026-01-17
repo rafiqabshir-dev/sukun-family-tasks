@@ -143,6 +143,16 @@ export type StarsLedgerEntry = {
   created_at: string;
 };
 
+export type JoinRequest = {
+  id: string;
+  family_id: string;
+  requester_profile_id: string;
+  status: 'pending' | 'approved' | 'rejected';
+  reviewed_by_profile_id: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+};
+
 export type Reward = {
   id: string;
   family_id: string;

@@ -17,7 +17,7 @@ import { isSupabaseConfigured } from '../../lib/supabase';
 import { theme } from '../../lib/theme';
 
 export default function FamilySetupScreen() {
-  const { createFamily, joinFamily, profile, family, signOut } = useAuth();
+  const { createFamily, joinFamily, profile, family, signOut, pendingJoinRequest } = useAuth();
   const [mode, setMode] = useState<'choose' | 'create' | 'join'>('choose');
   const [familyName, setFamilyName] = useState('');
   const [inviteCode, setInviteCode] = useState('');
@@ -30,6 +30,12 @@ export default function FamilySetupScreen() {
       router.replace('/(tabs)/today');
     }
   }, [family]);
+
+  useEffect(() => {
+    if (pendingJoinRequest) {
+      router.replace('/auth/pending-approval');
+    }
+  }, [pendingJoinRequest]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -77,10 +83,16 @@ export default function FamilySetupScreen() {
     const { error: joinError } = await joinFamily(inviteCode.trim());
 
     if (joinError) {
-      setError(joinError.message);
-      setLoading(false);
+      // Check if the error is about pending request - that's not really an error
+      if (joinError.message.includes('pending request')) {
+        router.replace('/auth/pending-approval');
+      } else {
+        setError(joinError.message);
+        setLoading(false);
+      }
     } else {
-      router.replace('/(tabs)/today');
+      // Join request created successfully - redirect to pending approval
+      router.replace('/auth/pending-approval');
     }
   }
 

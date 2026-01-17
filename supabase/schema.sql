@@ -118,6 +118,18 @@ CREATE TABLE spin_history (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Join requests table for family join approval workflow
+CREATE TABLE join_requests (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  family_id UUID NOT NULL REFERENCES families(id) ON DELETE CASCADE,
+  requester_profile_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+  reviewed_by_profile_id UUID REFERENCES profiles(id),
+  reviewed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(family_id, requester_profile_id)
+);
+
 -- Create indexes for performance
 CREATE INDEX idx_profiles_family ON profiles(family_id);
 CREATE INDEX idx_tasks_family ON tasks(family_id);
@@ -329,6 +341,32 @@ CREATE POLICY "Guardians can add spin history"
     family_id = get_my_family_id() AND
     EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'guardian')
   );
+
+-- Join Requests: Users can see their own requests, owners can see all for their family
+ALTER TABLE join_requests ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own join requests"
+  ON join_requests FOR SELECT
+  USING (requester_profile_id = auth.uid());
+
+CREATE POLICY "Family owners can view family join requests"
+  ON join_requests FOR SELECT
+  USING (family_id = get_my_family_id());
+
+CREATE POLICY "Users can create join requests"
+  ON join_requests FOR INSERT
+  WITH CHECK (requester_profile_id = auth.uid());
+
+CREATE POLICY "Family owners can update join requests"
+  ON join_requests FOR UPDATE
+  USING (
+    family_id = get_my_family_id() AND
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'guardian')
+  );
+
+CREATE INDEX idx_join_requests_family ON join_requests(family_id);
+CREATE INDEX idx_join_requests_requester ON join_requests(requester_profile_id);
+CREATE INDEX idx_join_requests_status ON join_requests(status);
 
 -- Function to get total stars for a profile
 CREATE OR REPLACE FUNCTION get_profile_stars(profile_uuid UUID)
