@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, borderRadius, fontSize } from "@/lib/theme";
 import { useStore } from "@/lib/store";
-import { TaskTemplate, TaskCategory } from "@/lib/types";
+import { TaskTemplate, TaskCategory, TaskScheduleType } from "@/lib/types";
 
 const CATEGORY_ICONS: Record<TaskCategory, string> = {
   cleaning: "sparkles",
@@ -14,6 +14,14 @@ const CATEGORY_ICONS: Record<TaskCategory, string> = {
   outdoor: "leaf",
   personal: "person",
 };
+
+const SCHEDULE_TYPE_INFO: Record<TaskScheduleType, { label: string; icon: string; description: string }> = {
+  one_time: { label: "One-Time", icon: "checkbox-outline", description: "Complete once" },
+  recurring_daily: { label: "Daily", icon: "refresh", description: "Repeats each day" },
+  time_sensitive: { label: "Timed", icon: "timer-outline", description: "Expires after set time" },
+};
+
+const TIME_WINDOW_OPTIONS = [5, 10, 15, 30, 60];
 
 export default function TasksScreen() {
   const taskTemplates = useStore((s) => s.taskTemplates);
@@ -31,6 +39,8 @@ export default function TasksScreen() {
   const [newTitle, setNewTitle] = useState("");
   const [newStars, setNewStars] = useState("1");
   const [newCategory, setNewCategory] = useState<TaskCategory>("personal");
+  const [newScheduleType, setNewScheduleType] = useState<TaskScheduleType>("one_time");
+  const [newTimeWindow, setNewTimeWindow] = useState(15);
 
   const enabledTasks = taskTemplates.filter((t) => t.enabled && !t.isArchived);
   const archivedTasks = taskTemplates.filter((t) => t.isArchived);
@@ -48,12 +58,16 @@ export default function TasksScreen() {
       preferredPowers: [],
       enabled: true,
       isArchived: false,
+      scheduleType: newScheduleType,
+      timeWindowMinutes: newScheduleType === "time_sensitive" ? newTimeWindow : undefined,
     });
     
     setShowAddModal(false);
     setNewTitle("");
     setNewStars("1");
     setNewCategory("personal");
+    setNewScheduleType("one_time");
+    setNewTimeWindow(15);
   };
 
   const handleEditTask = () => {
@@ -64,12 +78,16 @@ export default function TasksScreen() {
       defaultStars: parseInt(newStars) || 1,
       category: newCategory,
       iconKey: CATEGORY_ICONS[newCategory],
+      scheduleType: newScheduleType,
+      timeWindowMinutes: newScheduleType === "time_sensitive" ? newTimeWindow : undefined,
     });
     
     setShowEditModal(false);
     setEditingTask(null);
     setNewTitle("");
     setNewStars("1");
+    setNewScheduleType("one_time");
+    setNewTimeWindow(15);
   };
 
   const openEditModal = (task: TaskTemplate) => {
@@ -77,6 +95,8 @@ export default function TasksScreen() {
     setNewTitle(task.title);
     setNewStars(task.defaultStars.toString());
     setNewCategory(task.category);
+    setNewScheduleType(task.scheduleType || "one_time");
+    setNewTimeWindow(task.timeWindowMinutes || 15);
     setShowEditModal(true);
   };
 
@@ -276,6 +296,61 @@ export default function TasksScreen() {
               </ScrollView>
             </View>
 
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Schedule Type</Text>
+              <View style={styles.scheduleTypeContainer}>
+                {(Object.keys(SCHEDULE_TYPE_INFO) as TaskScheduleType[]).map((type) => (
+                  <TouchableOpacity
+                    key={type}
+                    style={[
+                      styles.scheduleTypeOption,
+                      newScheduleType === type && styles.scheduleTypeOptionActive,
+                    ]}
+                    onPress={() => setNewScheduleType(type)}
+                    data-testid={`button-schedule-type-${type}`}
+                  >
+                    <Ionicons 
+                      name={SCHEDULE_TYPE_INFO[type].icon as any} 
+                      size={20} 
+                      color={newScheduleType === type ? "#FFFFFF" : colors.text} 
+                    />
+                    <Text style={[
+                      styles.scheduleTypeText,
+                      newScheduleType === type && styles.scheduleTypeTextActive,
+                    ]}>
+                      {SCHEDULE_TYPE_INFO[type].label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {newScheduleType === "time_sensitive" && (
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Time Window (minutes)</Text>
+                <View style={styles.timeWindowContainer}>
+                  {TIME_WINDOW_OPTIONS.map((mins) => (
+                    <TouchableOpacity
+                      key={mins}
+                      style={[
+                        styles.timeWindowOption,
+                        newTimeWindow === mins && styles.timeWindowOptionActive,
+                      ]}
+                      onPress={() => setNewTimeWindow(mins)}
+                      data-testid={`button-time-window-${mins}`}
+                    >
+                      <Text style={[
+                        styles.timeWindowText,
+                        newTimeWindow === mins && styles.timeWindowTextActive,
+                      ]}>
+                        {mins}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
+
             <TouchableOpacity
               style={[
                 styles.confirmButton,
@@ -365,6 +440,61 @@ export default function TasksScreen() {
                 ))}
               </ScrollView>
             </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Schedule Type</Text>
+              <View style={styles.scheduleTypeContainer}>
+                {(Object.keys(SCHEDULE_TYPE_INFO) as TaskScheduleType[]).map((type) => (
+                  <TouchableOpacity
+                    key={type}
+                    style={[
+                      styles.scheduleTypeOption,
+                      newScheduleType === type && styles.scheduleTypeOptionActive,
+                    ]}
+                    onPress={() => setNewScheduleType(type)}
+                    data-testid={`button-edit-schedule-type-${type}`}
+                  >
+                    <Ionicons 
+                      name={SCHEDULE_TYPE_INFO[type].icon as any} 
+                      size={20} 
+                      color={newScheduleType === type ? "#FFFFFF" : colors.text} 
+                    />
+                    <Text style={[
+                      styles.scheduleTypeText,
+                      newScheduleType === type && styles.scheduleTypeTextActive,
+                    ]}>
+                      {SCHEDULE_TYPE_INFO[type].label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {newScheduleType === "time_sensitive" && (
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Time Window (minutes)</Text>
+                <View style={styles.timeWindowContainer}>
+                  {TIME_WINDOW_OPTIONS.map((mins) => (
+                    <TouchableOpacity
+                      key={mins}
+                      style={[
+                        styles.timeWindowOption,
+                        newTimeWindow === mins && styles.timeWindowOptionActive,
+                      ]}
+                      onPress={() => setNewTimeWindow(mins)}
+                      data-testid={`button-edit-time-window-${mins}`}
+                    >
+                      <Text style={[
+                        styles.timeWindowText,
+                        newTimeWindow === mins && styles.timeWindowTextActive,
+                      ]}>
+                        {mins}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
 
             <TouchableOpacity
               style={[
@@ -595,5 +725,53 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: fontSize.md,
     fontWeight: "600",
+  },
+  scheduleTypeContainer: {
+    flexDirection: "row",
+    gap: spacing.sm,
+  },
+  scheduleTypeOption: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    backgroundColor: colors.surfaceSecondary,
+    borderRadius: borderRadius.md,
+    gap: spacing.xs,
+  },
+  scheduleTypeOptionActive: {
+    backgroundColor: colors.primary,
+  },
+  scheduleTypeText: {
+    fontSize: fontSize.xs,
+    color: colors.text,
+    fontWeight: "500",
+  },
+  scheduleTypeTextActive: {
+    color: "#FFFFFF",
+  },
+  timeWindowContainer: {
+    flexDirection: "row",
+    gap: spacing.sm,
+  },
+  timeWindowOption: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.surfaceSecondary,
+    borderRadius: borderRadius.md,
+  },
+  timeWindowOptionActive: {
+    backgroundColor: colors.primary,
+  },
+  timeWindowText: {
+    fontSize: fontSize.sm,
+    color: colors.text,
+    fontWeight: "600",
+  },
+  timeWindowTextActive: {
+    color: "#FFFFFF",
   },
 });
