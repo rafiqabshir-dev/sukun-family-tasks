@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Session, User } from '@supabase/supabase-js';
-import { supabase, Profile, Family } from './supabase';
+import { supabase, Profile, Family, isSupabaseConfigured } from './supabase';
 
 type AuthContextType = {
   session: Session | null;
@@ -8,6 +8,7 @@ type AuthContextType = {
   profile: Profile | null;
   family: Family | null;
   loading: boolean;
+  isConfigured: boolean;
   signUp: (email: string, password: string, displayName: string, role: 'guardian' | 'kid') => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
@@ -26,6 +27,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!isSupabaseConfigured()) {
+      console.log('Supabase not configured, skipping auth');
+      setLoading(false);
+      return;
+    }
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
@@ -34,6 +41,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         setLoading(false);
       }
+    }).catch((error) => {
+      console.error('Error getting session:', error);
+      setLoading(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -75,10 +85,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
           if (familyError) {
             console.error('Error fetching family:', familyError);
+            setFamily(null);
           } else {
             setFamily(familyData as Family);
           }
+        } else {
+          setFamily(null);
         }
+      } else {
+        setProfile(null);
+        setFamily(null);
       }
     } catch (error) {
       console.error('Error in fetchProfile:', error);
@@ -219,6 +235,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         profile,
         family,
         loading,
+        isConfigured: isSupabaseConfigured(),
         signUp,
         signIn,
         signOut,

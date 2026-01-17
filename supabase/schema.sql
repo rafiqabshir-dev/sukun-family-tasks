@@ -128,6 +128,14 @@ CREATE INDEX idx_stars_ledger_profile ON stars_ledger(profile_id);
 CREATE INDEX idx_rewards_family ON rewards(family_id);
 CREATE INDEX idx_spin_queue_family ON spin_queue(family_id);
 
+-- Unique constraint to prevent duplicate approvals per task instance
+CREATE UNIQUE INDEX idx_unique_task_approval ON task_approvals(task_instance_id, decision) 
+  WHERE decision = 'approved';
+
+-- Unique constraint to prevent duplicate star awards per task instance
+CREATE UNIQUE INDEX idx_unique_stars_per_task ON stars_ledger(task_instance_id, profile_id) 
+  WHERE task_instance_id IS NOT NULL AND delta > 0;
+
 -- Row Level Security Policies
 
 -- Enable RLS on all tables

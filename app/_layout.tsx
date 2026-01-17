@@ -1,29 +1,51 @@
-import { useEffect } from "react";
-import { Stack, router } from "expo-router";
+import { useEffect, useState } from "react";
+import { Slot, Stack, useSegments, router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { View, ActivityIndicator, StyleSheet } from "react-native";
 import { useStore } from "@/lib/store";
 import { colors } from "@/lib/theme";
 import { AuthProvider, useAuth } from "@/lib/authContext";
 
+function useProtectedRoute(session: any, family: any, loading: boolean, isReady: boolean, isConfigured: boolean) {
+  const segments = useSegments();
+  const [isNavigationReady, setNavigationReady] = useState(false);
+
+  useEffect(() => {
+    if (!loading && isReady) {
+      setNavigationReady(true);
+    }
+  }, [loading, isReady]);
+
+  useEffect(() => {
+    if (!isNavigationReady) return;
+
+    // If Supabase isn't configured, skip auth routing (offline mode)
+    if (!isConfigured) {
+      return;
+    }
+
+    const inAuthGroup = segments[0] === 'auth';
+
+    if (!session && !inAuthGroup) {
+      router.replace('/auth/sign-in');
+    } else if (session && !family && !inAuthGroup) {
+      router.replace('/auth/family-setup');
+    } else if (session && family && inAuthGroup) {
+      router.replace('/(tabs)/today');
+    }
+  }, [session, family, segments, isNavigationReady, isConfigured]);
+}
+
 function RootLayoutContent() {
   const initialize = useStore((s) => s.initialize);
   const isReady = useStore((s) => s.isReady);
-  const { session, profile, family, loading: authLoading } = useAuth();
+  const { session, family, loading: authLoading, isConfigured } = useAuth();
 
   useEffect(() => {
     initialize();
   }, []);
 
-  useEffect(() => {
-    if (!authLoading && isReady) {
-      if (!session) {
-        router.replace("/auth/sign-in");
-      } else if (!family) {
-        router.replace("/auth/family-setup");
-      }
-    }
-  }, [session, family, authLoading, isReady]);
+  useProtectedRoute(session, family, authLoading, isReady, isConfigured);
 
   if (!isReady || authLoading) {
     return (
