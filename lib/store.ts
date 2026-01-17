@@ -15,6 +15,8 @@ interface StoreActions {
   addMember: (member: Omit<Member, "id" | "starsTotal" | "powers">) => void;
   updateMember: (id: string, updates: Partial<Member>) => void;
   removeMember: (id: string) => void;
+  syncMembersFromCloud: (members: Member[]) => void;
+  upsertMemberWithUUID: (uuid: string, name: string, role: 'guardian' | 'kid', age?: number) => void;
   setMemberPowers: (memberId: string, powers: PowerKey[]) => void;
   setActingMember: (memberId: string | null) => void;
   setTaskTemplates: (templates: TaskTemplate[]) => void;
@@ -174,6 +176,103 @@ export const useStore = create<AppState & StoreActions & { isReady: boolean }>((
 
   removeMember: (id) => {
     const members = get().members.filter((m) => m.id !== id);
+    set({ members });
+    saveToStorage({ ...get(), members });
+  },
+
+  syncMembersFromCloud: (cloudMembers) => {
+    const currentMembers = get().members;
+    const currentMemberMap = new Map(currentMembers.map(m => [m.id, m]));
+    const cloudMemberIds = new Set(cloudMembers.map(m => m.id));
+    
+    // Merge cloud members with local data - local fields take priority for non-cloud data
+    const mergedCloudMembers = cloudMembers.map(cloudMember => {
+      const localMember = currentMemberMap.get(cloudMember.id);
+      if (localMember) {
+        // Preserve local member, only update name from cloud (authoritative)
+        return {
+          ...localMember,
+          name: cloudMember.name, // Cloud name is authoritative
+          role: cloudMember.role, // Cloud role is authoritative
+          age: cloudMember.age || localMember.age, // Use cloud age if available
+          // Preserve local powers (onboarding selections) unless cloud has data
+          powers: localMember.powers.length > 0 ? localMember.powers : cloudMember.powers,
+          // Use the higher star total to not lose local progress
+          starsTotal: Math.max(cloudMember.starsTotal, localMember.starsTotal),
+        };
+      }
+      // New cloud member - add with their data
+      return cloudMember;
+    });
+    
+    // Keep local-only members (IDs starting with 'member-')
+    const localOnlyMembers = currentMembers.filter(m => !cloudMemberIds.has(m.id) && m.id.startsWith('member-'));
+    const mergedMembers = [...mergedCloudMembers, ...localOnlyMembers];
+    
+    set({ members: mergedMembers });
+    saveToStorage({ ...get(), members: mergedMembers });
+  },
+
+  upsertMemberWithUUID: (uuid, name, role, age) => {
+    const state = get();
+    const currentMembers = state.members;
+    
+    // Check if member already exists by UUID
+    const existingByUUID = currentMembers.find(m => m.id === uuid);
+    if (existingByUUID) {
+      // Just update the name if it changed
+      if (existingByUUID.name !== name) {
+        const members = currentMembers.map(m => 
+          m.id === uuid ? { ...m, name } : m
+        );
+        set({ members });
+        saveToStorage({ ...get(), members });
+      }
+      return;
+    }
+    
+    // Find legacy local member to update - try multiple matching strategies
+    // Strategy 1: Match by exact name + role
+    let legacyMember = currentMembers.find(
+      m => m.name === name && m.role === role && m.id.startsWith('member-')
+    );
+    
+    // Strategy 2: If no exact match and this is a guardian, find ANY guardian with legacy ID
+    // (typically there's only one guardian per account in the local store)
+    if (!legacyMember && role === 'guardian') {
+      const legacyGuardians = currentMembers.filter(
+        m => m.role === 'guardian' && m.id.startsWith('member-')
+      );
+      if (legacyGuardians.length === 1) {
+        legacyMember = legacyGuardians[0];
+      }
+    }
+    
+    if (legacyMember) {
+      // Found matching member - update their ID to UUID, preserve all local data
+      const oldId = legacyMember.id;
+      const members = currentMembers.map(m => 
+        m.id === oldId ? { ...m, id: uuid, name } : m
+      );
+      
+      // Update actingMemberId if it was pointing to the old ID
+      const actingMemberId = state.actingMemberId === oldId ? uuid : state.actingMemberId;
+      
+      set({ members, actingMemberId });
+      saveToStorage({ ...get(), members, actingMemberId });
+      return;
+    }
+    
+    // No match found - add as new member
+    const newMember: Member = {
+      id: uuid,
+      name,
+      role,
+      age: age || 0,
+      starsTotal: 0,
+      powers: []
+    };
+    const members = [...currentMembers, newMember];
     set({ members });
     saveToStorage({ ...get(), members });
   },

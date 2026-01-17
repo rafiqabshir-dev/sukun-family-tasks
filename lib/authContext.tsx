@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase, Profile, Family, JoinRequest, isSupabaseConfigured } from './supabase';
+import { useStore } from './store';
 
 export type JoinRequestWithProfile = JoinRequest & {
   requester_profile?: Profile;
@@ -299,6 +300,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setFamily(null);
           } else {
             setFamily(familyData as Family);
+            
+            // Ensure current user is in local store with their Supabase UUID
+            try {
+              useStore.getState().upsertMemberWithUUID(
+                profileData.id,
+                profileData.display_name,
+                profileData.role,
+                profileData.age || undefined
+              );
+              console.log('[Auth] Synced current user to store:', profileData.display_name);
+            } catch (syncError) {
+              console.error('[Auth] Error syncing current user:', syncError);
+            }
           }
           // Clear any pending request since user is already in a family
           setPendingJoinRequest(null);

@@ -32,6 +32,17 @@ Preferred communication style: Simple, everyday language.
 - **Auth Flow**: Standard email/password sign-up, with options to create or join a family using invite codes.
 - **Offline Mode**: Operates locally using AsyncStorage if Supabase is not configured.
 - **Security**: Utilizes Row Level Security (RLS) for data access control and an immutable `stars_ledger` for audit trails.
+- **ID Matching**: Local store uses `member-*` IDs while Supabase uses UUIDs. The `isCurrentUser` check uses flexible matching (ID or display_name+role) to handle this mismatch in UI components.
+
+### Profile Name Editing
+- Users can edit their display name from the Setup screen by tapping the pencil icon next to their entry.
+- Name changes are persisted to both Supabase (profiles table) and local store.
+- The edit button appears for guardians next to their own entry, identified by "(You)" suffix.
+
+### Notification Badge
+- Guardians see a badge on the hamburger menu icon when there are pending join requests.
+- Badge count is fetched from Supabase on screen focus and updates in real-time.
+- The Setup menu item also shows "X pending" badge text.
 
 ## External Dependencies
 

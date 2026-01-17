@@ -392,7 +392,9 @@ export default function SetupScreen() {
         {guardians.length > 0 && (
           <View style={styles.membersList}>
             {guardians.map((guardian) => {
-              const isCurrentUser = guardian.id === profile?.id;
+              // Check by ID or by display_name (handles local vs cloud ID mismatch)
+              const isCurrentUser = guardian.id === profile?.id || 
+                (profile?.display_name && guardian.name === profile.display_name && guardian.role === 'guardian');
               return (
                 <View key={guardian.id} style={styles.memberItem}>
                   <TouchableOpacity 
