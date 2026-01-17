@@ -1,0 +1,112 @@
+[
+  {
+    "check_type": "FAMILIES_COLS",
+    "name": "created_at",
+    "details": "timestamp with time zone DEFAULT: now()"
+  },
+  {
+    "check_type": "FAMILIES_COLS",
+    "name": "id",
+    "details": "uuid DEFAULT: uuid_generate_v4()"
+  },
+  {
+    "check_type": "FAMILIES_COLS",
+    "name": "invite_code",
+    "details": "text DEFAULT: \"substring\"(md5((random())::text), 1, 8)"
+  },
+  {
+    "check_type": "FAMILIES_COLS",
+    "name": "name",
+    "details": "text"
+  },
+  {
+    "check_type": "FAMILIES_RLS",
+    "name": "Users can create families",
+    "details": "INSERT"
+  },
+  {
+    "check_type": "FAMILIES_RLS",
+    "name": "Users can update their family",
+    "details": "UPDATE"
+  },
+  {
+    "check_type": "FAMILIES_RLS",
+    "name": "Users can view families",
+    "details": "SELECT"
+  },
+  {
+    "check_type": "FUNCTION",
+    "name": "get_my_family_id",
+    "details": "SECURITY DEFINER"
+  },
+  {
+    "check_type": "PROFILES_COLS",
+    "name": "age",
+    "details": "integer"
+  },
+  {
+    "check_type": "PROFILES_COLS",
+    "name": "created_at",
+    "details": "timestamp with time zone DEFAULT: now()"
+  },
+  {
+    "check_type": "PROFILES_COLS",
+    "name": "display_name",
+    "details": "text"
+  },
+  {
+    "check_type": "PROFILES_COLS",
+    "name": "family_id",
+    "details": "uuid"
+  },
+  {
+    "check_type": "PROFILES_COLS",
+    "name": "id",
+    "details": "uuid"
+  },
+  {
+    "check_type": "PROFILES_COLS",
+    "name": "powers",
+    "details": "ARRAY DEFAULT: '{}'::text[]"
+  },
+  {
+    "check_type": "PROFILES_COLS",
+    "name": "requires_login",
+    "details": "boolean DEFAULT: true"
+  },
+  {
+    "check_type": "PROFILES_COLS",
+    "name": "role",
+    "details": "text"
+  },
+  {
+    "check_type": "PROFILES_RLS",
+    "name": "Users can create profile",
+    "details": "INSERT"
+  },
+  {
+    "check_type": "PROFILES_RLS",
+    "name": "Users can update own profile",
+    "details": "UPDATE"
+  },
+  {
+    "check_type": "PROFILES_RLS",
+    "name": "Users can view family members",
+    "details": "SELECT"
+  },
+  {
+    "check_type": "PROFILES_RLS",
+    "name": "Users can view own profile",
+    "details": "SELECT"
+  },
+  {
+    "check_type": "TABLES",
+    "name": "families",
+    "details": null
+  },
+  {
+    "check_type": "TABLES",
+    "name": "profiles",
+    "details": null
+  }
+]

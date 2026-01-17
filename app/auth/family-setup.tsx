@@ -13,6 +13,7 @@ import {
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../lib/authContext';
+import { isSupabaseConfigured } from '../../lib/supabase';
 import { theme } from '../../lib/theme';
 
 export default function FamilySetupScreen() {
@@ -156,7 +157,7 @@ export default function FamilySetupScreen() {
               ? 'Choose a name for your family'
               : 'Enter the invite code shared with you'}
           </Text>
-          <Text style={styles.versionText}>v2.4</Text>
+          <Text style={styles.versionText}>v2.5 | DB: {isSupabaseConfigured() ? 'OK' : 'NOT CONFIGURED'}</Text>
           {debugInfo ? <Text style={styles.debugText}>{debugInfo}</Text> : null}
         </View>
 
