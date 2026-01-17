@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -14,18 +14,21 @@ import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, spacing, borderRadius, fontSize } from "@/lib/theme";
 import { useStore } from "@/lib/store";
+import { useAuth } from "@/lib/authContext";
 
 interface MemberInput {
   id: string;
   name: string;
   age: string;
   role: "kid" | "guardian";
+  isOwner?: boolean;
 }
 
 export default function AddMembersScreen() {
   const router = useRouter();
   const addMember = useStore((s) => s.addMember);
   const existingMembers = useStore((s) => s.members);
+  const { profile, family, signOut } = useAuth();
 
   const [members, setMembers] = useState<MemberInput[]>(() => {
     if (existingMembers.length > 0) {
@@ -38,6 +41,23 @@ export default function AddMembersScreen() {
     }
     return [{ id: "new-1", name: "", age: "", role: "kid" }];
   });
+
+  useEffect(() => {
+    if (profile && members.length === 1 && members[0].id === "new-1" && !members[0].name.trim()) {
+      setMembers([{
+        id: "owner",
+        name: profile.display_name || "",
+        age: "",
+        role: (profile.role as "kid" | "guardian") || "guardian",
+        isOwner: true,
+      }]);
+    }
+  }, [profile]);
+
+  const handleSignOut = async () => {
+    await signOut();
+    router.replace("/auth/sign-in");
+  };
 
   const addNewMember = () => {
     setMembers([
@@ -53,7 +73,8 @@ export default function AddMembersScreen() {
   };
 
   const removeMember = (id: string) => {
-    if (members.length > 1) {
+    const member = members.find((m) => m.id === id);
+    if (members.length > 1 && !member?.isOwner) {
       setMembers(members.filter((m) => m.id !== id));
     }
   };
@@ -95,6 +116,28 @@ export default function AddMembersScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      {profile && (
+        <View style={styles.userHeader}>
+          <View style={styles.userInfo}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>
+                {profile.display_name?.charAt(0).toUpperCase() || "U"}
+              </Text>
+            </View>
+            <View>
+              <Text style={styles.userName}>{profile.display_name}</Text>
+              <Text style={styles.userRole}>
+                {profile.role === "guardian" ? "Guardian" : "Kid"}
+                {family ? ` • ${family.name}` : ""}
+              </Text>
+            </View>
+          </View>
+          <TouchableOpacity onPress={handleSignOut} style={styles.logoutButton}>
+            <Ionicons name="log-out-outline" size={22} color={colors.error} />
+          </TouchableOpacity>
+        </View>
+      )}
+
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -106,7 +149,9 @@ export default function AddMembersScreen() {
           >
             <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={styles.title}>Add Your Family</Text>
+          <Text style={styles.title}>
+            {family ? `Add to ${family.name}` : "Add Your Family"}
+          </Text>
           <View style={styles.backButton} />
         </View>
 
@@ -115,15 +160,29 @@ export default function AddMembersScreen() {
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
+          {family && (
+            <View style={styles.familyInfo}>
+              <View style={styles.inviteCodeBox}>
+                <Text style={styles.inviteLabel}>Invite Code</Text>
+                <Text style={styles.inviteCode}>{family.invite_code}</Text>
+                <Text style={styles.inviteHint}>Share this code with family members</Text>
+              </View>
+            </View>
+          )}
+          
           <Text style={styles.subtitle}>
-            Add the family members who will participate in the race
+            {family 
+              ? "You're already added as the first member. Add other family members below."
+              : "Add the family members who will participate in the race"}
           </Text>
 
           {members.map((member, index) => (
-            <View key={member.id} style={styles.memberCard}>
+            <View key={member.id} style={[styles.memberCard, member.isOwner && styles.ownerCard]}>
               <View style={styles.memberHeader}>
-                <Text style={styles.memberNumber}>Member {index + 1}</Text>
-                {members.length > 1 && (
+                <Text style={styles.memberNumber}>
+                  {member.isOwner ? "You (Owner)" : `Member ${index + 1}`}
+                </Text>
+                {members.length > 1 && !member.isOwner && (
                   <TouchableOpacity
                     onPress={() => removeMember(member.id)}
                     hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -242,6 +301,46 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
+  userHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  userInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  avatarText: {
+    fontSize: fontSize.lg,
+    fontWeight: "600",
+    color: "#FFFFFF",
+  },
+  userName: {
+    fontSize: fontSize.md,
+    fontWeight: "600",
+    color: colors.text,
+  },
+  userRole: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+  },
+  logoutButton: {
+    padding: spacing.sm,
+  },
   flex: {
     flex: 1,
   },
@@ -274,6 +373,31 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginBottom: spacing.xl,
   },
+  familyInfo: {
+    marginBottom: spacing.lg,
+  },
+  inviteCodeBox: {
+    backgroundColor: colors.primaryLight,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    alignItems: "center",
+  },
+  inviteLabel: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    marginBottom: spacing.xs,
+  },
+  inviteCode: {
+    fontSize: fontSize.xxl,
+    fontWeight: "700",
+    color: colors.primary,
+    letterSpacing: 2,
+  },
+  inviteHint: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+  },
   memberCard: {
     backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,
@@ -284,6 +408,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 2,
+  },
+  ownerCard: {
+    borderWidth: 2,
+    borderColor: colors.primary,
   },
   memberHeader: {
     flexDirection: "row",

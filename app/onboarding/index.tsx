@@ -3,12 +3,41 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, spacing, borderRadius, fontSize } from "@/lib/theme";
+import { useAuth } from "@/lib/authContext";
 
 export default function WelcomeScreen() {
   const router = useRouter();
+  const { profile, signOut, family } = useAuth();
+
+  const handleSignOut = async () => {
+    await signOut();
+    router.replace("/auth/sign-in");
+  };
 
   return (
     <SafeAreaView style={styles.container}>
+      {profile && (
+        <View style={styles.userHeader}>
+          <View style={styles.userInfo}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>
+                {profile.display_name?.charAt(0).toUpperCase() || "U"}
+              </Text>
+            </View>
+            <View>
+              <Text style={styles.userName}>{profile.display_name}</Text>
+              <Text style={styles.userRole}>
+                {profile.role === "guardian" ? "Guardian" : "Kid"}
+                {family ? ` • ${family.name}` : ""}
+              </Text>
+            </View>
+          </View>
+          <TouchableOpacity onPress={handleSignOut} style={styles.logoutButton}>
+            <Ionicons name="log-out-outline" size={22} color={colors.error} />
+          </TouchableOpacity>
+        </View>
+      )}
+
       <View style={styles.content}>
         <View style={styles.iconContainer}>
           <Ionicons name="star" size={80} color={colors.secondary} />
@@ -53,6 +82,46 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  userHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  userInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  avatarText: {
+    fontSize: fontSize.lg,
+    fontWeight: "600",
+    color: "#FFFFFF",
+  },
+  userName: {
+    fontSize: fontSize.md,
+    fontWeight: "600",
+    color: colors.text,
+  },
+  userRole: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+  },
+  logoutButton: {
+    padding: spacing.sm,
   },
   content: {
     flex: 1,

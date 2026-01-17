@@ -17,7 +17,7 @@ import { isSupabaseConfigured } from '../../lib/supabase';
 import { theme } from '../../lib/theme';
 
 export default function FamilySetupScreen() {
-  const { createFamily, joinFamily, profile, family } = useAuth();
+  const { createFamily, joinFamily, profile, family, signOut } = useAuth();
   const [mode, setMode] = useState<'choose' | 'create' | 'join'>('choose');
   const [familyName, setFamilyName] = useState('');
   const [inviteCode, setInviteCode] = useState('');
@@ -30,6 +30,11 @@ export default function FamilySetupScreen() {
       router.replace('/(tabs)/today');
     }
   }, [family]);
+
+  const handleSignOut = async () => {
+    await signOut();
+    router.replace('/auth/sign-in');
+  };
 
   async function handleCreateFamily() {
     if (!familyName.trim()) {
@@ -82,6 +87,24 @@ export default function FamilySetupScreen() {
   if (mode === 'choose') {
     return (
       <View style={styles.container}>
+        <View style={styles.userHeader}>
+          <View style={styles.userInfo}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>
+                {profile?.display_name?.charAt(0).toUpperCase() || 'U'}
+              </Text>
+            </View>
+            <View>
+              <Text style={styles.userName}>{profile?.display_name}</Text>
+              <Text style={styles.userRole}>
+                {profile?.role === 'guardian' ? 'Guardian' : 'Kid'}
+              </Text>
+            </View>
+          </View>
+          <TouchableOpacity onPress={handleSignOut} style={styles.logoutButton}>
+            <Ionicons name="log-out-outline" size={22} color={theme.colors.danger} />
+          </TouchableOpacity>
+        </View>
         <View style={styles.content}>
           <View style={styles.header}>
             <View style={styles.iconContainer}>
@@ -229,6 +252,46 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
+  },
+  userHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.md,
+    backgroundColor: theme.colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  userInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: theme.colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  userName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.text,
+  },
+  userRole: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+  },
+  logoutButton: {
+    padding: theme.spacing.sm,
   },
   content: {
     flex: 1,
