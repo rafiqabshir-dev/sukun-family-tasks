@@ -1,0 +1,41 @@
+Fix onboarding + pending join request persistence + Safe Area + small UI polish (based on screenshots).
+
+A) Pending join request must persist across sign-out / login
+- Problem: If a user has an existing join request with status = "pending", logging back in should NOT show the fresh “Create a Family / Join a Family” onboarding again.
+- On app start (after auth session is restored), run this routing logic:
+  1) If user is already an approved member of a family -> go to main app.
+  2) Else if user has an existing join request with status "pending" (join_requests where requester_user_id = currentUserId AND status = 'pending') -> route to the Pending Approval screen and show the request details.
+  3) Else -> show the normal “Create / Join” onboarding.
+- Add a simple DB query helper like getMyJoinStatus() and use it consistently on login and on “Check Status”.
+
+B) Welcome name missing right after signup
+- Problem: Welcome screen sometimes shows no name.
+- Fix: Ensure we always have a display name:
+  - Use Supabase auth user metadata if available (user.user_metadata.full_name or name).
+  - Also store it in a profiles table (profiles.user_id, display_name) and fetch it on app load.
+  - If still missing, fall back to “Welcome!” without showing a blank name.
+
+C) Safe area / notch overlap (top nav back arrow overlaps iPhone notch/time)
+- Fix all top headers to respect safe area:
+  - Wrap screens with SafeAreaView (react-native-safe-area-context) or use SafeAreaInsets padding.
+  - Ensure header left/back button and title are below the notch.
+  - Apply this to all screens with a top nav (Welcome/Setup/Pending Approval/etc.).
+
+D) Pending Approval screen polish (screenshot shows raw route text “pending-approval”)
+- Replace the raw route header text with a user-friendly title:
+  - Title: “Request Pending”
+  - Subtitle: “Waiting for approval”
+- Keep the “Sign Out” visible on this screen (already present) and ensure it works.
+
+E) Quick styling cleanup from screenshots
+- Ensure consistent spacing + alignment for:
+  - Welcome screen header and cards
+  - Setup screen sections (“Family Members”, “Join Requests”, etc.)
+- Make sure buttons and icons don’t look clipped and align consistently.
+- Keep everything minimal; no redesign, just fix obvious spacing/typography issues.
+
+Done criteria:
+- If a user has a pending join request, they always land on the Pending Approval screen after login until approved/rejected/cancelled.
+- Welcome screen always shows a correct name OR clean fallback text (never blank).
+- Back arrow/top header never overlaps the notch on iPhone.
+- “pending-approval” raw label is no longer visible; friendly header shown.

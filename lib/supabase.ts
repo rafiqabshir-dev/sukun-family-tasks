@@ -81,6 +81,11 @@ export const supabase = {
     const client = getSupabaseClient();
     if (!client) throw new Error('Supabase not configured');
     return client.auth;
+  },
+  rpc(fn: string, params?: Record<string, any>) {
+    const client = getSupabaseClient();
+    if (!client) throw new Error('Supabase not configured');
+    return client.rpc(fn, params);
   }
 };
 

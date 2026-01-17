@@ -135,6 +135,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (familyData && mounted.current) {
               setFamily(familyData as Family);
             }
+            // Clear any pending request since user is already in a family
+            setPendingJoinRequest(null);
+            setRequestedFamily(null);
+          } else {
+            // No family - check for pending join requests
+            await checkPendingJoinRequest(currentUser.id);
           }
         }
 

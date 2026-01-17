@@ -6,7 +6,7 @@ import { useStore } from "@/lib/store";
 import { colors } from "@/lib/theme";
 import { AuthProvider, useAuth } from "@/lib/authContext";
 
-function useProtectedRoute(session: any, family: any, loading: boolean, isReady: boolean, isConfigured: boolean) {
+function useProtectedRoute(session: any, family: any, loading: boolean, isReady: boolean, isConfigured: boolean, pendingJoinRequest: any) {
   const segments = useSegments();
   const navigationState = useRootNavigationState();
 
@@ -19,27 +19,31 @@ function useProtectedRoute(session: any, family: any, loading: boolean, isReady:
     }
 
     const inAuthGroup = segments[0] === 'auth';
+    const currentRoute = segments.join('/');
 
     if (!session && !inAuthGroup) {
       router.replace('/auth/sign-in');
-    } else if (session && !family && !inAuthGroup) {
+    } else if (session && !family && pendingJoinRequest && currentRoute !== 'auth/pending-approval') {
+      // User has a pending join request - route directly to pending-approval
+      router.replace('/auth/pending-approval');
+    } else if (session && !family && !pendingJoinRequest && !inAuthGroup) {
       router.replace('/auth/family-setup');
     } else if (session && family && inAuthGroup) {
       router.replace('/(tabs)/today');
     }
-  }, [session, family, segments, loading, isReady, isConfigured, navigationState?.key]);
+  }, [session, family, segments, loading, isReady, isConfigured, navigationState?.key, pendingJoinRequest]);
 }
 
 function RootLayoutContent() {
   const initialize = useStore((s) => s.initialize);
   const isReady = useStore((s) => s.isReady);
-  const { session, family, loading: authLoading, isConfigured } = useAuth();
+  const { session, family, loading: authLoading, isConfigured, pendingJoinRequest } = useAuth();
 
   useEffect(() => {
     initialize();
   }, []);
 
-  useProtectedRoute(session, family, authLoading, isReady, isConfigured);
+  useProtectedRoute(session, family, authLoading, isReady, isConfigured, pendingJoinRequest);
 
   if (!isReady || authLoading) {
     return (

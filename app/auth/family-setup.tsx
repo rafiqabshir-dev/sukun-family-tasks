@@ -10,11 +10,23 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../lib/authContext';
 import { isSupabaseConfigured } from '../../lib/supabase';
 import { theme } from '../../lib/theme';
+
+function getDisplayName(profile: { display_name?: string } | null, fallbackText: string = 'there'): string {
+  if (!profile) return fallbackText;
+  const name = profile.display_name?.trim();
+  return name || fallbackText;
+}
+
+function getInitial(profile: { display_name?: string } | null): string {
+  const name = getDisplayName(profile, 'U');
+  return name.charAt(0).toUpperCase();
+}
 
 export default function FamilySetupScreen() {
   const { createFamily, joinFamily, profile, family, signOut, pendingJoinRequest } = useAuth();
@@ -96,18 +108,21 @@ export default function FamilySetupScreen() {
     }
   }
 
+  const displayName = getDisplayName(profile);
+  const initial = getInitial(profile);
+
   if (mode === 'choose') {
     return (
-      <View style={styles.container}>
+      <SafeAreaView style={styles.container}>
         <View style={styles.userHeader}>
           <View style={styles.userInfo}>
             <View style={styles.avatar}>
               <Text style={styles.avatarText}>
-                {profile?.display_name?.charAt(0).toUpperCase() || 'U'}
+                {initial}
               </Text>
             </View>
             <View>
-              <Text style={styles.userName}>{profile?.display_name}</Text>
+              <Text style={styles.userName}>{displayName}</Text>
               <Text style={styles.userRole}>
                 {profile?.role === 'guardian' ? 'Guardian' : 'Participant'}
               </Text>
@@ -122,7 +137,7 @@ export default function FamilySetupScreen() {
             <View style={styles.iconContainer}>
               <Ionicons name="home" size={48} color={theme.colors.primary} />
             </View>
-            <Text style={styles.title}>Welcome, {profile?.display_name}!</Text>
+            <Text style={styles.title}>Welcome, {displayName}!</Text>
             <Text style={styles.subtitle}>Let's set up your family</Text>
           </View>
 
@@ -156,11 +171,12 @@ export default function FamilySetupScreen() {
             </TouchableOpacity>
           </View>
         </View>
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
+    <SafeAreaView style={styles.container}>
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -257,6 +273,7 @@ export default function FamilySetupScreen() {
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
@@ -264,6 +281,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
+  },
+  safeContainer: {
+    flex: 1,
   },
   userHeader: {
     flexDirection: 'row',

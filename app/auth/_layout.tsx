@@ -36,6 +36,13 @@ export default function AuthLayout() {
           headerShown: false,
         }}
       />
+      <Stack.Screen
+        name="pending-approval"
+        options={{
+          title: 'Request Pending',
+          headerShown: false,
+        }}
+      />
     </Stack>
   );
 }

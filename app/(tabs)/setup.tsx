@@ -381,17 +381,20 @@ export default function SetupScreen() {
             </View>
           </View>
           <View style={styles.membersList}>
-            {joinRequests.map((request) => (
+            {joinRequests.map((request) => {
+              const requesterName = request.requester_profile?.display_name?.trim() || "Pending User";
+              const requesterInitial = requesterName.charAt(0).toUpperCase();
+              return (
               <View key={request.id} style={styles.requestItem} data-testid={`join-request-${request.id}`}>
                 <View style={styles.requestInfo}>
                   <View style={styles.memberAvatar}>
                     <Text style={styles.memberInitial}>
-                      {request.requester_profile?.display_name?.charAt(0).toUpperCase() || "?"}
+                      {requesterInitial}
                     </Text>
                   </View>
                   <View style={styles.memberInfo}>
                     <Text style={styles.memberName}>
-                      {request.requester_profile?.display_name || "Unknown"}
+                      {requesterName}
                     </Text>
                     <Text style={styles.memberAge}>
                       {request.requester_profile?.role === "guardian" ? "Guardian" : "Participant"}
@@ -425,7 +428,8 @@ export default function SetupScreen() {
                   </TouchableOpacity>
                 </View>
               </View>
-            ))}
+              );
+            })}
           </View>
         </View>
       )}

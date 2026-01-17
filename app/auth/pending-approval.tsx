@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, borderRadius, fontSize } from "@/lib/theme";
@@ -66,14 +67,15 @@ export default function PendingApprovalScreen() {
 
   if (!pendingJoinRequest || !requestedFamily) {
     return (
-      <View style={styles.container}>
+      <SafeAreaView style={styles.container}>
         <ActivityIndicator size="large" color={colors.primary} />
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
+      <Text style={styles.headerTitle}>Request Pending</Text>
       <View style={styles.content}>
         <View style={styles.iconContainer}>
           <Ionicons name="hourglass-outline" size={64} color={colors.primary} />
@@ -154,7 +156,7 @@ export default function PendingApprovalScreen() {
           <Text style={styles.signOutButtonText}>Sign Out</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -162,13 +164,22 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
-    justifyContent: "center",
-    alignItems: "center",
+  },
+  headerTitle: {
+    fontSize: fontSize.lg,
+    fontWeight: "600",
+    color: colors.text,
+    textAlign: "center",
+    paddingVertical: spacing.md,
   },
   content: {
+    flex: 1,
     padding: spacing.xl,
     alignItems: "center",
+    justifyContent: "center",
     maxWidth: 400,
+    alignSelf: "center",
+    width: "100%",
   },
   iconContainer: {
     width: 120,
