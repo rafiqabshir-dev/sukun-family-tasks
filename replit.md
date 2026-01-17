@@ -55,24 +55,7 @@ Preferred communication style: Simple, everyday language.
 - esbuild for production server bundling
 - Replit-specific plugins for development (error overlay, cartographer, dev banner)
 
-### Database (Not Used)
-- App uses localStorage only (key: "barakah-kids-race:v1")
-- 300ms debounced autosave to localStorage
-- Explicit AppState serialization (schemaVersion, onboardingComplete, members, taskTemplates, soundEnabled)
-
-## Current Implementation Status
-
-### Completed Features
-- Complete onboarding flow: Welcome → Add Members → Power Selection → Task Review
-- 36 kid-appropriate starter tasks covering chores, hygiene, homework, family help, and Islamic duas
-- 6 power types: Helper, Learner, Organizer, Kind Heart, Early Bird, Grateful Soul
-- Bottom navigation with 4 tabs: Today, Spin, Leaderboard, Setup (placeholder content)
-- Mobile-first responsive design (400x720 viewport optimized)
-- Back navigation preserves member data without creating duplicates
-- localStorage persistence with debouncing
-
-### Tab Pages (Placeholder)
-- Today: Daily tasks view (placeholder)
-- Spin: Reward spinner (placeholder)
-- Leaderboard: Points ranking display (placeholder)
-- Setup: Family settings (placeholder)
+### Database (Configured)
+- PostgreSQL via `DATABASE_URL` environment variable
+- connect-pg-simple for session storage capability
+- Drizzle Kit for migrations (`db:push` script available)
