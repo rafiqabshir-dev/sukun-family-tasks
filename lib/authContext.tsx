@@ -212,32 +212,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function createFamily(familyName: string): Promise<{ error: Error | null; family: Family | null }> {
     try {
+      console.log('[createFamily] Step 1: Inserting family...');
       const { data: familyData, error: familyError } = await supabase
         .from('families')
         .insert({ name: familyName })
         .select()
         .single();
 
+      console.log('[createFamily] Step 1 complete:', { familyData, familyError });
+
       if (familyError) {
         return { error: new Error(familyError.message), family: null };
       }
 
       if (user && familyData) {
+        console.log('[createFamily] Step 2: Updating profile with family_id...');
         const { error: updateError } = await supabase
           .from('profiles')
           .update({ family_id: familyData.id })
           .eq('id', user.id);
+
+        console.log('[createFamily] Step 2 complete:', { updateError });
 
         if (updateError) {
           return { error: new Error(updateError.message), family: null };
         }
 
         setFamily(familyData as Family);
-        await refreshProfile();
+        
+        console.log('[createFamily] Step 3: Refreshing profile...');
+        // Use a timeout to prevent hanging on refreshProfile
+        const refreshPromise = refreshProfile();
+        const timeoutPromise = new Promise<void>((resolve) => setTimeout(resolve, 5000));
+        await Promise.race([refreshPromise, timeoutPromise]);
+        console.log('[createFamily] Step 3 complete (or timed out)');
       }
 
       return { error: null, family: familyData as Family };
     } catch (error) {
+      console.error('[createFamily] Exception:', error);
       return { error: error as Error, family: null };
     }
   }

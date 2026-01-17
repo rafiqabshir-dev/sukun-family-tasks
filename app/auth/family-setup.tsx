@@ -37,13 +37,21 @@ export default function FamilySetupScreen() {
     setLoading(true);
     setError(null);
 
-    const { error: createError } = await createFamily(familyName.trim());
+    try {
+      console.log('[v2] Starting createFamily...');
+      const { error: createError } = await createFamily(familyName.trim());
+      console.log('[v2] createFamily completed, error:', createError);
 
-    if (createError) {
-      setError(createError.message);
+      if (createError) {
+        setError(createError.message);
+        setLoading(false);
+      } else {
+        router.replace('/(tabs)/today');
+      }
+    } catch (err: any) {
+      console.error('[v2] createFamily exception:', err);
+      setError(err?.message || 'Unknown error occurred');
       setLoading(false);
-    } else {
-      router.replace('/(tabs)/today');
     }
   }
 
@@ -145,6 +153,7 @@ export default function FamilySetupScreen() {
               ? 'Choose a name for your family'
               : 'Enter the invite code shared with you'}
           </Text>
+          <Text style={styles.versionText}>v2.1</Text>
         </View>
 
         <View style={styles.form}>
@@ -252,6 +261,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: theme.colors.textSecondary,
     textAlign: 'center',
+  },
+  versionText: {
+    fontSize: 12,
+    color: theme.colors.textMuted,
+    marginTop: theme.spacing.xs,
   },
   optionsContainer: {
     gap: theme.spacing.md,
