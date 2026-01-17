@@ -20,7 +20,10 @@ export default function TabLayout() {
         setPendingRequestsCount(requests.length);
       } catch (error) {
         console.log('Error fetching pending requests:', error);
+        setPendingRequestsCount(0);
       }
+    } else {
+      setPendingRequestsCount(0);
     }
   }, [profile?.role, getPendingJoinRequests]);
 
