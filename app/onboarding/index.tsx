@@ -1,9 +1,11 @@
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Image } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, spacing, borderRadius, fontSize } from "@/lib/theme";
 import { useAuth } from "@/lib/authContext";
+
+const sukunLogo = require("../../assets/sukun-logo.png");
 
 export default function WelcomeScreen() {
   const router = useRouter();
@@ -39,14 +41,10 @@ export default function WelcomeScreen() {
       )}
 
       <View style={styles.content}>
-        <View style={styles.iconContainer}>
-          <Ionicons name="star" size={80} color={colors.secondary} />
-        </View>
+        <Image source={sukunLogo} style={styles.logo} resizeMode="contain" />
 
-        <Text style={styles.title}>Barakah Kids Race</Text>
-        <Text style={styles.subtitle}>
-          A gentle, fun way to encourage good habits and teamwork in your family
-        </Text>
+        <Text style={styles.title}>Sukun</Text>
+        <Text style={styles.subtitle}>Family Tasks Made Simple</Text>
 
         <View style={styles.features}>
           <View style={styles.featureItem}>
@@ -129,19 +127,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     padding: spacing.xl,
   },
-  iconContainer: {
-    width: 140,
-    height: 140,
-    borderRadius: borderRadius.full,
-    backgroundColor: colors.surface,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: spacing.xl,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+  logo: {
+    width: 180,
+    height: 180,
+    marginBottom: spacing.lg,
   },
   title: {
     fontSize: fontSize.xxxl,

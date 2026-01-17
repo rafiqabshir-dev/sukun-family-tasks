@@ -1,8 +1,13 @@
-# Barakah Kids Race
+# Sukun
 
 ## Overview
 
-Barakah Kids Race is a React Native mobile app built with Expo for family-oriented task management. It gamifies household responsibilities for kids ages 5-12 through a points-based system with gentle Islamic values. The app features onboarding for setting up family members, assigning "powers" (character strengths) to kids, and selecting tasks from a starter pack of 40+ kid-appropriate activities.
+Sukun (formerly Barakah Kids Race) is a React Native mobile app built with Expo for family-oriented task management. Tagline: "Family Tasks Made Simple". It gamifies household responsibilities for kids ages 5-12 through a points-based system with gentle Islamic values. The app features onboarding for setting up family members, assigning "powers" (character strengths) to kids, and selecting tasks from a starter pack of 40+ kid-appropriate activities.
+
+## Branding
+- **App Name**: Sukun
+- **Tagline**: Family Tasks Made Simple
+- **Logo**: assets/sukun-logo.png (used on welcome, sign-in, sign-up screens)
 
 ## User Preferences
 

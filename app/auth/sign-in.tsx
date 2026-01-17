@@ -9,11 +9,14 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Image,
 } from 'react-native';
 import { Link, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../lib/authContext';
 import { theme } from '../../lib/theme';
+
+const sukunLogo = require('../../assets/sukun-logo.png');
 
 export default function SignInScreen() {
   const { signIn } = useAuth();
@@ -49,11 +52,9 @@ export default function SignInScreen() {
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
-          <View style={styles.iconContainer}>
-            <Ionicons name="star" size={48} color={theme.colors.primary} />
-          </View>
+          <Image source={sukunLogo} style={styles.logo} resizeMode="contain" />
           <Text style={styles.title}>Welcome Back!</Text>
-          <Text style={styles.subtitle}>Sign in to your family account</Text>
+          <Text style={styles.subtitle}>Sign in to your Sukun account</Text>
         </View>
 
         <View style={styles.form}>
@@ -151,13 +152,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: theme.spacing.xl,
   },
-  iconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: theme.colors.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
+  logo: {
+    width: 120,
+    height: 120,
     marginBottom: theme.spacing.md,
   },
   title: {

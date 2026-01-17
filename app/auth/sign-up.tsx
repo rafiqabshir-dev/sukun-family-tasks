@@ -9,11 +9,14 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Image,
 } from 'react-native';
 import { Link, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../lib/authContext';
 import { theme } from '../../lib/theme';
+
+const sukunLogo = require('../../assets/sukun-logo.png');
 
 export default function SignUpScreen() {
   const { signUp } = useAuth();
@@ -77,12 +80,9 @@ export default function SignUpScreen() {
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
-          <View style={styles.iconContainer}>
-            <Ionicons name="people" size={48} color={theme.colors.primary} />
-          </View>
+          <Image source={sukunLogo} style={styles.logo} resizeMode="contain" />
           <Text style={styles.title}>Create Account</Text>
-          <Text style={styles.subtitle}>Join your family or start a new one</Text>
-          <Text style={styles.versionText}>v2.3</Text>
+          <Text style={styles.subtitle}>Join Sukun and start your family journey</Text>
           {debugInfo ? <Text style={styles.debugText}>{debugInfo}</Text> : null}
         </View>
 
@@ -248,13 +248,9 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.xl,
     marginTop: theme.spacing.lg,
   },
-  iconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: theme.colors.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
+  logo: {
+    width: 120,
+    height: 120,
     marginBottom: theme.spacing.md,
   },
   title: {

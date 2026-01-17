@@ -1,17 +1,17 @@
 export default {
   expo: {
-    name: "Barakah Kids Race",
-    slug: "barakah-kids-race",
+    name: "Sukun",
+    slug: "sukun-app",
     version: "1.0.0",
     orientation: "portrait",
-    icon: "./assets/icon.png",
+    icon: "./assets/sukun-logo.png",
     userInterfaceStyle: "light",
     newArchEnabled: true,
-    scheme: "barakah-kids-race",
+    scheme: "sukun-app",
     splash: {
-      image: "./assets/splash-icon.png",
+      image: "./assets/sukun-logo.png",
       resizeMode: "contain",
-      backgroundColor: "#0D9488"
+      backgroundColor: "#FFFFFF"
     },
     ios: {
       supportsTablet: true

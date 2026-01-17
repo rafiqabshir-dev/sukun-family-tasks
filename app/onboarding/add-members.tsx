@@ -8,6 +8,8 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Linking,
+  Alert,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -15,6 +17,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, spacing, borderRadius, fontSize } from "@/lib/theme";
 import { useStore } from "@/lib/store";
 import { useAuth } from "@/lib/authContext";
+import * as Clipboard from "expo-clipboard";
 
 interface MemberInput {
   id: string;
@@ -57,6 +60,23 @@ export default function AddMembersScreen() {
   const handleSignOut = async () => {
     await signOut();
     router.replace("/auth/sign-in");
+  };
+
+  const copyInviteCode = async () => {
+    if (family?.invite_code) {
+      await Clipboard.setStringAsync(family.invite_code);
+      Alert.alert("Copied!", "Invite code copied to clipboard");
+    }
+  };
+
+  const shareViaWhatsApp = () => {
+    if (family?.invite_code) {
+      const message = `Join our family on Sukun! Use invite code: ${family.invite_code}`;
+      const whatsappUrl = `whatsapp://send?text=${encodeURIComponent(message)}`;
+      Linking.openURL(whatsappUrl).catch(() => {
+        Alert.alert("WhatsApp not installed", "Please install WhatsApp to share.");
+      });
+    }
   };
 
   const addNewMember = () => {
@@ -164,8 +184,17 @@ export default function AddMembersScreen() {
             <View style={styles.familyInfo}>
               <View style={styles.inviteCodeBox}>
                 <Text style={styles.inviteLabel}>Invite Code</Text>
-                <Text style={styles.inviteCode}>{family.invite_code}</Text>
+                <View style={styles.codeRow}>
+                  <Text style={styles.inviteCode}>{family.invite_code}</Text>
+                  <TouchableOpacity onPress={copyInviteCode} style={styles.copyButton}>
+                    <Ionicons name="copy-outline" size={20} color={colors.primary} />
+                  </TouchableOpacity>
+                </View>
                 <Text style={styles.inviteHint}>Share this code with family members</Text>
+                <TouchableOpacity onPress={shareViaWhatsApp} style={styles.whatsappButton}>
+                  <Ionicons name="logo-whatsapp" size={20} color="#FFFFFF" />
+                  <Text style={styles.whatsappText}>Share via WhatsApp</Text>
+                </TouchableOpacity>
               </View>
             </View>
           )}
@@ -377,26 +406,54 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   inviteCodeBox: {
-    backgroundColor: colors.primaryLight,
+    backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,
     padding: spacing.lg,
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   inviteLabel: {
     fontSize: fontSize.sm,
     color: colors.textSecondary,
     marginBottom: spacing.xs,
   },
+  codeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
   inviteCode: {
     fontSize: fontSize.xxl,
     fontWeight: "700",
-    color: colors.primary,
-    letterSpacing: 2,
+    color: colors.text,
+    letterSpacing: 3,
+  },
+  copyButton: {
+    padding: spacing.xs,
+    borderRadius: borderRadius.sm,
+    backgroundColor: colors.primaryLight,
   },
   inviteHint: {
     fontSize: fontSize.sm,
     color: colors.textSecondary,
-    marginTop: spacing.xs,
+    marginTop: spacing.sm,
+  },
+  whatsappButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    backgroundColor: "#25D366",
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    borderRadius: borderRadius.md,
+    marginTop: spacing.md,
+  },
+  whatsappText: {
+    color: "#FFFFFF",
+    fontWeight: "600",
+    fontSize: fontSize.sm,
   },
   memberCard: {
     backgroundColor: colors.surface,
