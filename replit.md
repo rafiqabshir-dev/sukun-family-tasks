@@ -2,7 +2,7 @@
 
 ## Overview
 
-Barakah Kids Race is a family-oriented task management application designed for children ages 5-12. It gamifies household responsibilities and good behavior through a points-based system with Islamic values. The app features an onboarding flow for setting up family members, assigning "powers" (character traits) to kids, and selecting tasks. The main interface includes tabs for daily tasks, a reward spinner, leaderboard, and family setup.
+Barakah Kids Race is a React Native mobile app built with Expo for family-oriented task management. It gamifies household responsibilities for kids ages 5-12 through a points-based system with gentle Islamic values. The app features onboarding for setting up family members, assigning "powers" (character strengths) to kids, and selecting tasks from a starter pack of 40+ kid-appropriate activities.
 
 ## User Preferences
 
@@ -10,52 +10,73 @@ Preferred communication style: Simple, everyday language.
 
 ## System Architecture
 
-### Frontend Architecture
-- **Framework**: React with TypeScript, using Vite as the build tool
-- **State Management**: Zustand for global state with localStorage persistence
-- **Styling**: Tailwind CSS with a custom kid-friendly theme (warm teal/emerald colors)
-- **UI Components**: shadcn/ui component library built on Radix UI primitives
-- **Typography**: Nunito font (rounded, child-friendly) via Google Fonts
-- **Layout**: Mobile-first design targeting 320px-428px viewports with bottom tab navigation
+### Mobile App Architecture
+- **Framework**: React Native with Expo SDK 54
+- **Navigation**: Expo Router with file-based routing
+- **State Management**: Zustand with AsyncStorage persistence
+- **Styling**: React Native StyleSheet (no NativeWind - using StyleSheet for simplicity)
+- **Icons**: @expo/vector-icons (Ionicons)
+- **Typography**: System fonts with consistent sizing scale
 
-### Backend Architecture
-- **Runtime**: Node.js with Express
-- **API Pattern**: RESTful endpoints prefixed with `/api`
-- **Development**: tsx for TypeScript execution, Vite dev server for hot module replacement
-- **Build**: esbuild for server bundling, Vite for client bundling
+### Screen Structure
+- **Tabs**: Today, Spin, Leaderboard, Setup (via Expo Router tabs)
+- **Onboarding**: Welcome → Add Members → Power Selection → Task Review
+- **Persistence**: AsyncStorage with key `barakah-kids-race:v1`, 300ms debounced autosave
 
-### Data Storage
-- **Current Implementation**: In-memory storage (`MemStorage` class) with interface abstraction
-- **Schema Definition**: Drizzle ORM with PostgreSQL dialect configured
-- **Client Persistence**: Zustand store with localStorage for offline-first experience
-- **Database Ready**: Schema exists in `shared/schema.ts` with user table defined; PostgreSQL can be provisioned when needed
+### Data Model (TypeScript)
+- **Member**: id, name, role ("kid"|"guardian"), age, starsTotal, powers[]
+- **TaskTemplate**: id, title, category, iconKey, defaultStars, difficulty, preferredPowers[], minAge?, maxAge?, enabled
+- **TaskInstance**: id, templateId, assignedToMemberId, dueAt, status, createdAt, completedAt?
+- **Settings**: islamicValuesMode, soundsEnabled
 
-### Design Patterns
-- **Shared Types**: Common types and schemas in `shared/` directory accessible by both client and server
-- **Path Aliases**: `@/` for client source, `@shared/` for shared code
-- **Component Organization**: UI primitives in `components/ui/`, feature components alongside pages
-- **Onboarding Flow**: Multi-step wizard pattern (Welcome → Add Members → Power Selection → Task Review)
+### File Structure
+```
+app/                    # Expo Router screens
+  (tabs)/               # Bottom tab navigator
+    _layout.tsx         # Tab configuration
+    today.tsx           # Today's tasks
+    spin.tsx            # Task spinner wheel
+    leaderboard.tsx     # Stars leaderboard
+    setup.tsx           # Family & task setup
+  onboarding/           # Onboarding flow
+    index.tsx           # Welcome screen
+    add-members.tsx     # Add family members
+    powers.tsx          # Power selection for kids
+    tasks.tsx           # Task template review
+lib/                    # Shared utilities
+  store.ts              # Zustand store with AsyncStorage
+  types.ts              # TypeScript types
+  starterTasks.ts       # 40+ starter task templates
+  theme.ts              # Color palette and spacing
+assets/                 # App icons and splash
+```
+
+## Scripts
+
+- `npm run start` - Start Expo development server
+- `npm run web` - Start Expo for web browser
+- `npm run android` - Start Expo for Android
+- `npm run ios` - Start Expo for iOS
+
+## Key Features
+
+### Powers System
+Six starter powers kids can choose (1-2 per kid):
+- Organizer, Fast Cleaner, Kitchen Helper, Study Coach, Calm Peacemaker, Discipline
+
+### Task Categories
+- Cleaning, Kitchen, Learning, Kindness, Prayer, Outdoor, Personal
+
+### Islamic Values Tone
+- Positive, gentle wording throughout
+- Sounds disabled by default
+- No music autoplay
+- Focus on good deeds and family harmony
 
 ## External Dependencies
 
-### UI & Styling
-- Radix UI primitives (dialog, tabs, accordion, etc.)
-- Tailwind CSS with CSS variables for theming
-- class-variance-authority for component variants
-- Lucide React for icons
-
-### Data & State
-- Zustand for client state management
-- TanStack React Query for server state (configured but minimal use currently)
-- Drizzle ORM + drizzle-zod for database schema and validation
-- Zod for runtime type validation
-
-### Build & Development
-- Vite with React plugin
-- esbuild for production server bundling
-- Replit-specific plugins for development (error overlay, cartographer, dev banner)
-
-### Database (Configured)
-- PostgreSQL via `DATABASE_URL` environment variable
-- connect-pg-simple for session storage capability
-- Drizzle Kit for migrations (`db:push` script available)
+- expo, expo-router, expo-constants, expo-linking, expo-status-bar
+- react-native, react-native-web, react-native-screens, react-native-safe-area-context
+- react-native-gesture-handler, react-native-reanimated
+- @expo/vector-icons, @react-native-async-storage/async-storage
+- zustand, date-fns, typescript
