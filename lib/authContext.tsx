@@ -64,46 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    async function initializeAuth() {
-      console.log('[Auth] Initializing...');
-      try {
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        
-        if (sessionError) {
-          console.log('[Auth] Session error, clearing state:', sessionError.message);
-          await handleInvalidSession();
-          return;
-        }
-
-        if (!session?.user) {
-          console.log('[Auth] No session found');
-          setSession(null);
-          setUser(null);
-          setLoading(false);
-          return;
-        }
-
-        console.log('[Auth] Session found, validating profile for:', session.user.id.slice(0, 8));
-        setSession(session);
-        setUser(session.user);
-
-        // Try to fetch/create profile with timeout
-        const profileValid = await validateAndFetchProfile(session.user);
-        
-        if (!profileValid) {
-          console.log('[Auth] Profile validation failed, signing out');
-          await handleInvalidSession();
-          return;
-        }
-
-        console.log('[Auth] Initialization complete');
-        setLoading(false);
-      } catch (error: any) {
-        console.error('[Auth] Init error:', error?.message);
-        await handleInvalidSession();
-      }
-    }
-
+    // Define helper functions at the top level of useEffect so they're accessible everywhere
     async function handleInvalidSession() {
       console.log('[Auth] Clearing invalid session...');
       try {
@@ -120,6 +81,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     async function validateAndFetchProfile(currentUser: User): Promise<boolean> {
       try {
+        console.log('[Auth] Validating profile for:', currentUser.id.slice(0, 8));
+        
         // First ensure profile exists
         await ensureProfileExistsInternal(currentUser);
 
@@ -138,14 +101,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (profileError) {
           console.log('[Auth] Profile fetch error:', profileError.message);
-          // Check if it's an auth error
-          if (profileError.code === 'PGRST301' || profileError.message?.includes('JWT')) {
-            return false;
-          }
-          // For PGRST116 (not found), profile creation might have failed
-          if (profileError.code === 'PGRST116') {
-            return false;
-          }
           return false;
         }
 
@@ -177,6 +132,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
 
+    async function initializeAuth() {
+      console.log('[Auth] Initializing...');
+      try {
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          console.log('[Auth] Session error, clearing state:', sessionError.message);
+          await handleInvalidSession();
+          return;
+        }
+
+        if (!session?.user) {
+          console.log('[Auth] No session found');
+          setSession(null);
+          setUser(null);
+          setLoading(false);
+          return;
+        }
+
+        console.log('[Auth] Session found for:', session.user.id.slice(0, 8));
+        setSession(session);
+        setUser(session.user);
+
+        // Try to fetch/create profile with timeout
+        const profileValid = await validateAndFetchProfile(session.user);
+        
+        if (!profileValid) {
+          console.log('[Auth] Profile validation failed, signing out');
+          await handleInvalidSession();
+          return;
+        }
+
+        console.log('[Auth] Initialization complete');
+        setLoading(false);
+      } catch (error: any) {
+        console.error('[Auth] Init error:', error?.message);
+        await handleInvalidSession();
+      }
+    }
+
     initializeAuth();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -191,21 +186,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      // Skip INITIAL_SESSION since initializeAuth handles it
+      if (event === 'INITIAL_SESSION') {
+        return;
+      }
+
       if (session?.user) {
         setSession(session);
         setUser(session.user);
         setLoading(true);
         
         try {
-          await ensureProfileExistsInternal(session.user);
           const valid = await validateAndFetchProfile(session.user);
           if (!valid) {
             await handleInvalidSession();
+          } else {
+            setLoading(false);
           }
         } catch (error) {
           console.error('[Auth] onAuthStateChange error:', error);
+          await handleInvalidSession();
         }
-        setLoading(false);
       } else {
         setSession(null);
         setUser(null);
