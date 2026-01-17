@@ -43,9 +43,10 @@ export interface TaskTemplate {
   minAge?: number;
   maxAge?: number;
   enabled: boolean;
+  isArchived?: boolean;
 }
 
-export type TaskStatus = "open" | "done" | "overdue";
+export type TaskStatus = "open" | "done";
 
 export interface TaskInstance {
   id: string;
@@ -55,6 +56,13 @@ export interface TaskInstance {
   status: TaskStatus;
   createdAt: string;
   completedAt?: string;
+}
+
+export interface StagedTask {
+  id: string;
+  title: string;
+  stars: number;
+  templateId?: string;
 }
 
 export interface Settings {
@@ -69,6 +77,8 @@ export interface AppState {
   members: Member[];
   taskTemplates: TaskTemplate[];
   taskInstances: TaskInstance[];
+  spinQueue: StagedTask[];
+  lastWinnerIds: string[];
   settings: Settings;
 }
 
@@ -79,6 +89,8 @@ export const DEFAULT_STATE: AppState = {
   members: [],
   taskTemplates: [],
   taskInstances: [],
+  spinQueue: [],
+  lastWinnerIds: [],
   settings: {
     islamicValuesMode: true,
     soundsEnabled: false

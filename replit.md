@@ -87,6 +87,27 @@ Six starter powers kids can choose (1-2 per kid):
   - Modal with name, age, role (Kid/Guardian) selection
   - New members appear in Act As selector and leaderboard immediately
 
+### V1 Prompt 3A - Spin Game + Tasks Fix Pack
+- **Tasks Tab**: New tab for managing task templates
+  - Add new tasks with name, stars (1-5), category
+  - Edit existing tasks inline
+  - Archive tasks (soft-delete) to preserve history
+  - Toggle task enabled/disabled
+  - Add tasks directly to spin queue
+- **Member Detail Screen**: Tap any member to see:
+  - Profile card with avatar, name, stars, powers
+  - Open/overdue tasks
+  - Completed task history (recent 10)
+- **Spin Game with Staged Tasks**:
+  - **Spin Queue**: Stage tasks before spinning
+  - Add via quick-create (name only) or from templates
+  - Spin picks random kid with fairness weighting
+  - **Proposal Flow**: Shows selected kid + task, requires parent approval
+  - **Reroll**: Spin again without creating assignment
+  - **Accept**: Creates TaskInstance, removes from queue, records winner
+- **Fairness System**: Tracks last 3 winners, reduces probability of same kid winning repeatedly
+- **Navigation**: 5 tabs now - Today, Tasks, Spin, Leaderboard, Setup
+
 ### Islamic Values Tone
 - Positive, gentle wording throughout
 - Sounds disabled by default

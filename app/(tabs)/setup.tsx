@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Modal, TextInput, KeyboardAvoidingView, Platform } from "react-native";
 import { useState, useEffect } from "react";
+import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { colors, spacing, borderRadius, fontSize } from "@/lib/theme";
@@ -9,6 +10,7 @@ import { POWER_INFO } from "@/lib/types";
 const STORAGE_KEY = "barakah-kids-race:v1";
 
 export default function SetupScreen() {
+  const router = useRouter();
   const members = useStore((s) => s.members);
   const taskTemplates = useStore((s) => s.taskTemplates);
   const taskInstances = useStore((s) => s.taskInstances);
@@ -129,7 +131,12 @@ export default function SetupScreen() {
         {kids.length > 0 && (
           <View style={styles.membersList}>
             {kids.map((kid) => (
-              <View key={kid.id} style={styles.memberItem}>
+              <TouchableOpacity 
+                key={kid.id} 
+                style={styles.memberItem}
+                onPress={() => router.push(`/member/${kid.id}`)}
+                data-testid={`button-member-${kid.id}`}
+              >
                 <View style={styles.memberAvatar}>
                   <Text style={styles.memberInitial}>
                     {kid.name.charAt(0).toUpperCase()}
@@ -154,7 +161,7 @@ export default function SetupScreen() {
                   <Ionicons name="star" size={14} color={colors.secondary} />
                   <Text style={styles.memberStarsText}>{kid.starsTotal}</Text>
                 </View>
-              </View>
+              </TouchableOpacity>
             ))}
           </View>
         )}
@@ -162,7 +169,12 @@ export default function SetupScreen() {
         {guardians.length > 0 && (
           <View style={styles.membersList}>
             {guardians.map((guardian) => (
-              <View key={guardian.id} style={styles.memberItem}>
+              <TouchableOpacity 
+                key={guardian.id} 
+                style={styles.memberItem}
+                onPress={() => router.push(`/member/${guardian.id}`)}
+                data-testid={`button-member-${guardian.id}`}
+              >
                 <View style={[styles.memberAvatar, styles.guardianAvatar]}>
                   <Text style={styles.memberInitial}>
                     {guardian.name.charAt(0).toUpperCase()}
@@ -172,7 +184,7 @@ export default function SetupScreen() {
                   <Text style={styles.memberName}>{guardian.name}</Text>
                   <Text style={styles.memberAge}>Guardian</Text>
                 </View>
-              </View>
+              </TouchableOpacity>
             ))}
           </View>
         )}

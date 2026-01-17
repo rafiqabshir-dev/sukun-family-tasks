@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { AppState, Member, TaskTemplate, TaskInstance, DEFAULT_STATE, Power, PowerKey } from "./types";
+import { AppState, Member, TaskTemplate, TaskInstance, StagedTask, DEFAULT_STATE, Power, PowerKey } from "./types";
 
 const STORAGE_KEY = "barakah-kids-race:v1";
 const DEBOUNCE_MS = 300;
@@ -17,9 +17,16 @@ interface StoreActions {
   setActingMember: (memberId: string | null) => void;
   setTaskTemplates: (templates: TaskTemplate[]) => void;
   toggleTaskTemplate: (id: string) => void;
-  addTaskInstance: (instance: Omit<TaskInstance, "id" | "createdAt">) => void;
+  addTaskTemplate: (template: Omit<TaskTemplate, "id">) => TaskTemplate;
+  updateTaskTemplate: (id: string, updates: Partial<TaskTemplate>) => void;
+  archiveTaskTemplate: (id: string) => void;
+  addTaskInstance: (instance: Omit<TaskInstance, "id" | "createdAt">) => TaskInstance;
   updateTaskInstance: (id: string, updates: Partial<TaskInstance>) => void;
   completeTask: (instanceId: string) => void;
+  addToSpinQueue: (task: Omit<StagedTask, "id">) => void;
+  removeFromSpinQueue: (id: string) => void;
+  clearSpinQueue: () => void;
+  recordWinner: (memberId: string) => void;
   completeOnboarding: () => void;
   toggleSound: () => void;
   reset: () => Promise<void>;
@@ -36,6 +43,8 @@ function saveToStorage(state: AppState): void {
         members: state.members,
         taskTemplates: state.taskTemplates,
         taskInstances: state.taskInstances,
+        spinQueue: state.spinQueue,
+        lastWinnerIds: state.lastWinnerIds,
         settings: state.settings
       };
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
@@ -58,7 +67,13 @@ export const useStore = create<AppState & StoreActions & { isReady: boolean }>((
       if (stored) {
         const parsed = JSON.parse(stored);
         if (parsed.schemaVersion === DEFAULT_STATE.schemaVersion) {
-          set({ ...DEFAULT_STATE, ...parsed, isReady: true });
+          set({ 
+            ...DEFAULT_STATE, 
+            ...parsed, 
+            spinQueue: parsed.spinQueue || [],
+            lastWinnerIds: parsed.lastWinnerIds || [],
+            isReady: true 
+          });
           return;
         }
       }
@@ -125,6 +140,33 @@ export const useStore = create<AppState & StoreActions & { isReady: boolean }>((
     saveToStorage({ ...get(), taskTemplates });
   },
 
+  addTaskTemplate: (template) => {
+    const newTemplate: TaskTemplate = {
+      ...template,
+      id: `template-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    };
+    const taskTemplates = [...get().taskTemplates, newTemplate];
+    set({ taskTemplates });
+    saveToStorage({ ...get(), taskTemplates });
+    return newTemplate;
+  },
+
+  updateTaskTemplate: (id, updates) => {
+    const taskTemplates = get().taskTemplates.map((t) =>
+      t.id === id ? { ...t, ...updates } : t
+    );
+    set({ taskTemplates });
+    saveToStorage({ ...get(), taskTemplates });
+  },
+
+  archiveTaskTemplate: (id) => {
+    const taskTemplates = get().taskTemplates.map((t) =>
+      t.id === id ? { ...t, isArchived: true, enabled: false } : t
+    );
+    set({ taskTemplates });
+    saveToStorage({ ...get(), taskTemplates });
+  },
+
   addTaskInstance: (instance) => {
     const newInstance: TaskInstance = {
       ...instance,
@@ -134,6 +176,7 @@ export const useStore = create<AppState & StoreActions & { isReady: boolean }>((
     const taskInstances = [...get().taskInstances, newInstance];
     set({ taskInstances });
     saveToStorage({ ...get(), taskInstances });
+    return newInstance;
   },
 
   updateTaskInstance: (id, updates) => {
@@ -167,6 +210,33 @@ export const useStore = create<AppState & StoreActions & { isReady: boolean }>((
 
     set({ taskInstances, members });
     saveToStorage({ ...get(), taskInstances, members });
+  },
+
+  addToSpinQueue: (task) => {
+    const newTask: StagedTask = {
+      ...task,
+      id: `staged-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    };
+    const spinQueue = [...get().spinQueue, newTask];
+    set({ spinQueue });
+    saveToStorage({ ...get(), spinQueue });
+  },
+
+  removeFromSpinQueue: (id) => {
+    const spinQueue = get().spinQueue.filter((t) => t.id !== id);
+    set({ spinQueue });
+    saveToStorage({ ...get(), spinQueue });
+  },
+
+  clearSpinQueue: () => {
+    set({ spinQueue: [] });
+    saveToStorage({ ...get(), spinQueue: [] });
+  },
+
+  recordWinner: (memberId) => {
+    const lastWinnerIds = [memberId, ...get().lastWinnerIds].slice(0, 3);
+    set({ lastWinnerIds });
+    saveToStorage({ ...get(), lastWinnerIds });
   },
 
   completeOnboarding: () => {

@@ -1,0 +1,93 @@
+V1 PROMPT 3A (BUILD) — SPIN GAME (STAGED TASKS + PARENT APPROVAL) + TASKS FIX PACK
+
+CONTEXT
+- We are still in VERSION 1 (kids-first MVP).
+- Onboarding is done.
+- Members + tasks exist, but:
+  - Templates are not reachable after onboarding
+  - Tasks cannot be edited/deleted reliably
+  - Spin must stage tasks and require parent approval before assignment
+  - Parent needs member drill-in to see that member’s assigned tasks
+
+GOAL
+Make Spin usable and fix Tasks + Templates + Member drill-in so the V1 loop works end-to-end.
+
+REQUIREMENTS
+
+A) TEMPLATE TASKS MUST BE ACCESSIBLE AFTER ONBOARDING
+- Add a persistent entry point after onboarding (e.g., Tasks screen → “Templates” button).
+- User can browse template tasks anytime.
+- User can add template tasks into the family’s task list OR directly into Spin staging.
+
+B) TASKS LIST MUST BE FULLY FUNCTIONAL (ADD / EDIT / DELETE)
+- In the main Tasks list:
+  - Add new task
+  - Edit existing task (name, stars/points if you track it, notes)
+  - Delete existing task
+- Deleting must not break app state:
+  - If task has existing assigned instances, keep history stable (soft-delete or “archived” flag), and hide from pickers by default.
+
+C) MEMBER TAP → MEMBER DETAIL → SEE ASSIGNED TASKS
+- Anywhere a member name appears (Leaderboard row, Members list, Spin result),
+  tapping the member opens a Member Detail screen.
+- Member Detail shows:
+  - Member name + stars summary
+  - List of tasks assigned to this member (open + completed history)
+
+D) SPIN GAME MUST USE STAGED TASKS
+- Spin screen must have a “Spin Queue / Staged Tasks” area.
+- Parent can stage tasks in either of these ways (support BOTH):
+  1) Stage tasks first, then spin
+  2) In Spin screen, tap “Add Task” then spin
+- Adding a staged task must allow selecting from:
+  - Template tasks
+  - Existing family tasks
+  - Quick-create one-off task (name only is fine)
+
+E) SPIN PICKS A KID, BUT ASSIGNMENT IS NOT FINAL UNTIL PARENT ACCEPTS
+- Spin produces a PROPOSED result:
+  - Proposed kid
+  - Proposed task (selected from staged tasks; if multiple, pick one)
+- After proposal, show two buttons:
+  - Reroll (spin again, NO assignment created)
+  - Accept (finalize assignment)
+- Only on Accept:
+  - Create the real assignment (TaskInstance)
+  - Remove that task from staged queue (optional but recommended)
+  - Show confirmation: “[Kid] is assigned: [Task]”
+
+F) (OPTIONAL SIMPLE FAIRNESS)
+- Avoid picking the same kid repeatedly:
+  - Track lastWinnerId (or last 2–3) and reduce probability.
+
+DATA MODEL (MINIMUM EXPECTED)
+- Task: { id, title, isArchived? }
+- TaskInstance: { id, taskId, memberId, status: 'open'|'done', createdAt, completedAt? }
+- SpinQueue: list of taskIds (or one-off Task objects converted to Task)
+- Member: { id, name, stars, ... }
+
+CONSTRAINTS
+- Offline-first (local storage)
+- No backend
+- No login
+- No adult workflows (that’s V2)
+
+DONE CRITERIA
+- Templates are reachable post-onboarding and can add tasks
+- Tasks can be edited and deleted without breaking anything
+- Member tap opens Member Detail and shows assigned tasks
+- Spin requires staged tasks (cannot spin with empty queue)
+- Spin proposal supports reroll until parent accepts
+- Accept creates a TaskInstance that appears under the selected member
+
+VALIDATION CHECKLIST (RUN MANUALLY)
+- [ ] After onboarding, I can open Templates and add a template task
+- [ ] I can edit a task title and it persists after app restart
+- [ ] I can delete/archive a task and the app doesn’t crash
+- [ ] Tapping a member name opens Member Detail
+- [ ] Member Detail shows that member’s assigned tasks
+- [ ] Spin cannot run without staged tasks
+- [ ] Reroll does not create assignments
+- [ ] Accept creates exactly one assignment and it shows up under the member
+
+END V1 PROMPT 3A (BUILD)

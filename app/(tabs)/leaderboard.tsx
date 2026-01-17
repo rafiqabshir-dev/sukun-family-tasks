@@ -1,9 +1,11 @@
-import { View, Text, StyleSheet, ScrollView } from "react-native";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from "react-native";
+import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, borderRadius, fontSize } from "@/lib/theme";
 import { useStore } from "@/lib/store";
 
 export default function LeaderboardScreen() {
+  const router = useRouter();
   const members = useStore((s) => s.members);
   const kids = members
     .filter((m) => m.role === "kid")
@@ -39,13 +41,14 @@ export default function LeaderboardScreen() {
           {kids.map((kid, index) => {
             const rankInfo = getRankDisplay(index);
             return (
-              <View
+              <TouchableOpacity
                 key={kid.id}
                 style={[
                   styles.tableRow,
                   index === 0 && styles.firstPlace,
                   index % 2 === 1 && styles.alternateRow,
                 ]}
+                onPress={() => router.push(`/member/${kid.id}`)}
                 data-testid={`row-leaderboard-${kid.id}`}
               >
                 <View style={[styles.cell, styles.rankCell]}>
@@ -67,7 +70,7 @@ export default function LeaderboardScreen() {
                   <Ionicons name="star" size={16} color={colors.secondary} />
                   <Text style={styles.starsText}>{kid.starsTotal}</Text>
                 </View>
-              </View>
+              </TouchableOpacity>
             );
           })}
         </View>
