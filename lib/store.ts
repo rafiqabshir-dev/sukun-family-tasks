@@ -14,10 +14,12 @@ interface StoreActions {
   updateMember: (id: string, updates: Partial<Member>) => void;
   removeMember: (id: string) => void;
   setMemberPowers: (memberId: string, powers: PowerKey[]) => void;
+  setActingMember: (memberId: string | null) => void;
   setTaskTemplates: (templates: TaskTemplate[]) => void;
   toggleTaskTemplate: (id: string) => void;
   addTaskInstance: (instance: Omit<TaskInstance, "id" | "createdAt">) => void;
   updateTaskInstance: (id: string, updates: Partial<TaskInstance>) => void;
+  completeTask: (instanceId: string) => void;
   completeOnboarding: () => void;
   toggleSound: () => void;
   reset: () => Promise<void>;
@@ -30,6 +32,7 @@ function saveToStorage(state: AppState): void {
       const toSave: AppState = {
         schemaVersion: state.schemaVersion,
         onboardingComplete: state.onboardingComplete,
+        actingMemberId: state.actingMemberId,
         members: state.members,
         taskTemplates: state.taskTemplates,
         taskInstances: state.taskInstances,
@@ -104,6 +107,11 @@ export const useStore = create<AppState & StoreActions & { isReady: boolean }>((
     saveToStorage({ ...get(), members });
   },
 
+  setActingMember: (memberId) => {
+    set({ actingMemberId: memberId });
+    saveToStorage({ ...get(), actingMemberId: memberId });
+  },
+
   setTaskTemplates: (templates) => {
     set({ taskTemplates: templates });
     saveToStorage({ ...get(), taskTemplates: templates });
@@ -134,6 +142,51 @@ export const useStore = create<AppState & StoreActions & { isReady: boolean }>((
     );
     set({ taskInstances });
     saveToStorage({ ...get(), taskInstances });
+  },
+
+  completeTask: (instanceId) => {
+    const state = get();
+    console.log("[completeTask] instanceId:", instanceId);
+    console.log("[completeTask] all instances:", state.taskInstances.map(t => ({ id: t.id, status: t.status })));
+    
+    const instance = state.taskInstances.find((t) => t.id === instanceId);
+    console.log("[completeTask] found instance:", instance);
+    
+    if (!instance) {
+      console.log("[completeTask] No instance found, returning");
+      return;
+    }
+    if (instance.status === "done") {
+      console.log("[completeTask] Instance already done, returning");
+      return;
+    }
+
+    const template = state.taskTemplates.find((t) => t.id === instance.templateId);
+    console.log("[completeTask] template:", template?.id, template?.title, template?.defaultStars);
+    
+    const starsEarned = template?.defaultStars || 1;
+    console.log("[completeTask] starsEarned:", starsEarned);
+
+    const taskInstances = state.taskInstances.map((t) =>
+      t.id === instanceId
+        ? { ...t, status: "done" as const, completedAt: new Date().toISOString() }
+        : t
+    );
+
+    const assignee = state.members.find((m) => m.id === instance.assignedToMemberId);
+    console.log("[completeTask] assignee before:", assignee?.name, assignee?.starsTotal);
+
+    const members = state.members.map((m) =>
+      m.id === instance.assignedToMemberId
+        ? { ...m, starsTotal: m.starsTotal + starsEarned }
+        : m
+    );
+
+    const updatedAssignee = members.find((m) => m.id === instance.assignedToMemberId);
+    console.log("[completeTask] assignee after:", updatedAssignee?.name, updatedAssignee?.starsTotal);
+
+    set({ taskInstances, members });
+    saveToStorage({ ...get(), taskInstances, members });
   },
 
   completeOnboarding: () => {

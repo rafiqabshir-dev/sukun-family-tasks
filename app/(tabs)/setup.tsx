@@ -14,7 +14,9 @@ export default function SetupScreen() {
   const taskInstances = useStore((s) => s.taskInstances);
   const settings = useStore((s) => s.settings);
   const schemaVersion = useStore((s) => s.schemaVersion);
+  const actingMemberId = useStore((s) => s.actingMemberId);
   const toggleSound = useStore((s) => s.toggleSound);
+  const setActingMember = useStore((s) => s.setActingMember);
   
   const [storageKeyExists, setStorageKeyExists] = useState<boolean | null>(null);
   
@@ -33,9 +35,49 @@ export default function SetupScreen() {
   const kids = members.filter((m) => m.role === "kid");
   const guardians = members.filter((m) => m.role === "guardian");
   const enabledTasks = taskTemplates.filter((t) => t.enabled).length;
+  const actingMember = members.find((m) => m.id === actingMemberId);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Act As</Text>
+        <Text style={styles.sectionSubtitle}>Select who is using the app right now</Text>
+        <View style={styles.actAsGrid}>
+          {members.map((member) => (
+            <TouchableOpacity
+              key={member.id}
+              style={[
+                styles.actAsCard,
+                actingMemberId === member.id && styles.actAsCardSelected,
+              ]}
+              onPress={() => setActingMember(member.id)}
+              data-testid={`button-act-as-${member.id}`}
+            >
+              <View style={[
+                styles.actAsAvatar,
+                actingMemberId === member.id && styles.actAsAvatarSelected,
+              ]}>
+                <Text style={styles.actAsInitial}>
+                  {member.name.charAt(0).toUpperCase()}
+                </Text>
+              </View>
+              <Text style={[
+                styles.actAsName,
+                actingMemberId === member.id && styles.actAsNameSelected,
+              ]}>
+                {member.name}
+              </Text>
+              <Text style={styles.actAsRole}>
+                {member.role === "guardian" ? "Guardian" : `Age ${member.age}`}
+              </Text>
+              {actingMemberId === member.id && (
+                <Ionicons name="checkmark-circle" size={20} color={colors.primary} style={styles.actAsCheck} />
+              )}
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Family Members</Text>
         <View style={styles.card}>
@@ -181,7 +223,72 @@ const styles = StyleSheet.create({
     fontSize: fontSize.lg,
     fontWeight: "600",
     color: colors.text,
+    marginBottom: spacing.sm,
+  },
+  sectionSubtitle: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
     marginBottom: spacing.md,
+  },
+  actAsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+  actAsCard: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    alignItems: "center",
+    minWidth: 100,
+    borderWidth: 2,
+    borderColor: "transparent",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+    position: "relative",
+  },
+  actAsCardSelected: {
+    borderColor: colors.primary,
+    backgroundColor: colors.surfaceSecondary,
+  },
+  actAsAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.textMuted,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: spacing.sm,
+  },
+  actAsAvatarSelected: {
+    backgroundColor: colors.primary,
+  },
+  actAsInitial: {
+    fontSize: fontSize.xl,
+    fontWeight: "600",
+    color: "#FFFFFF",
+  },
+  actAsName: {
+    fontSize: fontSize.sm,
+    fontWeight: "500",
+    color: colors.text,
+  },
+  actAsNameSelected: {
+    fontWeight: "600",
+    color: colors.primary,
+  },
+  actAsRole: {
+    fontSize: fontSize.xs,
+    color: colors.textMuted,
+    marginTop: 2,
+  },
+  actAsCheck: {
+    position: "absolute",
+    top: spacing.xs,
+    right: spacing.xs,
   },
   card: {
     backgroundColor: colors.surface,

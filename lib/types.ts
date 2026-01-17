@@ -65,6 +65,7 @@ export interface Settings {
 export interface AppState {
   schemaVersion: number;
   onboardingComplete: boolean;
+  actingMemberId: string | null;
   members: Member[];
   taskTemplates: TaskTemplate[];
   taskInstances: TaskInstance[];
@@ -74,6 +75,7 @@ export interface AppState {
 export const DEFAULT_STATE: AppState = {
   schemaVersion: 1,
   onboardingComplete: false,
+  actingMemberId: null,
   members: [],
   taskTemplates: [],
   taskInstances: [],
