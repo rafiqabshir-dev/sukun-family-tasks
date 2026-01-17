@@ -27,6 +27,14 @@ export default function TodayScreen() {
   const [selectedKid, setSelectedKid] = useState<string>("");
   const [dueDate, setDueDate] = useState(format(new Date(), "yyyy-MM-dd"));
 
+  const openAssignModal = () => {
+    const kidsList = members.filter((m) => m.role === "kid");
+    if (kidsList.length === 1) {
+      setSelectedKid(kidsList[0].id);
+    }
+    setShowAssignModal(true);
+  };
+
   const actingMember = members.find((m) => m.id === actingMemberId);
   const isGuardian = actingMember?.role === "guardian";
   const kids = members.filter((m) => m.role === "kid");
@@ -57,12 +65,14 @@ export default function TodayScreen() {
 
   const handleAssignTask = () => {
     if (!selectedTemplate || !selectedKid || !dueDate) return;
+    
     addTaskInstance({
       templateId: selectedTemplate.id,
       assignedToMemberId: selectedKid,
       dueAt: new Date(dueDate).toISOString(),
       status: "open",
     });
+    
     setShowAssignModal(false);
     setSelectedTemplate(null);
     setSelectedKid("");
@@ -147,7 +157,7 @@ export default function TodayScreen() {
         {isGuardian && (
           <TouchableOpacity
             style={styles.assignButton}
-            onPress={() => setShowAssignModal(true)}
+            onPress={openAssignModal}
             data-testid="button-assign-task"
           >
             <Ionicons name="add-circle" size={24} color="#FFFFFF" />
@@ -162,21 +172,24 @@ export default function TodayScreen() {
           </View>
         )}
 
-        {dueTodayTasks.length > 0 && (
+        {isGuardian && dueTodayTasks.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Due Today</Text>
-            {dueTodayTasks.map((task) => renderTaskCard(task, isGuardian))}
+            {dueTodayTasks.map((task) => renderTaskCard(task, true))}
           </View>
         )}
 
-        {overdueTasks.length > 0 && (
+        {isGuardian && overdueTasks.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Overdue</Text>
-            {overdueTasks.map((task) => renderTaskCard(task, isGuardian))}
+            {overdueTasks.map((task) => renderTaskCard(task, true))}
           </View>
         )}
 
-        {myTasks.length === 0 && dueTodayTasks.length === 0 && overdueTasks.length === 0 && (
+        {(isGuardian 
+          ? dueTodayTasks.length === 0 && overdueTasks.length === 0
+          : myTasks.length === 0
+        ) && (
           <View style={styles.emptyState}>
             <Ionicons name="sunny-outline" size={64} color={colors.primary} />
             <Text style={styles.emptyTitle}>All Clear!</Text>
@@ -232,6 +245,7 @@ export default function TodayScreen() {
                     selectedKid === kid.id && styles.kidChipSelected,
                   ]}
                   onPress={() => setSelectedKid(kid.id)}
+                  data-testid={`button-select-kid-${kid.id}`}
                 >
                   <Text
                     style={[
