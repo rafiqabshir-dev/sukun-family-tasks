@@ -159,20 +159,23 @@ CREATE POLICY "Users can create families"
   ON families FOR INSERT
   WITH CHECK (true);
 
--- Profiles: Users can see own profile + family members
--- Use OR to allow seeing own profile without recursion
-CREATE POLICY "Users can view profiles"
+-- Profiles: Two separate policies to avoid recursion
+CREATE POLICY "Users can view own profile"
+  ON profiles FOR SELECT
+  USING (id = auth.uid());
+
+CREATE POLICY "Users can view family members"
   ON profiles FOR SELECT
   USING (
-    id = auth.uid() OR 
-    family_id IS NOT NULL AND family_id = (SELECT family_id FROM profiles WHERE id = auth.uid())
+    family_id IS NOT NULL AND 
+    family_id IN (SELECT p.family_id FROM profiles p WHERE p.id = auth.uid())
   );
 
-CREATE POLICY "Users can create their own profile"
+CREATE POLICY "Users can create profile"
   ON profiles FOR INSERT
   WITH CHECK (true);
 
-CREATE POLICY "Users can update their own profile"
+CREATE POLICY "Users can update own profile"
   ON profiles FOR UPDATE
   USING (id = auth.uid());
 
