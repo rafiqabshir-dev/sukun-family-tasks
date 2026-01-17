@@ -239,20 +239,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       log('Step 1: Inserting...');
       
-      // Add timeout to the insert call
+      // First, just insert without select to avoid potential RLS issues
       const insertPromise = supabase
         .from('families')
         .insert({ name: familyName })
-        .select()
+        .select('id, name, invite_code, created_at')
         .single();
       
       const timeoutPromise = new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error('Insert timeout after 10s')), 10000)
+        setTimeout(() => reject(new Error('Insert timeout after 15s')), 15000)
       );
       
-      const { data: familyData, error: familyError } = await Promise.race([insertPromise, timeoutPromise]) as any;
+      let familyData: any = null;
+      let familyError: any = null;
+      
+      try {
+        const result = await Promise.race([insertPromise, timeoutPromise]);
+        familyData = result.data;
+        familyError = result.error;
+      } catch (e: any) {
+        familyError = e;
+      }
 
-      log('Step 1 done: ' + (familyError ? familyError.message : 'OK'));
+      log('Step 1 done: ' + (familyError ? (familyError.message || JSON.stringify(familyError)) : 'OK, id=' + familyData?.id));
 
       if (familyError) {
         return { error: new Error(familyError.message), family: null };

@@ -157,7 +157,7 @@ export default function FamilySetupScreen() {
               ? 'Choose a name for your family'
               : 'Enter the invite code shared with you'}
           </Text>
-          <Text style={styles.versionText}>v2.5 | DB: {isSupabaseConfigured() ? 'OK' : 'NOT CONFIGURED'}</Text>
+          <Text style={styles.versionText}>v2.6 | DB: {isSupabaseConfigured() ? 'OK' : 'NOT CONFIGURED'}</Text>
           {debugInfo ? <Text style={styles.debugText}>{debugInfo}</Text> : null}
         </View>
 
