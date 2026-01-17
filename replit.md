@@ -77,8 +77,15 @@ Six starter powers kids can choose (1-2 per kid):
 - **Kid Task View**: Today tab shows "My Tasks" section only (guardians see "Due Today"/"Overdue")
 - **Task Completion**: Kids tap checkmark to complete tasks, earns stars
 - **Status Tracking**: Tasks can be open, done, or overdue (computed from due date)
-- **Leaderboard**: Ranks kids by starsTotal, shows trophy for top 3
+- **Leaderboard**: Table-style view with Rank, Name, Stars columns (trophy icons for top 3)
 - **Validation**: See VALIDATION_V1_2.md for full test scenarios and demo script
+
+### V1 Prompt 2.1 - Post-2B Fix Pack
+- **Naming Cleanup**: Consistent terms (Family Members, Kids, Guardians, Stars)
+- **Table Leaderboard**: Replaced podium view with clear table showing rank, avatar, name, stars
+- **Add Members**: Setup tab has "Add" button to add new kids/guardians locally
+  - Modal with name, age, role (Kid/Guardian) selection
+  - New members appear in Act As selector and leaderboard immediately
 
 ### Islamic Values Tone
 - Positive, gentle wording throughout

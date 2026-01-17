@@ -9,11 +9,11 @@ export default function LeaderboardScreen() {
     .filter((m) => m.role === "kid")
     .sort((a, b) => b.starsTotal - a.starsTotal);
 
-  const getMedalColor = (index: number) => {
-    if (index === 0) return "#FFD700";
-    if (index === 1) return "#C0C0C0";
-    if (index === 2) return "#CD7F32";
-    return colors.textMuted;
+  const getRankDisplay = (index: number) => {
+    if (index === 0) return { icon: "trophy" as const, color: "#FFD700" };
+    if (index === 1) return { icon: "trophy" as const, color: "#C0C0C0" };
+    if (index === 2) return { icon: "trophy" as const, color: "#CD7F32" };
+    return null;
   };
 
   return (
@@ -23,64 +23,54 @@ export default function LeaderboardScreen() {
           <View style={styles.emptyIcon}>
             <Ionicons name="trophy-outline" size={64} color={colors.primary} />
           </View>
-          <Text style={styles.emptyTitle}>No Participants Yet</Text>
+          <Text style={styles.emptyTitle}>No Kids Yet</Text>
           <Text style={styles.emptyText}>
-            Add family members to start tracking their progress!
+            Add kids to your family to start tracking their stars!
           </Text>
         </View>
       ) : (
-        <>
-          <View style={styles.podium}>
-            {kids.slice(0, 3).map((kid, index) => (
+        <View style={styles.tableContainer}>
+          <View style={styles.tableHeader}>
+            <Text style={[styles.headerCell, styles.rankCell]}>Rank</Text>
+            <Text style={[styles.headerCell, styles.nameCell]}>Name</Text>
+            <Text style={[styles.headerCell, styles.starsCell]}>Stars</Text>
+          </View>
+          
+          {kids.map((kid, index) => {
+            const rankInfo = getRankDisplay(index);
+            return (
               <View
                 key={kid.id}
                 style={[
-                  styles.podiumItem,
-                  index === 0 && styles.podiumFirst,
-                  index === 1 && styles.podiumSecond,
-                  index === 2 && styles.podiumThird,
+                  styles.tableRow,
+                  index === 0 && styles.firstPlace,
+                  index % 2 === 1 && styles.alternateRow,
                 ]}
+                data-testid={`row-leaderboard-${kid.id}`}
               >
-                <View style={styles.podiumAvatar}>
-                  <Text style={styles.podiumInitial}>
-                    {kid.name.charAt(0).toUpperCase()}
-                  </Text>
+                <View style={[styles.cell, styles.rankCell]}>
+                  {rankInfo ? (
+                    <Ionicons name={rankInfo.icon} size={20} color={rankInfo.color} />
+                  ) : (
+                    <Text style={styles.rankNumber}>{index + 1}</Text>
+                  )}
                 </View>
-                <Ionicons
-                  name="trophy"
-                  size={24}
-                  color={getMedalColor(index)}
-                  style={styles.trophy}
-                />
-                <Text style={styles.podiumName}>{kid.name}</Text>
-                <View style={styles.starsRow}>
+                <View style={[styles.cell, styles.nameCell]}>
+                  <View style={styles.avatarSmall}>
+                    <Text style={styles.avatarInitial}>
+                      {kid.name.charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                  <Text style={styles.nameText}>{kid.name}</Text>
+                </View>
+                <View style={[styles.cell, styles.starsCell]}>
                   <Ionicons name="star" size={16} color={colors.secondary} />
                   <Text style={styles.starsText}>{kid.starsTotal}</Text>
                 </View>
               </View>
-            ))}
-          </View>
-
-          {kids.length > 3 && (
-            <View style={styles.restList}>
-              {kids.slice(3).map((kid, index) => (
-                <View key={kid.id} style={styles.listItem}>
-                  <Text style={styles.rankNumber}>{index + 4}</Text>
-                  <View style={styles.listAvatar}>
-                    <Text style={styles.listInitial}>
-                      {kid.name.charAt(0).toUpperCase()}
-                    </Text>
-                  </View>
-                  <Text style={styles.listName}>{kid.name}</Text>
-                  <View style={styles.starsRow}>
-                    <Ionicons name="star" size={14} color={colors.secondary} />
-                    <Text style={styles.listStars}>{kid.starsTotal}</Text>
-                  </View>
-                </View>
-              ))}
-            </View>
-          )}
-        </>
+            );
+          })}
+        </View>
       )}
     </ScrollView>
   );
@@ -119,112 +109,86 @@ const styles = StyleSheet.create({
     textAlign: "center",
     maxWidth: 280,
   },
-  podium: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "flex-end",
-    marginBottom: spacing.xl,
-    gap: spacing.md,
-  },
-  podiumItem: {
-    alignItems: "center",
+  tableContainer: {
     backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,
-    padding: spacing.md,
-    width: 100,
+    overflow: "hidden",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 2,
   },
-  podiumFirst: {
-    marginBottom: spacing.lg,
+  tableHeader: {
+    flexDirection: "row",
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
   },
-  podiumSecond: {
-    marginBottom: spacing.sm,
+  headerCell: {
+    fontSize: fontSize.sm,
+    fontWeight: "600",
+    color: "#FFFFFF",
+    textTransform: "uppercase",
   },
-  podiumThird: {
-    marginBottom: 0,
+  tableRow: {
+    flexDirection: "row",
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    alignItems: "center",
   },
-  podiumAvatar: {
-    width: 56,
-    height: 56,
+  firstPlace: {
+    backgroundColor: "rgba(255, 215, 0, 0.1)",
+  },
+  alternateRow: {
+    backgroundColor: colors.surfaceSecondary,
+  },
+  cell: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  rankCell: {
+    width: 50,
+    justifyContent: "center",
+  },
+  nameCell: {
+    flex: 1,
+    gap: spacing.sm,
+  },
+  starsCell: {
+    width: 70,
+    justifyContent: "flex-end",
+    gap: 4,
+  },
+  rankNumber: {
+    fontSize: fontSize.md,
+    fontWeight: "600",
+    color: colors.textMuted,
+    textAlign: "center",
+  },
+  avatarSmall: {
+    width: 32,
+    height: 32,
     borderRadius: borderRadius.full,
     backgroundColor: colors.primary,
     justifyContent: "center",
     alignItems: "center",
   },
-  podiumInitial: {
-    fontSize: fontSize.xxl,
-    fontWeight: "600",
-    color: "#FFFFFF",
-  },
-  trophy: {
-    marginTop: spacing.sm,
-  },
-  podiumName: {
+  avatarInitial: {
     fontSize: fontSize.sm,
     fontWeight: "600",
-    color: colors.text,
-    marginTop: spacing.xs,
-  },
-  starsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-    marginTop: spacing.xs,
-  },
-  starsText: {
-    fontSize: fontSize.md,
-    fontWeight: "700",
-    color: colors.secondary,
-  },
-  restList: {
-    gap: spacing.sm,
-  },
-  listItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    gap: spacing.md,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  rankNumber: {
-    fontSize: fontSize.lg,
-    fontWeight: "600",
-    color: colors.textMuted,
-    width: 24,
-    textAlign: "center",
-  },
-  listAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: borderRadius.full,
-    backgroundColor: colors.primaryLight,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  listInitial: {
-    fontSize: fontSize.lg,
-    fontWeight: "600",
     color: "#FFFFFF",
   },
-  listName: {
-    flex: 1,
+  nameText: {
     fontSize: fontSize.md,
     fontWeight: "500",
     color: colors.text,
   },
-  listStars: {
+  starsText: {
     fontSize: fontSize.md,
-    fontWeight: "600",
+    fontWeight: "700",
     color: colors.secondary,
   },
 });
