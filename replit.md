@@ -108,6 +108,19 @@ Six starter powers kids can choose (1-2 per kid):
 - **Fairness System**: Tracks last 3 winners, reduces probability of same kid winning repeatedly
 - **Navigation**: 5 tabs now - Today, Tasks, Spin, Leaderboard, Setup
 
+### V1 Prompt 3B - Rewards + Task Completion Improvements
+- **Rewards System**: New Rewards tab for parents to set goals
+  - Add rewards with name, description, star cost (5/10/20/50 or custom)
+  - Kids see progress bars toward closest reward
+  - Guardians can grant rewards to kids who have enough stars
+  - Stars deducted from kid's total on redemption
+  - History of claimed rewards preserved
+- **Task Completion**: Guardians can now complete tasks for any kid
+  - Larger, more visible checkmark buttons
+  - Stars properly awarded to the assigned kid
+- **Template Migration**: Auto-fixes templates missing title/icon with sensible defaults
+- **Navigation**: 6 tabs now - Today, Tasks, Spin, Leaderboard, Rewards, Setup
+
 ### Islamic Values Tone
 - Positive, gentle wording throughout
 - Sounds disabled by default
