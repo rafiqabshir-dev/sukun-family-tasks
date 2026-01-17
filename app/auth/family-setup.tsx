@@ -22,6 +22,7 @@ export default function FamilySetupScreen() {
   const [inviteCode, setInviteCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [debugInfo, setDebugInfo] = useState<string>('');
 
   if (family) {
     router.replace('/(tabs)/today');
@@ -38,9 +39,9 @@ export default function FamilySetupScreen() {
     setError(null);
 
     try {
-      console.log('[v2] Starting createFamily...');
+      setDebugInfo('Starting...');
       const { error: createError } = await createFamily(familyName.trim());
-      console.log('[v2] createFamily completed, error:', createError);
+      setDebugInfo('Completed: ' + (createError ? createError.message : 'success'));
 
       if (createError) {
         setError(createError.message);
@@ -49,7 +50,7 @@ export default function FamilySetupScreen() {
         router.replace('/(tabs)/today');
       }
     } catch (err: any) {
-      console.error('[v2] createFamily exception:', err);
+      setDebugInfo('Exception: ' + (err?.message || 'unknown'));
       setError(err?.message || 'Unknown error occurred');
       setLoading(false);
     }
@@ -153,7 +154,8 @@ export default function FamilySetupScreen() {
               ? 'Choose a name for your family'
               : 'Enter the invite code shared with you'}
           </Text>
-          <Text style={styles.versionText}>v2.1</Text>
+          <Text style={styles.versionText}>v2.2</Text>
+          {debugInfo ? <Text style={styles.debugText}>{debugInfo}</Text> : null}
         </View>
 
         <View style={styles.form}>
@@ -266,6 +268,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: theme.colors.textMuted,
     marginTop: theme.spacing.xs,
+  },
+  debugText: {
+    fontSize: 11,
+    color: theme.colors.primary,
+    marginTop: theme.spacing.xs,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
   optionsContainer: {
     gap: theme.spacing.md,
