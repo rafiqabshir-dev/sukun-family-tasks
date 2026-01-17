@@ -23,7 +23,9 @@ interface StoreActions {
   archiveTaskTemplate: (id: string) => void;
   addTaskInstance: (instance: Omit<TaskInstance, "id" | "createdAt">) => TaskInstance;
   updateTaskInstance: (id: string, updates: Partial<TaskInstance>) => void;
-  completeTask: (instanceId: string) => void;
+  completeTask: (instanceId: string, requestedBy: string) => void;
+  approveTask: (instanceId: string, approvedBy: string) => void;
+  rejectTask: (instanceId: string) => void;
   addToSpinQueue: (task: Omit<StagedTask, "id">) => void;
   removeFromSpinQueue: (id: string) => void;
   clearSpinQueue: () => void;
@@ -245,18 +247,48 @@ export const useStore = create<AppState & StoreActions & { isReady: boolean }>((
     saveToStorage({ ...get(), taskInstances });
   },
 
-  completeTask: (instanceId) => {
+  completeTask: (instanceId, requestedBy) => {
     const state = get();
     const instance = state.taskInstances.find((t) => t.id === instanceId);
     
-    if (!instance || instance.status === "done") return;
+    if (!instance || instance.status !== "open") return;
+
+    // Request approval instead of completing directly
+    const taskInstances = state.taskInstances.map((t) =>
+      t.id === instanceId
+        ? { 
+            ...t, 
+            status: "pending_approval" as const, 
+            completionRequestedAt: new Date().toISOString(),
+            completionRequestedBy: requestedBy
+          }
+        : t
+    );
+
+    set({ taskInstances });
+    saveToStorage({ ...get(), taskInstances });
+  },
+
+  approveTask: (instanceId, approvedBy) => {
+    const state = get();
+    const instance = state.taskInstances.find((t) => t.id === instanceId);
+    
+    if (!instance || instance.status !== "pending_approval") return;
+    
+    // Approver must be different from the person who requested completion
+    if (instance.completionRequestedBy === approvedBy) return;
 
     const template = state.taskTemplates.find((t) => t.id === instance.templateId);
     const starsEarned = template?.defaultStars || 1;
 
     const taskInstances = state.taskInstances.map((t) =>
       t.id === instanceId
-        ? { ...t, status: "done" as const, completedAt: new Date().toISOString() }
+        ? { 
+            ...t, 
+            status: "done" as const, 
+            completedAt: new Date().toISOString(),
+            approvedBy 
+          }
         : t
     );
 
@@ -268,6 +300,27 @@ export const useStore = create<AppState & StoreActions & { isReady: boolean }>((
 
     set({ taskInstances, members });
     saveToStorage({ ...get(), taskInstances, members });
+  },
+
+  rejectTask: (instanceId) => {
+    const state = get();
+    const instance = state.taskInstances.find((t) => t.id === instanceId);
+    
+    if (!instance || instance.status !== "pending_approval") return;
+
+    const taskInstances = state.taskInstances.map((t) =>
+      t.id === instanceId
+        ? { 
+            ...t, 
+            status: "open" as const, 
+            completionRequestedAt: undefined,
+            completionRequestedBy: undefined
+          }
+        : t
+    );
+
+    set({ taskInstances });
+    saveToStorage({ ...get(), taskInstances });
   },
 
   addToSpinQueue: (task) => {

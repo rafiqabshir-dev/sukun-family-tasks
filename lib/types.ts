@@ -46,7 +46,7 @@ export interface TaskTemplate {
   isArchived?: boolean;
 }
 
-export type TaskStatus = "open" | "done";
+export type TaskStatus = "open" | "pending_approval" | "done";
 
 export interface TaskInstance {
   id: string;
@@ -56,6 +56,10 @@ export interface TaskInstance {
   status: TaskStatus;
   createdAt: string;
   completedAt?: string;
+  // Approval workflow fields
+  completionRequestedAt?: string;
+  completionRequestedBy?: string;
+  approvedBy?: string;
 }
 
 export interface StagedTask {
