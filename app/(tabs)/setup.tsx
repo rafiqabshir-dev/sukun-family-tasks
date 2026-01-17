@@ -7,13 +7,13 @@ import * as Clipboard from "expo-clipboard";
 import { colors, spacing, borderRadius, fontSize } from "@/lib/theme";
 import { useStore } from "@/lib/store";
 import { POWER_INFO } from "@/lib/types";
-import { useAuth } from "@/lib/authContext";
+import { useAuth, JoinRequestWithProfile } from "@/lib/authContext";
 
 const STORAGE_KEY = "barakah-kids-race:v1";
 
 export default function SetupScreen() {
   const router = useRouter();
-  const { profile, family, signOut, isConfigured } = useAuth();
+  const { profile, family, signOut, isConfigured, getPendingJoinRequests, approveJoinRequest, rejectJoinRequest } = useAuth();
   const members = useStore((s) => s.members);
   const taskTemplates = useStore((s) => s.taskTemplates);
   const taskInstances = useStore((s) => s.taskInstances);
@@ -33,6 +33,9 @@ export default function SetupScreen() {
   const [copiedCode, setCopiedCode] = useState(false);
   const [isOwner, setIsOwner] = useState(false);
   const [ownershipChecked, setOwnershipChecked] = useState(false);
+  const [joinRequests, setJoinRequests] = useState<JoinRequestWithProfile[]>([]);
+  const [loadingRequests, setLoadingRequests] = useState(false);
+  const [processingRequest, setProcessingRequest] = useState<string | null>(null);
   
   // Check if current user is the family owner (first guardian to join)
   useEffect(() => {
@@ -82,6 +85,68 @@ export default function SetupScreen() {
     
     checkOwnership();
   }, [profile, family, isConfigured]);
+
+  // Fetch pending join requests when owner status is confirmed
+  useEffect(() => {
+    const fetchJoinRequests = async () => {
+      if (!isOwner || !ownershipChecked || !isConfigured) {
+        setJoinRequests([]);
+        return;
+      }
+      
+      setLoadingRequests(true);
+      try {
+        const requests = await getPendingJoinRequests();
+        setJoinRequests(requests);
+      } catch (error) {
+        console.error("Error fetching join requests:", error);
+        setJoinRequests([]);
+      }
+      setLoadingRequests(false);
+    };
+    
+    fetchJoinRequests();
+    
+    // Poll every 30 seconds for new requests
+    const interval = setInterval(fetchJoinRequests, 30000);
+    return () => clearInterval(interval);
+  }, [isOwner, ownershipChecked, isConfigured, getPendingJoinRequests]);
+
+  const handleApproveRequest = async (requestId: string) => {
+    setProcessingRequest(requestId);
+    const { error } = await approveJoinRequest(requestId);
+    if (error) {
+      Alert.alert("Error", error.message);
+    } else {
+      // Remove from list
+      setJoinRequests((prev) => prev.filter((r) => r.id !== requestId));
+    }
+    setProcessingRequest(null);
+  };
+
+  const handleRejectRequest = async (requestId: string) => {
+    Alert.alert(
+      "Reject Request",
+      "Are you sure you want to reject this join request?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Reject",
+          style: "destructive",
+          onPress: async () => {
+            setProcessingRequest(requestId);
+            const { error } = await rejectJoinRequest(requestId);
+            if (error) {
+              Alert.alert("Error", error.message);
+            } else {
+              setJoinRequests((prev) => prev.filter((r) => r.id !== requestId));
+            }
+            setProcessingRequest(null);
+          },
+        },
+      ]
+    );
+  };
   
   useEffect(() => {
     const checkStorage = async () => {
@@ -306,6 +371,64 @@ export default function SetupScreen() {
           </View>
         )}
       </View>
+
+      {isOwner && isConfigured && joinRequests.length > 0 && (
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Join Requests</Text>
+            <View style={styles.requestBadge}>
+              <Text style={styles.requestBadgeText}>{joinRequests.length}</Text>
+            </View>
+          </View>
+          <View style={styles.membersList}>
+            {joinRequests.map((request) => (
+              <View key={request.id} style={styles.requestItem} data-testid={`join-request-${request.id}`}>
+                <View style={styles.requestInfo}>
+                  <View style={styles.memberAvatar}>
+                    <Text style={styles.memberInitial}>
+                      {request.requester_profile?.display_name?.charAt(0).toUpperCase() || "?"}
+                    </Text>
+                  </View>
+                  <View style={styles.memberInfo}>
+                    <Text style={styles.memberName}>
+                      {request.requester_profile?.display_name || "Unknown"}
+                    </Text>
+                    <Text style={styles.memberAge}>
+                      {request.requester_profile?.role === "guardian" ? "Guardian" : "Participant"}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.requestActions}>
+                  <TouchableOpacity
+                    style={styles.rejectButton}
+                    onPress={() => handleRejectRequest(request.id)}
+                    disabled={processingRequest === request.id}
+                    data-testid={`button-reject-${request.id}`}
+                  >
+                    <Ionicons 
+                      name="close" 
+                      size={18} 
+                      color={processingRequest === request.id ? colors.textMuted : colors.error} 
+                    />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.approveButton}
+                    onPress={() => handleApproveRequest(request.id)}
+                    disabled={processingRequest === request.id}
+                    data-testid={`button-approve-${request.id}`}
+                  >
+                    <Ionicons 
+                      name="checkmark" 
+                      size={18} 
+                      color={processingRequest === request.id ? colors.textMuted : "#FFFFFF"} 
+                    />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))}
+          </View>
+        </View>
+      )}
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Task Templates</Text>
@@ -761,6 +884,59 @@ const styles = StyleSheet.create({
     fontSize: fontSize.md,
     fontWeight: "600",
     color: colors.secondary,
+  },
+  requestBadge: {
+    backgroundColor: colors.error,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: borderRadius.full,
+    minWidth: 24,
+    alignItems: "center",
+  },
+  requestBadgeText: {
+    fontSize: fontSize.xs,
+    fontWeight: "600",
+    color: "#FFFFFF",
+  },
+  requestItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  requestInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    flex: 1,
+  },
+  requestActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  approveButton: {
+    width: 36,
+    height: 36,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.success,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  rejectButton: {
+    width: 36,
+    height: 36,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.surfaceSecondary,
+    justifyContent: "center",
+    alignItems: "center",
   },
   powerTags: {
     flexDirection: "row",

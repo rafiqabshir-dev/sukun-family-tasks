@@ -9,6 +9,7 @@ export default function PendingApprovalScreen() {
   const router = useRouter();
   const { 
     profile, 
+    family,
     pendingJoinRequest, 
     requestedFamily, 
     cancelJoinRequest, 
@@ -17,6 +18,20 @@ export default function PendingApprovalScreen() {
   } = useAuth();
   const [cancelling, setCancelling] = useState(false);
   const [checking, setChecking] = useState(false);
+
+  // Redirect when approved (family is set)
+  useEffect(() => {
+    if (family) {
+      router.replace("/(tabs)/today");
+    }
+  }, [family, router]);
+
+  // Redirect when request is no longer pending (rejected or cancelled)
+  useEffect(() => {
+    if (!pendingJoinRequest && !family && !cancelling) {
+      router.replace("/auth/family-setup");
+    }
+  }, [pendingJoinRequest, family, cancelling, router]);
 
   useEffect(() => {
     const interval = setInterval(async () => {
