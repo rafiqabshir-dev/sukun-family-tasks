@@ -393,3 +393,49 @@ BEGIN
   RETURN family_uuid;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to approve a join request and add user to family
+-- Uses SECURITY DEFINER to bypass RLS for updating another user's profile
+CREATE OR REPLACE FUNCTION approve_join_request(
+  request_uuid UUID,
+  approver_uuid UUID
+)
+RETURNS BOOLEAN AS $$
+DECLARE
+  request_record RECORD;
+  family_uuid UUID;
+BEGIN
+  -- Get the join request
+  SELECT * INTO request_record
+  FROM join_requests
+  WHERE id = request_uuid AND status = 'pending';
+  
+  IF request_record IS NULL THEN
+    RAISE EXCEPTION 'Join request not found or already processed';
+  END IF;
+  
+  -- Verify approver is a guardian of the family
+  IF NOT EXISTS (
+    SELECT 1 FROM profiles 
+    WHERE id = approver_uuid 
+    AND role = 'guardian' 
+    AND family_id = request_record.family_id
+  ) THEN
+    RAISE EXCEPTION 'Only family guardians can approve join requests';
+  END IF;
+  
+  -- Update the join request status
+  UPDATE join_requests
+  SET status = 'approved',
+      reviewed_by_profile_id = approver_uuid,
+      reviewed_at = NOW()
+  WHERE id = request_uuid;
+  
+  -- Update the requester's profile to join the family
+  UPDATE profiles
+  SET family_id = request_record.family_id
+  WHERE id = request_record.requester_profile_id;
+  
+  RETURN TRUE;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;

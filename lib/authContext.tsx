@@ -543,39 +543,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      // Get the request
-      const { data: request, error: fetchError } = await supabase
-        .from('join_requests')
-        .select('*')
-        .eq('id', requestId)
-        .single();
+      // Call the database function that bypasses RLS to update the profile
+      const { data, error } = await supabase
+        .rpc('approve_join_request', {
+          request_uuid: requestId,
+          approver_uuid: user.id
+        });
 
-      if (fetchError || !request) {
-        return { error: new Error('Request not found') };
-      }
-
-      // Update the request status
-      const { error: updateError } = await supabase
-        .from('join_requests')
-        .update({
-          status: 'approved',
-          reviewed_by_profile_id: user.id,
-          reviewed_at: new Date().toISOString()
-        })
-        .eq('id', requestId);
-
-      if (updateError) {
-        return { error: new Error(updateError.message) };
-      }
-
-      // Add the user to the family
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({ family_id: family.id })
-        .eq('id', request.requester_profile_id);
-
-      if (profileError) {
-        return { error: new Error(profileError.message) };
+      if (error) {
+        return { error: new Error(error.message) };
       }
 
       return { error: null };

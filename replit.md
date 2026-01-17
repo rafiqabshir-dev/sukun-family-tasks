@@ -154,6 +154,31 @@ Six starter powers kids can choose (1-2 per kid):
 - **User Switcher**: Today screen has tappable user card to switch between all family members
 - **Terminology**: Replaced "kids" with "participants" throughout all UI text and labels (role selectors, empty states, leaderboard, rewards, onboarding, etc.)
 
+### V1 Prompt 5 - Family Join Approval Workflow
+- **Join Requests Table**: New `join_requests` table in Supabase for tracking join requests
+  - Fields: id, family_id, requester_profile_id, status, reviewed_by_profile_id, reviewed_at, created_at
+  - Status: "pending", "approved", "rejected"
+- **Join Request Flow**: Users submit requests to join families instead of joining directly
+  - `joinFamily()` creates a join_request with "pending" status
+  - Requester sees pending-approval waiting screen with auto-refresh every 10 seconds
+  - Family owner/guardians can approve or reject requests from Setup screen
+- **AuthContext Updates**:
+  - New states: `pendingJoinRequest`, `requestedFamily`
+  - New functions: `cancelJoinRequest()`, `getPendingJoinRequests()`, `approveJoinRequest()`, `rejectJoinRequest()`
+- **Pending Approval Screen** (`app/auth/pending-approval.tsx`):
+  - Shows waiting state with family info and pending status
+  - Manual "Check Status" button and auto-refresh every 10 seconds
+  - Cancel request button to withdraw and return to family-setup
+  - Auto-redirects when approved (family set) or rejected (no pending request)
+- **Setup Join Requests Section**:
+  - Visible to family owner when pending requests exist
+  - Shows requester name, role, with approve/reject buttons
+  - Red badge shows count of pending requests
+- **Database Function**: `approve_join_request(request_uuid, approver_uuid)`
+  - SECURITY DEFINER function to bypass RLS and update requester's profile
+  - Validates approver is a guardian of the family
+  - Updates both join_request status and requester's family_id atomically
+
 ### V1 - Task Types (Recurring & Time-Sensitive)
 - **Task Schedule Types**: Three types of tasks now supported:
   - **One-Time**: Default behavior, complete once (no changes from before)
