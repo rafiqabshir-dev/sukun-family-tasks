@@ -12,7 +12,7 @@ type AuthContextType = {
   signUp: (email: string, password: string, displayName: string, role: 'guardian' | 'kid') => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
-  createFamily: (familyName: string) => Promise<{ error: Error | null; family: Family | null }>;
+  createFamily: (familyName: string, onProgress?: (step: string) => void) => Promise<{ error: Error | null; family: Family | null }>;
   joinFamily: (inviteCode: string) => Promise<{ error: Error | null }>;
   refreshProfile: () => Promise<void>;
 };
@@ -210,29 +210,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setFamily(null);
   }
 
-  async function createFamily(familyName: string): Promise<{ error: Error | null; family: Family | null }> {
+  async function createFamily(familyName: string, onProgress?: (step: string) => void): Promise<{ error: Error | null; family: Family | null }> {
+    const log = (msg: string) => {
+      console.log('[createFamily] ' + msg);
+      onProgress?.(msg);
+    };
+    
     try {
-      console.log('[createFamily] Step 1: Inserting family...');
-      const { data: familyData, error: familyError } = await supabase
+      log('Step 1: Inserting family...');
+      
+      // Add timeout to the insert call
+      const insertPromise = supabase
         .from('families')
         .insert({ name: familyName })
         .select()
         .single();
+      
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Insert timeout after 10s')), 10000)
+      );
+      
+      const { data: familyData, error: familyError } = await Promise.race([insertPromise, timeoutPromise]) as any;
 
-      console.log('[createFamily] Step 1 complete:', { familyData, familyError });
+      log('Step 1 done: ' + (familyError ? familyError.message : 'OK'));
 
       if (familyError) {
         return { error: new Error(familyError.message), family: null };
       }
 
       if (user && familyData) {
-        console.log('[createFamily] Step 2: Updating profile with family_id...');
+        log('Step 2: Updating profile...');
         const { error: updateError } = await supabase
           .from('profiles')
           .update({ family_id: familyData.id })
           .eq('id', user.id);
 
-        console.log('[createFamily] Step 2 complete:', { updateError });
+        log('Step 2 done: ' + (updateError ? updateError.message : 'OK'));
 
         if (updateError) {
           return { error: new Error(updateError.message), family: null };
@@ -240,17 +253,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         setFamily(familyData as Family);
         
-        console.log('[createFamily] Step 3: Refreshing profile...');
-        // Use a timeout to prevent hanging on refreshProfile
+        log('Step 3: Refreshing...');
         const refreshPromise = refreshProfile();
-        const timeoutPromise = new Promise<void>((resolve) => setTimeout(resolve, 5000));
-        await Promise.race([refreshPromise, timeoutPromise]);
-        console.log('[createFamily] Step 3 complete (or timed out)');
+        const refreshTimeout = new Promise<void>((resolve) => setTimeout(resolve, 5000));
+        await Promise.race([refreshPromise, refreshTimeout]);
+        log('Step 3 done');
       }
 
       return { error: null, family: familyData as Family };
-    } catch (error) {
-      console.error('[createFamily] Exception:', error);
+    } catch (error: any) {
+      log('Error: ' + (error?.message || 'unknown'));
       return { error: error as Error, family: null };
     }
   }

@@ -40,8 +40,10 @@ export default function FamilySetupScreen() {
 
     try {
       setDebugInfo('Starting...');
-      const { error: createError } = await createFamily(familyName.trim());
-      setDebugInfo('Completed: ' + (createError ? createError.message : 'success'));
+      const { error: createError } = await createFamily(familyName.trim(), (step) => {
+        setDebugInfo(step);
+      });
+      setDebugInfo('Done: ' + (createError ? createError.message : 'success'));
 
       if (createError) {
         setError(createError.message);
@@ -154,7 +156,7 @@ export default function FamilySetupScreen() {
               ? 'Choose a name for your family'
               : 'Enter the invite code shared with you'}
           </Text>
-          <Text style={styles.versionText}>v2.2</Text>
+          <Text style={styles.versionText}>v2.3</Text>
           {debugInfo ? <Text style={styles.debugText}>{debugInfo}</Text> : null}
         </View>
 
