@@ -156,7 +156,7 @@ export default function FamilySetupScreen() {
               ? 'Choose a name for your family'
               : 'Enter the invite code shared with you'}
           </Text>
-          <Text style={styles.versionText}>v2.3</Text>
+          <Text style={styles.versionText}>v2.4</Text>
           {debugInfo ? <Text style={styles.debugText}>{debugInfo}</Text> : null}
         </View>
 

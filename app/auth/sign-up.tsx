@@ -25,6 +25,7 @@ export default function SignUpScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [debugInfo, setDebugInfo] = useState('');
 
   async function handleSignUp() {
     if (!displayName.trim()) {
@@ -50,14 +51,22 @@ export default function SignUpScreen() {
 
     setLoading(true);
     setError(null);
+    setDebugInfo('Signing up...');
 
-    const { error: signUpError } = await signUp(email.trim(), password, displayName.trim(), role);
+    try {
+      const { error: signUpError } = await signUp(email.trim(), password, displayName.trim(), role);
+      setDebugInfo(signUpError ? 'Error: ' + signUpError.message : 'Success!');
 
-    if (signUpError) {
-      setError(signUpError.message);
+      if (signUpError) {
+        setError(signUpError.message);
+        setLoading(false);
+      } else {
+        router.replace('/auth/family-setup');
+      }
+    } catch (err: any) {
+      setDebugInfo('Exception: ' + (err?.message || 'unknown'));
+      setError(err?.message || 'Unexpected error');
       setLoading(false);
-    } else {
-      router.replace('/auth/family-setup');
     }
   }
 
@@ -73,6 +82,8 @@ export default function SignUpScreen() {
           </View>
           <Text style={styles.title}>Create Account</Text>
           <Text style={styles.subtitle}>Join your family or start a new one</Text>
+          <Text style={styles.versionText}>v2.3</Text>
+          {debugInfo ? <Text style={styles.debugText}>{debugInfo}</Text> : null}
         </View>
 
         <View style={styles.form}>
@@ -255,6 +266,17 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     color: theme.colors.textSecondary,
+  },
+  versionText: {
+    fontSize: 12,
+    color: theme.colors.textMuted,
+    marginTop: theme.spacing.xs,
+  },
+  debugText: {
+    fontSize: 11,
+    color: theme.colors.primary,
+    marginTop: theme.spacing.xs,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
   form: {
     width: '100%',

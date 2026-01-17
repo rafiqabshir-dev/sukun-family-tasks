@@ -166,8 +166,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     role: 'guardian' | 'kid'
   ): Promise<{ error: Error | null }> {
     try {
-      // Sign up with user metadata - profile will be created on first sign-in
-      const { data, error } = await supabase.auth.signUp({
+      console.log('[signUp] Starting signup for:', email);
+      
+      // Add timeout to signup call
+      const signUpPromise = supabase.auth.signUp({
         email,
         password,
         options: {
@@ -177,17 +179,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         }
       });
+      
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Signup timeout after 15s')), 15000)
+      );
+      
+      const { data, error } = await Promise.race([signUpPromise, timeoutPromise]) as any;
+
+      console.log('[signUp] Response:', { data: !!data, error: error?.message });
 
       if (error) return { error };
 
       // If session is immediately available (email confirmation disabled),
       // try to create the profile now
       if (data.session && data.user) {
+        console.log('[signUp] Session available, creating profile...');
         await ensureProfileExistsInternal(data.user);
       }
 
+      console.log('[signUp] Complete');
       return { error: null };
-    } catch (error) {
+    } catch (error: any) {
+      console.error('[signUp] Exception:', error?.message);
       return { error: error as Error };
     }
   }
@@ -213,11 +226,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function createFamily(familyName: string, onProgress?: (step: string) => void): Promise<{ error: Error | null; family: Family | null }> {
     const log = (msg: string) => {
       console.log('[createFamily] ' + msg);
-      onProgress?.(msg);
+      try {
+        onProgress?.(msg);
+      } catch (e) {
+        console.error('[createFamily] onProgress error:', e);
+      }
     };
     
+    // Immediate sync log before any async
+    log('Started');
+    
     try {
-      log('Step 1: Inserting family...');
+      log('Step 1: Inserting...');
       
       // Add timeout to the insert call
       const insertPromise = supabase
