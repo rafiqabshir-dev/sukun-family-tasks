@@ -32,6 +32,8 @@ export type TaskCategory =
 
 export type TaskDifficulty = "easy" | "medium" | "hard";
 
+export type TaskScheduleType = "one_time" | "recurring_daily" | "time_sensitive";
+
 export interface TaskTemplate {
   id: string;
   title: string;
@@ -44,9 +46,11 @@ export interface TaskTemplate {
   maxAge?: number;
   enabled: boolean;
   isArchived?: boolean;
+  scheduleType?: TaskScheduleType;
+  timeWindowMinutes?: number;
 }
 
-export type TaskStatus = "open" | "pending_approval" | "done";
+export type TaskStatus = "open" | "pending_approval" | "done" | "expired";
 
 export interface TaskInstance {
   id: string;
@@ -56,6 +60,8 @@ export interface TaskInstance {
   status: TaskStatus;
   createdAt: string;
   completedAt?: string;
+  expiresAt?: string;
+  scheduleType?: TaskScheduleType;
   // Approval workflow fields
   completionRequestedAt?: string;
   completionRequestedBy?: string;

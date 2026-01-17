@@ -1,7 +1,8 @@
 import { create } from "zustand";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { AppState, Member, TaskTemplate, TaskInstance, StagedTask, Reward, StarDeduction, DEFAULT_STATE, Power, PowerKey } from "./types";
+import { AppState, Member, TaskTemplate, TaskInstance, StagedTask, Reward, StarDeduction, DEFAULT_STATE, Power, PowerKey, TaskScheduleType } from "./types";
 import { generateStarterTasks } from "./starterTasks";
+import { startOfDay, endOfDay, isAfter, isBefore, addMinutes, parseISO, format } from "date-fns";
 
 const STORAGE_KEY = "barakah-kids-race:v1";
 const DEBOUNCE_MS = 300;
@@ -26,6 +27,8 @@ interface StoreActions {
   completeTask: (instanceId: string, requestedBy: string) => void;
   approveTask: (instanceId: string, approvedBy: string) => void;
   rejectTask: (instanceId: string) => void;
+  checkExpiredTasks: () => void;
+  regenerateRecurringTasks: () => void;
   addToSpinQueue: (task: Omit<StagedTask, "id">) => void;
   removeFromSpinQueue: (id: string) => void;
   clearSpinQueue: () => void;
@@ -237,12 +240,31 @@ export const useStore = create<AppState & StoreActions & { isReady: boolean }>((
   },
 
   addTaskInstance: (instance) => {
+    const state = get();
+    const template = state.taskTemplates.find((t) => t.id === instance.templateId);
+    const now = new Date();
+    
+    let expiresAt: string | undefined;
+    let scheduleType: TaskScheduleType | undefined = template?.scheduleType;
+    
+    // For time-sensitive tasks, calculate expiration time
+    if (template?.scheduleType === "time_sensitive" && template.timeWindowMinutes) {
+      expiresAt = addMinutes(now, template.timeWindowMinutes).toISOString();
+    }
+    
+    // For recurring daily tasks, set expiration to end of day
+    if (template?.scheduleType === "recurring_daily") {
+      expiresAt = endOfDay(now).toISOString();
+    }
+    
     const newInstance: TaskInstance = {
       ...instance,
       id: `task-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      createdAt: new Date().toISOString()
+      createdAt: now.toISOString(),
+      expiresAt,
+      scheduleType
     };
-    const taskInstances = [...get().taskInstances, newInstance];
+    const taskInstances = [...state.taskInstances, newInstance];
     set({ taskInstances });
     saveToStorage({ ...get(), taskInstances });
     return newInstance;
@@ -330,6 +352,97 @@ export const useStore = create<AppState & StoreActions & { isReady: boolean }>((
 
     set({ taskInstances });
     saveToStorage({ ...get(), taskInstances });
+  },
+
+  checkExpiredTasks: () => {
+    const state = get();
+    const now = new Date();
+    let hasChanges = false;
+    
+    const taskInstances = state.taskInstances.map((instance) => {
+      if (instance.status !== "open" && instance.status !== "pending_approval") {
+        return instance;
+      }
+      
+      // Check if task has expired based on expiresAt
+      if (instance.expiresAt) {
+        const expiresAt = parseISO(instance.expiresAt);
+        if (isAfter(now, expiresAt)) {
+          hasChanges = true;
+          return { ...instance, status: "expired" as const };
+        }
+      }
+      
+      // Check recurring daily tasks - expire at end of day if not done
+      if (instance.scheduleType === "recurring_daily") {
+        const dueDate = parseISO(instance.dueAt);
+        const endOfDueDay = endOfDay(dueDate);
+        if (isAfter(now, endOfDueDay) && instance.status === "open") {
+          hasChanges = true;
+          return { ...instance, status: "expired" as const };
+        }
+      }
+      
+      return instance;
+    });
+    
+    if (hasChanges) {
+      set({ taskInstances });
+      saveToStorage({ ...get(), taskInstances });
+    }
+  },
+
+  regenerateRecurringTasks: () => {
+    const state = get();
+    const now = new Date();
+    const today = startOfDay(now);
+    const todayStr = format(today, "yyyy-MM-dd");
+    
+    // Find all recurring daily templates that are enabled
+    const recurringTemplates = state.taskTemplates.filter(
+      (t) => t.scheduleType === "recurring_daily" && t.enabled && !t.isArchived
+    );
+    
+    // For each recurring template, check if there's already a task for today
+    const newInstances: TaskInstance[] = [];
+    
+    for (const template of recurringTemplates) {
+      // Check if there's already an open/pending task for today
+      const existingToday = state.taskInstances.find((instance) => {
+        if (instance.templateId !== template.id) return false;
+        if (instance.scheduleType !== "recurring_daily") return false;
+        const instanceDate = format(parseISO(instance.createdAt), "yyyy-MM-dd");
+        return instanceDate === todayStr && (instance.status === "open" || instance.status === "pending_approval");
+      });
+      
+      if (!existingToday) {
+        // Find kids to assign to (all kids if no specific assignment)
+        const kids = state.members.filter((m) => m.role === "kid");
+        
+        for (const kid of kids) {
+          // Check age restrictions
+          if (template.minAge && kid.age < template.minAge) continue;
+          if (template.maxAge && kid.age > template.maxAge) continue;
+          
+          const newInstance: TaskInstance = {
+            id: `task-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            templateId: template.id,
+            assignedToMemberId: kid.id,
+            dueAt: endOfDay(today).toISOString(),
+            status: "open",
+            createdAt: now.toISOString(),
+            scheduleType: "recurring_daily"
+          };
+          newInstances.push(newInstance);
+        }
+      }
+    }
+    
+    if (newInstances.length > 0) {
+      const taskInstances = [...state.taskInstances, ...newInstances];
+      set({ taskInstances });
+      saveToStorage({ ...get(), taskInstances });
+    }
   },
 
   addToSpinQueue: (task) => {
