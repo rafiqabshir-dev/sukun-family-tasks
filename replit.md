@@ -124,6 +124,12 @@ Six starter powers kids can choose (1-2 per kid):
   - Requires a reason to be entered
   - Tracks who made the deduction and when
   - Deduction history visible on Member Detail screen
+- **Task Approval Workflow**: Completing a task requires approval from another person
+  - When someone marks a task complete, it goes to "pending_approval" status
+  - Another family member must approve (or reject) the completion
+  - Approver cannot be the same person who requested completion
+  - Stars only awarded after approval
+  - "Needs Approval" section shows pending tasks on Today tab
 - **Navigation**: 6 tabs now - Today, Tasks, Spin, Leaderboard, Rewards, Setup
 
 ### Islamic Values Tone

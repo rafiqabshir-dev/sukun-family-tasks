@@ -6,8 +6,9 @@ import { useStore } from "@/lib/store";
 import { TaskInstance, TaskTemplate } from "@/lib/types";
 import { format, isToday, isBefore, startOfDay } from "date-fns";
 
-function getTaskStatus(task: TaskInstance): "open" | "done" | "overdue" {
+function getTaskStatus(task: TaskInstance): "open" | "pending_approval" | "done" | "overdue" {
   if (task.status === "done") return "done";
+  if (task.status === "pending_approval") return "pending_approval";
   const dueDate = new Date(task.dueAt);
   const today = startOfDay(new Date());
   if (isBefore(dueDate, today)) return "overdue";
@@ -21,6 +22,8 @@ export default function TodayScreen() {
   const actingMemberId = useStore((s) => s.actingMemberId);
   const addTaskInstance = useStore((s) => s.addTaskInstance);
   const completeTask = useStore((s) => s.completeTask);
+  const approveTask = useStore((s) => s.approveTask);
+  const rejectTask = useStore((s) => s.rejectTask);
   const deductStars = useStore((s) => s.deductStars);
 
   const [showAssignModal, setShowAssignModal] = useState(false);
@@ -61,6 +64,10 @@ export default function TodayScreen() {
   );
 
   const overdueTasks = tasksWithStatus.filter((t) => t.computedStatus === "overdue");
+
+  const pendingApprovalTasks = tasksWithStatus.filter(
+    (t) => t.computedStatus === "pending_approval"
+  );
 
   const getTemplate = (templateId: string) =>
     taskTemplates.find((t) => t.id === templateId);
@@ -103,11 +110,60 @@ export default function TodayScreen() {
     setDeductReason("");
   };
 
+  const renderApprovalCard = (task: TaskInstance & { computedStatus: string }) => {
+    const template = getTemplate(task.templateId);
+    const assignee = getMember(task.assignedToMemberId);
+    const requester = getMember(task.completionRequestedBy || "");
+    const canApprove = actingMemberId !== task.completionRequestedBy;
+
+    return (
+      <View key={task.id} style={[styles.taskCard, styles.taskCardPending]}>
+        <View style={styles.taskContent}>
+          <View style={styles.taskHeader}>
+            <Text style={styles.taskTitle}>{template?.title || "Task"}</Text>
+            <View style={styles.starsContainer}>
+              <Ionicons name="star" size={16} color={colors.secondary} />
+              <Text style={styles.starsValue}>{template?.defaultStars || 1}</Text>
+            </View>
+          </View>
+          <Text style={styles.taskAssignee}>
+            {assignee?.name} completed this task
+          </Text>
+          <Text style={styles.taskDue}>
+            Requested by: {requester?.name || "Unknown"}
+          </Text>
+        </View>
+        {canApprove ? (
+          <View style={styles.approvalButtons}>
+            <TouchableOpacity
+              style={styles.approveButton}
+              onPress={() => actingMemberId && approveTask(task.id, actingMemberId)}
+              data-testid={`button-approve-${task.id}`}
+            >
+              <Ionicons name="checkmark" size={24} color="#FFFFFF" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.rejectButton}
+              onPress={() => rejectTask(task.id)}
+              data-testid={`button-reject-${task.id}`}
+            >
+              <Ionicons name="close" size={24} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.waitingIndicator}>
+            <Text style={styles.waitingText}>Waiting for approval</Text>
+          </View>
+        )}
+      </View>
+    );
+  };
+
   const renderTaskCard = (task: TaskInstance & { computedStatus: string }, showAssignee = false) => {
     const template = getTemplate(task.templateId);
     const assignee = getMember(task.assignedToMemberId);
     const isMyTask = task.assignedToMemberId === actingMemberId;
-    const canComplete = (isMyTask || isGuardian) && task.computedStatus !== "done";
+    const canComplete = (isMyTask || isGuardian) && task.computedStatus !== "done" && task.status === "open";
 
     return (
       <View
@@ -136,14 +192,19 @@ export default function TodayScreen() {
             )}
           </Text>
         </View>
-        {canComplete && (
+        {canComplete && task.status === "open" && (
           <TouchableOpacity
             style={styles.completeButton}
-            onPress={() => completeTask(task.id)}
+            onPress={() => actingMemberId && completeTask(task.id, actingMemberId)}
             data-testid={`button-complete-${task.id}`}
           >
-            <Ionicons name="checkmark-circle" size={40} color={colors.success} />
+            <Ionicons name="checkmark-circle" size={40} color={colors.secondary} />
           </TouchableOpacity>
+        )}
+        {task.status === "pending_approval" && (
+          <View style={styles.pendingIndicator}>
+            <Ionicons name="hourglass" size={24} color={colors.warning} />
+          </View>
         )}
         {task.computedStatus === "done" && (
           <View style={styles.doneIndicator}>
@@ -221,9 +282,19 @@ export default function TodayScreen() {
           </View>
         )}
 
+        {pendingApprovalTasks.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Needs Approval</Text>
+            <Text style={styles.sectionSubtitle}>
+              Someone else must verify these tasks are complete
+            </Text>
+            {pendingApprovalTasks.map((task) => renderApprovalCard(task))}
+          </View>
+        )}
+
         {(isGuardian 
-          ? dueTodayTasks.length === 0 && overdueTasks.length === 0
-          : myTasks.length === 0
+          ? dueTodayTasks.length === 0 && overdueTasks.length === 0 && pendingApprovalTasks.length === 0
+          : myTasks.length === 0 && pendingApprovalTasks.length === 0
         ) && (
           <View style={styles.emptyState}>
             <Ionicons name="sunny-outline" size={64} color={colors.primary} />
@@ -722,5 +793,47 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.lg,
     alignItems: "center",
     marginTop: spacing.lg,
+  },
+  sectionSubtitle: {
+    fontSize: fontSize.sm,
+    color: colors.textMuted,
+    marginBottom: spacing.md,
+    marginTop: -spacing.sm,
+  },
+  taskCardPending: {
+    borderLeftWidth: 4,
+    borderLeftColor: colors.warning,
+  },
+  pendingIndicator: {
+    padding: spacing.sm,
+  },
+  approvalButtons: {
+    flexDirection: "column",
+    gap: spacing.xs,
+  },
+  approveButton: {
+    backgroundColor: colors.success,
+    width: 40,
+    height: 40,
+    borderRadius: borderRadius.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  rejectButton: {
+    backgroundColor: colors.error,
+    width: 40,
+    height: 40,
+    borderRadius: borderRadius.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  waitingIndicator: {
+    padding: spacing.sm,
+  },
+  waitingText: {
+    fontSize: fontSize.xs,
+    color: colors.warning,
+    fontWeight: "500",
+    textAlign: "center",
   },
 });
