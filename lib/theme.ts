@@ -49,3 +49,15 @@ export const fontWeight = {
   semibold: "600" as const,
   bold: "700" as const,
 };
+
+export const theme = {
+  colors: {
+    ...colors,
+    danger: colors.error,
+    dangerLight: "#FEE2E2",
+  },
+  spacing,
+  radius: borderRadius,
+  fontSize,
+  fontWeight,
+};
