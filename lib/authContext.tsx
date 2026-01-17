@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase, Profile, Family, isSupabaseConfigured } from './supabase';
 
@@ -19,36 +19,7 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Helper function to create profile if it doesn't exist
-async function ensureProfileExistsInternal(user: User): Promise<void> {
-  // Check if profile already exists
-  const { data: existingProfile } = await supabase
-    .from('profiles')
-    .select('id')
-    .eq('id', user.id)
-    .single();
-
-  if (existingProfile) return;
-
-  // Create profile from user metadata
-  const metadata = user.user_metadata || {};
-  const displayName = metadata.display_name || user.email?.split('@')[0] || 'User';
-  const role = metadata.role || 'guardian';
-
-  const { error: profileError } = await supabase
-    .from('profiles')
-    .insert({
-      id: user.id,
-      display_name: displayName,
-      role: role,
-      requires_login: true,
-      powers: [],
-    });
-
-  if (profileError) {
-    console.error('Error creating profile:', profileError);
-  }
-}
+const AUTH_TIMEOUT_MS = 8000;
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -56,167 +27,229 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [family, setFamily] = useState<Family | null>(null);
   const [loading, setLoading] = useState(true);
+  
+  const authInProgress = useRef(false);
+  const mounted = useRef(true);
 
   useEffect(() => {
+    mounted.current = true;
+    
     if (!isSupabaseConfigured()) {
-      console.log('Supabase not configured, skipping auth');
+      console.log('[Auth] Supabase not configured');
       setLoading(false);
       return;
     }
 
-    // Define helper functions at the top level of useEffect so they're accessible everywhere
-    async function handleInvalidSession() {
-      console.log('[Auth] Clearing invalid session...');
+    async function clearAuthState(reason: string) {
+      console.log('[Auth] Clearing state:', reason);
       try {
         await supabase.auth.signOut();
-      } catch (e) {
-        // Ignore signout errors
+      } catch (e) {}
+      if (mounted.current) {
+        setSession(null);
+        setUser(null);
+        setProfile(null);
+        setFamily(null);
+        setLoading(false);
       }
-      setSession(null);
-      setUser(null);
-      setProfile(null);
-      setFamily(null);
-      setLoading(false);
+      authInProgress.current = false;
     }
 
-    async function validateAndFetchProfile(currentUser: User): Promise<boolean> {
+    async function validateSession(currentSession: Session): Promise<boolean> {
+      const currentUser = currentSession.user;
+      console.log('[Auth] Validating:', currentUser.id.slice(0, 8));
+
       try {
-        console.log('[Auth] Validating profile for:', currentUser.id.slice(0, 8));
-        
-        // First ensure profile exists
-        await ensureProfileExistsInternal(currentUser);
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error('timeout')), AUTH_TIMEOUT_MS);
+        });
 
-        // Fetch profile with timeout
-        const fetchPromise = supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', currentUser.id)
-          .single();
-        
-        const timeoutPromise = new Promise<never>((_, reject) => 
-          setTimeout(() => reject(new Error('Profile fetch timeout')), 10000)
-        );
-
-        const { data: profileData, error: profileError } = await Promise.race([fetchPromise, timeoutPromise]) as any;
-
-        if (profileError) {
-          console.log('[Auth] Profile fetch error:', profileError.message);
-          return false;
-        }
-
-        if (!profileData) {
-          console.log('[Auth] No profile data returned');
-          return false;
-        }
-
-        console.log('[Auth] Profile validated:', profileData.display_name);
-        setProfile(profileData as Profile);
-
-        // Fetch family if exists
-        if (profileData.family_id) {
-          const { data: familyData } = await supabase
-            .from('families')
-            .select('*')
-            .eq('id', profileData.family_id)
+        const validationPromise = (async () => {
+          const { data: existingProfile, error: checkError } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('id', currentUser.id)
             .single();
-          
-          if (familyData) {
-            setFamily(familyData as Family);
+
+          if (checkError && checkError.code !== 'PGRST116') {
+            throw new Error(checkError.message);
+          }
+
+          if (!existingProfile) {
+            console.log('[Auth] Creating profile...');
+            const metadata = currentUser.user_metadata || {};
+            const displayName = metadata.display_name || currentUser.email?.split('@')[0] || 'User';
+            const role = metadata.role || 'guardian';
+
+            const { error: insertError } = await supabase
+              .from('profiles')
+              .insert({
+                id: currentUser.id,
+                display_name: displayName,
+                role: role,
+                requires_login: true,
+                powers: [],
+              });
+
+            if (insertError) throw new Error(insertError.message);
+          }
+
+          const { data: profileData, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', currentUser.id)
+            .single();
+
+          if (profileError || !profileData) {
+            throw new Error(profileError?.message || 'Profile not found');
+          }
+
+          return profileData;
+        })();
+
+        const profileData = await Promise.race([validationPromise, timeoutPromise]);
+
+        console.log('[Auth] Valid:', profileData.display_name);
+        if (mounted.current) {
+          setProfile(profileData as Profile);
+
+          if (profileData.family_id) {
+            const { data: familyData } = await supabase
+              .from('families')
+              .select('*')
+              .eq('id', profileData.family_id)
+              .single();
+
+            if (familyData && mounted.current) {
+              setFamily(familyData as Family);
+            }
           }
         }
 
         return true;
       } catch (error: any) {
-        console.log('[Auth] validateAndFetchProfile error:', error?.message);
+        console.log('[Auth] Validation failed:', error?.message);
         return false;
       }
     }
 
     async function initializeAuth() {
-      console.log('[Auth] Initializing...');
+      if (authInProgress.current) {
+        console.log('[Auth] Init already running');
+        return;
+      }
+      authInProgress.current = true;
+      console.log('[Auth] Init start');
+
       try {
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        
+        const getSessionPromise = supabase.auth.getSession();
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error('getSession timeout')), 5000);
+        });
+
+        let sessionResult;
+        try {
+          sessionResult = await Promise.race([getSessionPromise, timeoutPromise]);
+        } catch (e: any) {
+          console.log('[Auth] getSession failed:', e?.message);
+          await clearAuthState('getSession timeout');
+          return;
+        }
+
+        const { data: { session: currentSession }, error: sessionError } = sessionResult;
+
         if (sessionError) {
-          console.log('[Auth] Session error, clearing state:', sessionError.message);
-          await handleInvalidSession();
+          console.log('[Auth] Session error:', sessionError.message);
+          await clearAuthState('session error');
           return;
         }
 
-        if (!session?.user) {
-          console.log('[Auth] No session found');
-          setSession(null);
-          setUser(null);
-          setLoading(false);
+        if (!currentSession?.user) {
+          console.log('[Auth] No session');
+          if (mounted.current) {
+            setSession(null);
+            setUser(null);
+            setLoading(false);
+          }
+          authInProgress.current = false;
           return;
         }
 
-        console.log('[Auth] Session found for:', session.user.id.slice(0, 8));
-        setSession(session);
-        setUser(session.user);
+        if (mounted.current) {
+          setSession(currentSession);
+          setUser(currentSession.user);
+        }
 
-        // Try to fetch/create profile with timeout
-        const profileValid = await validateAndFetchProfile(session.user);
-        
-        if (!profileValid) {
-          console.log('[Auth] Profile validation failed, signing out');
-          await handleInvalidSession();
+        const isValid = await validateSession(currentSession);
+
+        if (!isValid) {
+          await clearAuthState('validation failed');
           return;
         }
 
-        console.log('[Auth] Initialization complete');
-        setLoading(false);
+        console.log('[Auth] Init complete');
+        if (mounted.current) setLoading(false);
+        authInProgress.current = false;
+
       } catch (error: any) {
-        console.error('[Auth] Init error:', error?.message);
-        await handleInvalidSession();
+        console.log('[Auth] Init error:', error?.message);
+        await clearAuthState('exception');
       }
     }
 
     initializeAuth();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('[Auth] State change:', event);
-      
-      if (event === 'SIGNED_OUT') {
-        setSession(null);
-        setUser(null);
-        setProfile(null);
-        setFamily(null);
-        setLoading(false);
-        return;
-      }
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+      console.log('[Auth] Event:', event);
 
-      // Skip INITIAL_SESSION since initializeAuth handles it
-      if (event === 'INITIAL_SESSION') {
-        return;
-      }
+      if (event === 'INITIAL_SESSION') return;
 
-      if (session?.user) {
-        setSession(session);
-        setUser(session.user);
-        setLoading(true);
-        
-        try {
-          const valid = await validateAndFetchProfile(session.user);
-          if (!valid) {
-            await handleInvalidSession();
-          } else {
-            setLoading(false);
-          }
-        } catch (error) {
-          console.error('[Auth] onAuthStateChange error:', error);
-          await handleInvalidSession();
+      if (event === 'SIGNED_OUT' || !newSession) {
+        if (mounted.current) {
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+          setFamily(null);
+          setLoading(false);
         }
-      } else {
-        setSession(null);
-        setUser(null);
-        setProfile(null);
-        setFamily(null);
-        setLoading(false);
+        authInProgress.current = false;
+        return;
+      }
+
+      if (event === 'SIGNED_IN' && newSession?.user) {
+        if (authInProgress.current) {
+          console.log('[Auth] Event during init');
+          if (mounted.current) {
+            setSession(newSession);
+            setUser(newSession.user);
+          }
+          return;
+        }
+
+        authInProgress.current = true;
+        if (mounted.current) {
+          setLoading(true);
+          setSession(newSession);
+          setUser(newSession.user);
+        }
+
+        const isValid = await validateSession(newSession);
+
+        if (!isValid) {
+          await clearAuthState('sign-in validation failed');
+        } else {
+          if (mounted.current) setLoading(false);
+          authInProgress.current = false;
+        }
+      }
+
+      if (event === 'TOKEN_REFRESHED' && newSession) {
+        if (mounted.current) setSession(newSession);
       }
     });
 
     return () => {
+      mounted.current = false;
       subscription.unsubscribe();
     };
   }, []);
@@ -244,7 +277,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             .single();
 
           if (familyError) {
-            console.error('Error fetching family:', familyError);
             setFamily(null);
           } else {
             setFamily(familyData as Family);
@@ -274,51 +306,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     role: 'guardian' | 'kid'
   ): Promise<{ error: Error | null }> {
     try {
-      console.log('[signUp] Starting signup for:', email);
+      console.log('[signUp] Starting:', email);
       
-      // Add timeout to signup call
-      const signUpPromise = supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          data: {
-            display_name: displayName,
-            role: role,
-          }
+          data: { display_name: displayName, role: role }
         }
       });
-      
-      const timeoutPromise = new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error('Signup timeout after 15s')), 15000)
-      );
-      
-      const { data, error } = await Promise.race([signUpPromise, timeoutPromise]) as any;
-
-      console.log('[signUp] Response:', { data: !!data, error: error?.message });
 
       if (error) return { error };
-
-      // If session is immediately available (email confirmation disabled),
-      // try to create the profile now
-      if (data.session && data.user) {
-        console.log('[signUp] Session available, creating profile...');
-        await ensureProfileExistsInternal(data.user);
-      }
-
-      console.log('[signUp] Complete');
+      console.log('[signUp] Done');
       return { error: null };
     } catch (error: any) {
-      console.error('[signUp] Exception:', error?.message);
+      console.error('[signUp] Error:', error?.message);
       return { error: error as Error };
     }
   }
 
   async function signIn(email: string, password: string): Promise<{ error: Error | null }> {
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
       return { error: error ? new Error(error.message) : null };
     } catch (error) {
       return { error: error as Error };
@@ -334,20 +343,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function createFamily(familyName: string, onProgress?: (step: string) => void): Promise<{ error: Error | null; family: Family | null }> {
     const log = (msg: string) => {
       console.log('[createFamily] ' + msg);
-      try {
-        onProgress?.(msg);
-      } catch (e) {
-        console.error('[createFamily] onProgress error:', e);
-      }
+      try { onProgress?.(msg); } catch (e) {}
     };
     
-    // Immediate sync log before any async
     log('Started');
     
     try {
-      log('Step 1: Inserting...');
+      log('Inserting...');
       
-      // First, just insert without select to avoid potential RLS issues
       const insertPromise = supabase
         .from('families')
         .insert({ name: familyName })
@@ -355,7 +358,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .single();
       
       const timeoutPromise = new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error('Insert timeout after 15s')), 15000)
+        setTimeout(() => reject(new Error('timeout')), 15000)
       );
       
       let familyData: any = null;
@@ -369,37 +372,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         familyError = e;
       }
 
-      log('Step 1 done: ' + (familyError ? (familyError.message || JSON.stringify(familyError)) : 'OK, id=' + familyData?.id));
+      log('Insert: ' + (familyError ? familyError.message : 'OK'));
 
       if (familyError) {
         return { error: new Error(familyError.message), family: null };
       }
 
       if (user && familyData) {
-        log('Step 2: Updating profile...');
+        log('Updating profile...');
         const { error: updateError } = await supabase
           .from('profiles')
           .update({ family_id: familyData.id })
           .eq('id', user.id);
-
-        log('Step 2 done: ' + (updateError ? updateError.message : 'OK'));
 
         if (updateError) {
           return { error: new Error(updateError.message), family: null };
         }
 
         setFamily(familyData as Family);
-        
-        log('Step 3: Refreshing...');
-        const refreshPromise = refreshProfile();
-        const refreshTimeout = new Promise<void>((resolve) => setTimeout(resolve, 5000));
-        await Promise.race([refreshPromise, refreshTimeout]);
-        log('Step 3 done');
+        await refreshProfile();
+        log('Done');
       }
 
       return { error: null, family: familyData as Family };
     } catch (error: any) {
-      log('Error: ' + (error?.message || 'unknown'));
+      log('Error: ' + error?.message);
       return { error: error as Error, family: null };
     }
   }
@@ -439,18 +436,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider
       value={{
-        session,
-        user,
-        profile,
-        family,
-        loading,
+        session, user, profile, family, loading,
         isConfigured: isSupabaseConfigured(),
-        signUp,
-        signIn,
-        signOut,
-        createFamily,
-        joinFamily,
-        refreshProfile,
+        signUp, signIn, signOut, createFamily, joinFamily, refreshProfile,
       }}
     >
       {children}
