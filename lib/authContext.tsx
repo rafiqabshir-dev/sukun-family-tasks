@@ -64,41 +64,151 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        try {
-          await ensureProfileExistsInternal(session.user);
-        } catch (error) {
-          console.error('Error ensuring profile on initial load:', error);
+    async function initializeAuth() {
+      console.log('[Auth] Initializing...');
+      try {
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          console.log('[Auth] Session error, clearing state:', sessionError.message);
+          await handleInvalidSession();
+          return;
         }
-        fetchProfile(session.user.id);
-      } else {
+
+        if (!session?.user) {
+          console.log('[Auth] No session found');
+          setSession(null);
+          setUser(null);
+          setLoading(false);
+          return;
+        }
+
+        console.log('[Auth] Session found, validating profile for:', session.user.id.slice(0, 8));
+        setSession(session);
+        setUser(session.user);
+
+        // Try to fetch/create profile with timeout
+        const profileValid = await validateAndFetchProfile(session.user);
+        
+        if (!profileValid) {
+          console.log('[Auth] Profile validation failed, signing out');
+          await handleInvalidSession();
+          return;
+        }
+
+        console.log('[Auth] Initialization complete');
         setLoading(false);
+      } catch (error: any) {
+        console.error('[Auth] Init error:', error?.message);
+        await handleInvalidSession();
       }
-    }).catch((error) => {
-      console.error('Error getting session:', error);
-      setLoading(false);
-    });
+    }
 
-    // Safety timeout - ensure loading ends after 10 seconds max
-    const timeout = setTimeout(() => {
+    async function handleInvalidSession() {
+      console.log('[Auth] Clearing invalid session...');
+      try {
+        await supabase.auth.signOut();
+      } catch (e) {
+        // Ignore signout errors
+      }
+      setSession(null);
+      setUser(null);
+      setProfile(null);
+      setFamily(null);
       setLoading(false);
-    }, 10000);
+    }
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        try {
-          // Ensure profile exists before fetching (handles email confirmation flow)
-          await ensureProfileExistsInternal(session.user);
-        } catch (error) {
-          console.error('Error ensuring profile exists:', error);
+    async function validateAndFetchProfile(currentUser: User): Promise<boolean> {
+      try {
+        // First ensure profile exists
+        await ensureProfileExistsInternal(currentUser);
+
+        // Fetch profile with timeout
+        const fetchPromise = supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', currentUser.id)
+          .single();
+        
+        const timeoutPromise = new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error('Profile fetch timeout')), 10000)
+        );
+
+        const { data: profileData, error: profileError } = await Promise.race([fetchPromise, timeoutPromise]) as any;
+
+        if (profileError) {
+          console.log('[Auth] Profile fetch error:', profileError.message);
+          // Check if it's an auth error
+          if (profileError.code === 'PGRST301' || profileError.message?.includes('JWT')) {
+            return false;
+          }
+          // For PGRST116 (not found), profile creation might have failed
+          if (profileError.code === 'PGRST116') {
+            return false;
+          }
+          return false;
         }
-        fetchProfile(session.user.id);
+
+        if (!profileData) {
+          console.log('[Auth] No profile data returned');
+          return false;
+        }
+
+        console.log('[Auth] Profile validated:', profileData.display_name);
+        setProfile(profileData as Profile);
+
+        // Fetch family if exists
+        if (profileData.family_id) {
+          const { data: familyData } = await supabase
+            .from('families')
+            .select('*')
+            .eq('id', profileData.family_id)
+            .single();
+          
+          if (familyData) {
+            setFamily(familyData as Family);
+          }
+        }
+
+        return true;
+      } catch (error: any) {
+        console.log('[Auth] validateAndFetchProfile error:', error?.message);
+        return false;
+      }
+    }
+
+    initializeAuth();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('[Auth] State change:', event);
+      
+      if (event === 'SIGNED_OUT') {
+        setSession(null);
+        setUser(null);
+        setProfile(null);
+        setFamily(null);
+        setLoading(false);
+        return;
+      }
+
+      if (session?.user) {
+        setSession(session);
+        setUser(session.user);
+        setLoading(true);
+        
+        try {
+          await ensureProfileExistsInternal(session.user);
+          const valid = await validateAndFetchProfile(session.user);
+          if (!valid) {
+            await handleInvalidSession();
+          }
+        } catch (error) {
+          console.error('[Auth] onAuthStateChange error:', error);
+        }
+        setLoading(false);
       } else {
+        setSession(null);
+        setUser(null);
         setProfile(null);
         setFamily(null);
         setLoading(false);
@@ -107,7 +217,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => {
       subscription.unsubscribe();
-      clearTimeout(timeout);
     };
   }, []);
 
@@ -148,8 +257,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       console.error('Error in fetchProfile:', error);
-    } finally {
-      setLoading(false);
     }
   }
 
