@@ -1,14 +1,38 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { View, TouchableOpacity, Modal, Text, StyleSheet, ScrollView } from "react-native";
-import { Tabs, useRouter } from "expo-router";
+import { Tabs, useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, borderRadius, fontSize } from "@/lib/theme";
+import { useAuth } from "@/lib/authContext";
 
 type IconName = "today" | "today-outline" | "list" | "list-outline" | "sync" | "sync-outline" | "trophy" | "trophy-outline" | "gift" | "gift-outline" | "menu" | "menu-outline";
 
 export default function TabLayout() {
   const router = useRouter();
+  const { getPendingJoinRequests, profile } = useAuth();
   const [showMenu, setShowMenu] = useState(false);
+  const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
+
+  const fetchPendingRequests = useCallback(async () => {
+    if (profile?.role === 'guardian') {
+      try {
+        const requests = await getPendingJoinRequests();
+        setPendingRequestsCount(requests.length);
+      } catch (error) {
+        console.log('Error fetching pending requests:', error);
+      }
+    }
+  }, [profile?.role, getPendingJoinRequests]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchPendingRequests();
+    }, [fetchPendingRequests])
+  );
+
+  useEffect(() => {
+    fetchPendingRequests();
+  }, [fetchPendingRequests]);
 
   const menuItems = [
     { title: "Tasks", icon: "list-outline" as const, route: "/(tabs)/tasks" as const },
@@ -34,7 +58,16 @@ export default function TabLayout() {
               onPress={() => setShowMenu(true)}
               data-testid="button-more-menu"
             >
-              <Ionicons name="menu" size={24} color="#FFFFFF" />
+              <View>
+                <Ionicons name="menu" size={24} color="#FFFFFF" />
+                {pendingRequestsCount > 0 && (
+                  <View style={styles.menuBadge}>
+                    <Text style={styles.menuBadgeText}>
+                      {pendingRequestsCount > 9 ? '9+' : pendingRequestsCount}
+                    </Text>
+                  </View>
+                )}
+              </View>
             </TouchableOpacity>
           ),
           tabBarActiveTintColor: colors.primary,
@@ -156,7 +189,16 @@ export default function TabLayout() {
                   data-testid={`button-menu-${item.title.toLowerCase().replace(' ', '-')}`}
                 >
                   <Ionicons name={item.icon} size={24} color={colors.primary} />
-                  <Text style={styles.menuItemText}>{item.title}</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemText}>{item.title}</Text>
+                    {item.title === "Setup" && pendingRequestsCount > 0 && (
+                      <View style={styles.setupBadge}>
+                        <Text style={styles.setupBadgeText}>
+                          {pendingRequestsCount} pending
+                        </Text>
+                      </View>
+                    )}
+                  </View>
                   <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
                 </TouchableOpacity>
               ))}
@@ -207,9 +249,42 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   menuItemText: {
-    flex: 1,
     fontSize: fontSize.md,
     color: colors.text,
     fontWeight: "500",
+  },
+  menuItemTextContainer: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  menuBadge: {
+    position: "absolute",
+    top: -6,
+    right: -6,
+    backgroundColor: colors.danger,
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 4,
+  },
+  menuBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  setupBadge: {
+    backgroundColor: colors.danger,
+    borderRadius: borderRadius.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+  },
+  setupBadgeText: {
+    color: "#FFFFFF",
+    fontSize: fontSize.xs,
+    fontWeight: "600",
   },
 });
