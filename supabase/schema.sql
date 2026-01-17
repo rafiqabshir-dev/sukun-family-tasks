@@ -159,18 +159,17 @@ CREATE POLICY "Users can create families"
   ON families FOR INSERT
   WITH CHECK (true);
 
--- Profiles: Users in same family can see each other
-CREATE POLICY "Users can view family members"
+-- Profiles: Users can see own profile + family members
+-- Use OR to allow seeing own profile without recursion
+CREATE POLICY "Users can view profiles"
   ON profiles FOR SELECT
-  USING (family_id IN (SELECT family_id FROM profiles WHERE id = auth.uid()));
+  USING (
+    id = auth.uid() OR 
+    family_id IS NOT NULL AND family_id = (SELECT family_id FROM profiles WHERE id = auth.uid())
+  );
 
 CREATE POLICY "Users can create their own profile"
   ON profiles FOR INSERT
-  WITH CHECK (true);
-
-CREATE POLICY "Service role can manage profiles"
-  ON profiles FOR ALL
-  USING (true)
   WITH CHECK (true);
 
 CREATE POLICY "Users can update their own profile"
