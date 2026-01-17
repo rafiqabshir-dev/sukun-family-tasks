@@ -81,8 +81,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        // Ensure profile exists before fetching (handles email confirmation flow)
-        await ensureProfileExistsInternal(session.user);
+        try {
+          // Ensure profile exists before fetching (handles email confirmation flow)
+          await ensureProfileExistsInternal(session.user);
+        } catch (error) {
+          console.error('Error ensuring profile exists:', error);
+        }
         fetchProfile(session.user.id);
       } else {
         setProfile(null);
