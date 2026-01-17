@@ -147,9 +147,10 @@ The app supports optional cloud sync via Supabase for multi-user family collabor
 1. **Create Supabase Project**: Go to [supabase.com](https://supabase.com) and create a new project
 2. **Run Schema**: Copy contents of `supabase/schema.sql` and run in Supabase SQL Editor
 3. **Enable Email Auth**: In Authentication > Providers, enable Email provider
-4. **Add Secrets**: In Replit Secrets, add:
+4. **Add Secrets**: In Replit Secrets tab, add these two secrets:
    - `SUPABASE_URL` - Your project URL (e.g., https://xxx.supabase.co)
    - `SUPABASE_ANON_KEY` - Your project's anon/public key
+5. **Restart the app** after adding secrets to pick up the new configuration
 
 ### Cloud Data Model
 

@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Slot, Stack, useSegments, router } from "expo-router";
+import { useEffect } from "react";
+import { Slot, Stack, useSegments, router, useRootNavigationState } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { View, ActivityIndicator, StyleSheet } from "react-native";
 import { useStore } from "@/lib/store";
@@ -8,18 +8,12 @@ import { AuthProvider, useAuth } from "@/lib/authContext";
 
 function useProtectedRoute(session: any, family: any, loading: boolean, isReady: boolean, isConfigured: boolean) {
   const segments = useSegments();
-  const [isNavigationReady, setNavigationReady] = useState(false);
+  const navigationState = useRootNavigationState();
 
   useEffect(() => {
-    if (!loading && isReady) {
-      setNavigationReady(true);
-    }
-  }, [loading, isReady]);
+    if (!navigationState?.key) return;
+    if (loading || !isReady) return;
 
-  useEffect(() => {
-    if (!isNavigationReady) return;
-
-    // If Supabase isn't configured, skip auth routing (offline mode)
     if (!isConfigured) {
       return;
     }
@@ -33,7 +27,7 @@ function useProtectedRoute(session: any, family: any, loading: boolean, isReady:
     } else if (session && family && inAuthGroup) {
       router.replace('/(tabs)/today');
     }
-  }, [session, family, segments, isNavigationReady, isConfigured]);
+  }, [session, family, segments, loading, isReady, isConfigured, navigationState?.key]);
 }
 
 function RootLayoutContent() {

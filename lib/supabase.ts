@@ -1,11 +1,21 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
 
 import Constants from 'expo-constants';
 
-const supabaseUrl = Constants.expoConfig?.extra?.EXPO_PUBLIC_SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = Constants.expoConfig?.extra?.EXPO_PUBLIC_SUPABASE_ANON_KEY || process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabaseUrl = 
+  Constants.expoConfig?.extra?.EXPO_PUBLIC_SUPABASE_URL || 
+  process.env.EXPO_PUBLIC_SUPABASE_URL || 
+  Constants.expoConfig?.extra?.SUPABASE_URL ||
+  process.env.SUPABASE_URL || 
+  '';
+const supabaseAnonKey = 
+  Constants.expoConfig?.extra?.EXPO_PUBLIC_SUPABASE_ANON_KEY || 
+  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 
+  Constants.expoConfig?.extra?.SUPABASE_ANON_KEY ||
+  process.env.SUPABASE_ANON_KEY || 
+  '';
 
 export function isSupabaseConfigured(): boolean {
   return !!(supabaseUrl && supabaseAnonKey && supabaseUrl.includes('supabase'));
@@ -35,14 +45,44 @@ const ExpoSecureStoreAdapter = {
   },
 };
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    storage: ExpoSecureStoreAdapter,
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: false,
+let _supabaseClient: SupabaseClient | null = null;
+
+function createSupabaseClient(): SupabaseClient | null {
+  if (!isSupabaseConfigured()) {
+    return null;
+  }
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      storage: ExpoSecureStoreAdapter,
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: false,
+    },
+  });
+}
+
+export function getSupabaseClient(): SupabaseClient | null {
+  if (_supabaseClient === null && isSupabaseConfigured()) {
+    _supabaseClient = createSupabaseClient();
+  }
+  return _supabaseClient;
+}
+
+export const supabase = {
+  get client() {
+    return getSupabaseClient();
   },
-});
+  from(table: string) {
+    const client = getSupabaseClient();
+    if (!client) throw new Error('Supabase not configured');
+    return client.from(table);
+  },
+  get auth() {
+    const client = getSupabaseClient();
+    if (!client) throw new Error('Supabase not configured');
+    return client.auth;
+  }
+};
 
 export type Profile = {
   id: string;
