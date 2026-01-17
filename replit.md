@@ -138,6 +138,48 @@ Six starter powers kids can choose (1-2 per kid):
 - No music autoplay
 - Focus on good deeds and family harmony
 
+## Supabase Cloud Sync (Multi-User Mode)
+
+The app supports optional cloud sync via Supabase for multi-user family collaboration across devices.
+
+### Setup Instructions
+
+1. **Create Supabase Project**: Go to [supabase.com](https://supabase.com) and create a new project
+2. **Run Schema**: Copy contents of `supabase/schema.sql` and run in Supabase SQL Editor
+3. **Enable Email Auth**: In Authentication > Providers, enable Email provider
+4. **Add Secrets**: In Replit Secrets, add:
+   - `SUPABASE_URL` - Your project URL (e.g., https://xxx.supabase.co)
+   - `SUPABASE_ANON_KEY` - Your project's anon/public key
+
+### Cloud Data Model
+
+- **families**: Family groups with invite codes for joining
+- **profiles**: User profiles linked to Supabase Auth (extends auth.users)
+- **tasks**: Task templates shared within a family
+- **task_instances**: Assigned tasks with status tracking
+- **task_approvals**: Approval records (enforces different person must approve)
+- **stars_ledger**: Immutable log of all star transactions
+- **rewards**: Family reward definitions
+- **reward_claims**: Redemption history
+- **spin_queue/spin_history**: Task spinning game state
+
+### Auth Flow
+
+1. Sign Up with email/password → Creates auth user + profile
+2. Create Family (generates invite code) or Join Family (enter code)
+3. Family data syncs across all family member devices in real-time
+
+### Offline Mode
+
+If Supabase is not configured (missing SUPABASE_URL/SUPABASE_ANON_KEY), the app runs in offline-only mode using local AsyncStorage. All features work locally but don't sync across devices.
+
+### Security Features
+
+- Row Level Security (RLS) ensures users only see their family's data
+- Task approval requires different person than completion requester
+- Unique database constraints prevent duplicate approvals/star awards
+- Stars ledger is append-only for audit trail
+
 ## External Dependencies
 
 - expo, expo-router, expo-constants, expo-linking, expo-status-bar
@@ -145,3 +187,5 @@ Six starter powers kids can choose (1-2 per kid):
 - react-native-gesture-handler, react-native-reanimated
 - @expo/vector-icons, @react-native-async-storage/async-storage
 - zustand, date-fns, typescript
+- @supabase/supabase-js (cloud sync)
+- expo-secure-store (secure token storage)
