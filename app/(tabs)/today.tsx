@@ -69,7 +69,7 @@ export default function TodayScreen() {
     addTaskInstance({
       templateId: selectedTemplate.id,
       assignedToMemberId: selectedKid,
-      dueAt: new Date(dueDate).toISOString(),
+      dueAt: `${dueDate}T12:00:00`,
       status: "open",
     });
     

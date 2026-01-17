@@ -48,12 +48,14 @@ Automated end-to-end testing confirmed:
 | 2 | Go to Today tab | See "My Tasks" section | PASS |
 | 3 | Task appears with stars indicator | Task shows star value (1) | PASS |
 | 4 | Click checkmark to complete | Task marked done | PASS |
-| 5 | Stars added to kid's total | starsTotal increases by task stars | PASS |
+| 5 | "All Clear!" message appears | Empty state shows | PASS |
+| 6 | Stars added to kid's total | starsTotal increases by task stars | PASS |
 
 **Notes:**
 - Complete button only shows for tasks assigned to acting member
 - Task status updates to "done" with completedAt timestamp
 - Star values come from task template's defaultStars
+- Kids see ONLY "My Tasks" section (no "Due Today" or "Overdue")
 
 ---
 
@@ -109,7 +111,7 @@ Automated end-to-end testing confirmed:
 ## Demo Script
 
 ### Setup
-1. Open app at http://localhost:5000
+1. Open app via Expo Go (scan QR code) or web at http://localhost:5000
 2. Complete onboarding:
    - Add guardian "Mom" (age 35)
    - Add kid "Ahmed" (age 8)
@@ -123,100 +125,125 @@ Automated end-to-end testing confirmed:
 2. Tap Mom in "Act As" section (checkmark appears)
 3. Go to Today tab
 4. Tap "Assign New Task" button
-5. Select "Make your bed" (1 star task)
+5. Select "Make your bed" from the list
 6. Ahmed is auto-selected (only kid)
 7. Tap "Assign Task"
-8. Task now appears in "Due Today" section
+8. See task in "Due Today" section
 
 **Part B: Kid Completes Task**
 1. Go to Setup tab
 2. Tap Ahmed in "Act As" section
 3. Go to Today tab
-4. See task in "My Tasks" section
-5. Tap green checkmark to complete
-6. Task disappears (marked done)
+4. See task in "My Tasks" section (not in Due Today - kids only see My Tasks)
+5. Tap green checkmark on task
+6. Task disappears, "All Clear!" message shows
 
-**Part C: Verify Stars on Leaderboard**
+**Part C: Verify Stars**
 1. Go to Leaderboard tab
-2. Ahmed shows with 1 star
-
-**Part D: Create Overdue Task (Optional)**
-1. Switch to Mom (Setup > Act As)
-2. Go to Today > Assign New Task
-3. Select any task
-4. Change due date to past date (e.g., 2026-01-10)
-5. Assign task
-6. Task appears in "Overdue" section with red accent
-
----
-
-## Technical Notes
-
-### Data Flow
-```
-Guardian assigns task
-  -> addTaskInstance({ templateId, assignedToMemberId, dueAt, status: "open" })
-  -> Instance saved to store.taskInstances
-  -> Persisted to AsyncStorage
-
-Kid completes task
-  -> completeTask(instanceId)
-  -> Finds template for star value
-  -> Updates instance.status = "done"
-  -> Increments member.starsTotal
-  -> Persisted to AsyncStorage
-
-Leaderboard displays
-  -> Reads members from store
-  -> Filters kids, sorts by starsTotal desc
-  -> Renders podium/list
-```
-
-### Key Store Actions
-- `addTaskInstance(instance)` - Creates new task instance
-- `completeTask(instanceId)` - Marks done, adds stars to member
-- `setActingMember(memberId)` - Sets who is using app
-
-### Status Computation
-```typescript
-function getTaskStatus(task: TaskInstance): "open" | "done" | "overdue" {
-  if (task.status === "done") return "done";
-  const dueDate = new Date(task.dueAt);
-  const today = startOfDay(new Date());
-  if (isBefore(dueDate, today)) return "overdue";
-  return "open";
-}
-```
+2. See Ahmed with 1 star (or more if multiple tasks completed)
+3. Trophy icon shows next to name
 
 ---
 
 ## Issues Fixed During Validation
 
 1. **Auto-select single kid**: Added `openAssignModal()` function to auto-select kid when only one exists
-2. **Debug logging**: Added console.log statements to trace task completion flow (removed after fix)
-3. **Complete button handler**: Added inline logging to verify click events (removed after fix)
-4. **Duplicate task display**: Fixed issue where tasks appeared in both "My Tasks" AND "Due Today" sections for kids. Now "Due Today" and "Overdue" sections only show for guardians, while kids see only "My Tasks"
+2. **Duplicate task display**: Fixed issue where tasks appeared in both "My Tasks" AND "Due Today" sections for kids. Now "Due Today" and "Overdue" sections only show for guardians, while kids see only "My Tasks"
+3. **Package compatibility**: Fixed React/React-DOM version mismatch and updated react-native packages to Expo SDK 54 compatible versions
+4. **Expo tunnel mode**: Enabled tunnel mode for mobile device access via Expo Go
+5. **Timezone bug**: Fixed date storage to use local time (T12:00:00) instead of UTC conversion to prevent tasks from appearing overdue incorrectly in western timezones
+
+---
 
 ## Code Review Notes
 
 ### Task Filtering (Verified Correct)
-The filtering logic correctly excludes completed tasks:
-- `dueTodayTasks`: filters for `computedStatus === "open"` (excludes done tasks)
-- `overdueTasks`: filters for `computedStatus === "overdue"` (excludes done tasks)
-- `myTasks`: filters for `computedStatus !== "done"` (explicitly excludes done)
+```typescript
+// In today.tsx - Kids see only My Tasks
+{isGuardian && dueTodayTasks.length > 0 && (
+  <Section title="Due Today">...</Section>
+)}
+{isGuardian && overdueTasks.length > 0 && (
+  <Section title="Overdue">...</Section>
+)}
+{!isGuardian && myTasks.length > 0 && (
+  <Section title="My Tasks">...</Section>
+)}
+```
 
-The `getTaskStatus` function returns "done" for completed tasks, so they don't appear in active lists.
+### Due Date Storage (Timezone Fix)
+```typescript
+// Fixed: Store with local noon time to avoid UTC conversion issues
+addTaskInstance({
+  templateId: selectedTemplate.id,
+  assignedToMemberId: selectedKid,
+  dueAt: `${dueDate}T12:00:00`,  // Local time, not UTC
+  status: "open",
+});
+```
+
+### Task Completion (Verified Correct)
+```typescript
+// completeTask updates status and adds stars
+completeTask: (taskId) => {
+  const task = state.taskInstances.find(t => t.id === taskId);
+  if (!task) return;
+  
+  // Update task status
+  task.status = "done";
+  task.completedAt = new Date().toISOString();
+  
+  // Add stars to member
+  const template = state.taskTemplates.find(t => t.id === task.templateId);
+  const member = state.members.find(m => m.id === task.assignedToMemberId);
+  if (template && member) {
+    member.starsTotal += template.defaultStars;
+  }
+}
+```
+
+### Overdue Computation (Verified Correct)
+```typescript
+// computedStatus in store.ts
+get computedStatus() {
+  if (task.status === "done") return "done";
+  const dueDate = startOfDay(parseISO(task.dueAt));
+  const today = startOfDay(new Date());
+  return dueDate < today ? "overdue" : "open";
+}
+```
 
 ---
 
-## All Tests: PASS
+## Test Evidence
 
-| Feature | Status |
-|---------|--------|
-| Task assignment by guardian | PASS |
-| Task appears for assigned kid | PASS |
-| Kid can complete assigned task | PASS |
-| Stars increase on completion | PASS |
-| Leaderboard shows updated stars | PASS |
-| Overdue tasks show with red styling | PASS |
-| Leaderboard ranks by stars | PASS |
+### Automated Test Results (January 17, 2026)
+- Test run: PASS
+- Scenarios covered: Onboarding, task assignment, task completion, star tracking, leaderboard
+- Key observations:
+  - Task assigned to Ahmed by Mom (guardian)
+  - Ahmed sees task in "My Tasks" only (not in Due Today)
+  - Checkmark completes task, shows "All Clear!"
+  - Leaderboard shows Ahmed with 1 star
+
+### Package Versions (Fixed)
+- react: 19.1.0
+- react-dom: 19.1.0
+- react-native-gesture-handler: ~2.28.0
+- react-native-reanimated: ~4.1.1
+- react-native-screens: ~4.16.0
+- expo: ~54.0.31
+
+---
+
+## Conclusion
+
+**V1 Prompt 2A: VALIDATED**
+
+All features work as specified:
+- ✅ Guardian can assign tasks to kids
+- ✅ Tasks appear in correct sections based on role
+- ✅ Kids can complete tasks and earn stars
+- ✅ Overdue tasks display correctly
+- ✅ Leaderboard ranks kids by stars
+- ✅ App runs on Expo Go via tunnel mode

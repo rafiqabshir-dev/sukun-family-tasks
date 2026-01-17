@@ -67,16 +67,18 @@ Six starter powers kids can choose (1-2 per kid):
 ### Task Categories
 - Cleaning, Kitchen, Learning, Kindness, Prayer, Outdoor, Personal
 
-### Task Assignment & Completion (V1 Prompt 2A)
+### Task Assignment & Completion (V1 Prompt 2A - VALIDATED)
 - **Act As Selector**: Setup tab has "Act As" section to switch between family members
 - **actingMemberId**: Persisted in store to track who is using the app
 - **Guardian Task Assignment**: Today tab shows "Assign New Task" button for guardians
   - Modal with task template selection, kid selection, due date picker
   - Auto-selects kid if only one exists
-- **Kid Task View**: Today tab shows "My Tasks" section for assigned tasks
+  - Due dates stored with local noon time (T12:00:00) to prevent timezone issues
+- **Kid Task View**: Today tab shows "My Tasks" section only (guardians see "Due Today"/"Overdue")
 - **Task Completion**: Kids tap checkmark to complete tasks, earns stars
 - **Status Tracking**: Tasks can be open, done, or overdue (computed from due date)
 - **Leaderboard**: Ranks kids by starsTotal, shows trophy for top 3
+- **Validation**: See VALIDATION_V1_2.md for full test scenarios and demo script
 
 ### Islamic Values Tone
 - Positive, gentle wording throughout
