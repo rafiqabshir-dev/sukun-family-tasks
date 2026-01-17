@@ -1,16 +1,19 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Modal, TextInput, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Modal, TextInput, KeyboardAvoidingView, Platform, Share, Linking, Alert } from "react-native";
 import { useState, useEffect } from "react";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Clipboard from "expo-clipboard";
 import { colors, spacing, borderRadius, fontSize } from "@/lib/theme";
 import { useStore } from "@/lib/store";
 import { POWER_INFO } from "@/lib/types";
+import { useAuth } from "@/lib/authContext";
 
 const STORAGE_KEY = "barakah-kids-race:v1";
 
 export default function SetupScreen() {
   const router = useRouter();
+  const { profile, family, signOut, isConfigured } = useAuth();
   const members = useStore((s) => s.members);
   const taskTemplates = useStore((s) => s.taskTemplates);
   const taskInstances = useStore((s) => s.taskInstances);
@@ -23,9 +26,14 @@ export default function SetupScreen() {
   
   const [storageKeyExists, setStorageKeyExists] = useState<boolean | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showInviteDrawer, setShowInviteDrawer] = useState(false);
   const [newName, setNewName] = useState("");
   const [newAge, setNewAge] = useState("");
   const [newRole, setNewRole] = useState<"kid" | "guardian">("kid");
+  const [copiedCode, setCopiedCode] = useState(false);
+  
+  // Check if current user is the owner (first guardian in the family)
+  const isOwner = profile?.role === "guardian";
   
   useEffect(() => {
     const checkStorage = async () => {
@@ -60,6 +68,49 @@ export default function SetupScreen() {
   };
 
   const canAddMember = newName.trim() && newAge && parseInt(newAge) > 0;
+  const inviteCode = family?.invite_code || "";
+
+  const handleCopyInviteCode = async () => {
+    if (!inviteCode) return;
+    await Clipboard.setStringAsync(inviteCode.toUpperCase());
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 2000);
+  };
+
+  const handleShareWhatsApp = async () => {
+    if (!inviteCode) return;
+    const message = `Join our family on Sukun! Use invite code: ${inviteCode.toUpperCase()}`;
+    const whatsappUrl = `whatsapp://send?text=${encodeURIComponent(message)}`;
+    
+    try {
+      const canOpen = await Linking.canOpenURL(whatsappUrl);
+      if (canOpen) {
+        await Linking.openURL(whatsappUrl);
+      } else {
+        await Share.share({ message });
+      }
+    } catch {
+      await Share.share({ message });
+    }
+  };
+
+  const handleSignOut = async () => {
+    Alert.alert(
+      "Sign Out",
+      "Are you sure you want to sign out?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Sign Out", 
+          style: "destructive",
+          onPress: async () => {
+            await signOut();
+            router.replace("/auth/sign-in");
+          }
+        },
+      ]
+    );
+  };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -105,14 +156,16 @@ export default function SetupScreen() {
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Family Members</Text>
-          <TouchableOpacity
-            style={styles.addMemberButton}
-            onPress={() => setShowAddModal(true)}
-            data-testid="button-add-member"
-          >
-            <Ionicons name="add-circle" size={20} color="#FFFFFF" />
-            <Text style={styles.addMemberButtonText}>Add</Text>
-          </TouchableOpacity>
+          {isOwner && (
+            <TouchableOpacity
+              style={styles.addMemberButton}
+              onPress={() => setShowAddModal(true)}
+              data-testid="button-add-member"
+            >
+              <Ionicons name="add-circle" size={20} color="#FFFFFF" />
+              <Text style={styles.addMemberButtonText}>Add</Text>
+            </TouchableOpacity>
+          )}
         </View>
         <View style={styles.card}>
           <View style={styles.statRow}>
@@ -127,6 +180,22 @@ export default function SetupScreen() {
             <Text style={styles.statValue}>{guardians.length}</Text>
           </View>
         </View>
+
+        {kids.length === 0 && (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyText}>No participants yet</Text>
+            {isOwner && inviteCode && (
+              <TouchableOpacity
+                style={styles.inviteButton}
+                onPress={() => setShowInviteDrawer(true)}
+                data-testid="button-invite-members"
+              >
+                <Ionicons name="person-add" size={20} color="#FFFFFF" />
+                <Text style={styles.inviteButtonText}>Invite Members</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
 
         {kids.length > 0 && (
           <View style={styles.membersList}>
@@ -220,6 +289,20 @@ export default function SetupScreen() {
               thumbColor={settings.soundsEnabled ? colors.primary : colors.textMuted}
             />
           </View>
+          {isConfigured && (
+            <>
+              <View style={styles.divider} />
+              <TouchableOpacity
+                style={styles.settingRow}
+                onPress={handleSignOut}
+                data-testid="button-sign-out"
+              >
+                <Ionicons name="log-out-outline" size={24} color={colors.error} />
+                <Text style={[styles.settingLabel, { color: colors.error }]}>Sign Out</Text>
+                <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+              </TouchableOpacity>
+            </>
+          )}
         </View>
       </View>
 
@@ -373,6 +456,70 @@ export default function SetupScreen() {
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal visible={showInviteDrawer} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Invite Family Members</Text>
+              <TouchableOpacity onPress={() => setShowInviteDrawer(false)}>
+                <Ionicons name="close" size={28} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.inviteDescription}>
+              Share this invite code with family members to let them join your family on Sukun.
+            </Text>
+
+            <View style={styles.inviteCodeBox}>
+              <Text style={styles.inviteCodeLabel}>Invite Code</Text>
+              <Text style={styles.inviteCodeValue} data-testid="text-invite-code">
+                {inviteCode.toUpperCase()}
+              </Text>
+            </View>
+
+            <View style={styles.inviteActions}>
+              <TouchableOpacity
+                style={styles.inviteActionButton}
+                onPress={handleCopyInviteCode}
+                data-testid="button-copy-invite-code"
+              >
+                <Ionicons 
+                  name={copiedCode ? "checkmark-circle" : "copy-outline"} 
+                  size={24} 
+                  color="#FFFFFF" 
+                />
+                <Text style={styles.inviteActionText}>
+                  {copiedCode ? "Copied!" : "Copy Code"}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.inviteActionButton, styles.whatsappButton]}
+                onPress={handleShareWhatsApp}
+                data-testid="button-share-whatsapp"
+              >
+                <Ionicons name="logo-whatsapp" size={24} color="#FFFFFF" />
+                <Text style={styles.inviteActionText}>Share on WhatsApp</Text>
+              </TouchableOpacity>
+            </View>
+
+            {isOwner && (
+              <TouchableOpacity
+                style={styles.addLocalButton}
+                onPress={() => {
+                  setShowInviteDrawer(false);
+                  setShowAddModal(true);
+                }}
+                data-testid="button-add-local-member"
+              >
+                <Ionicons name="person-add-outline" size={20} color={colors.primary} />
+                <Text style={styles.addLocalButtonText}>Add Member Locally</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
       </Modal>
     </ScrollView>
   );
@@ -702,6 +849,93 @@ const styles = StyleSheet.create({
   },
   confirmButtonText: {
     color: "#FFFFFF",
+    fontSize: fontSize.md,
+    fontWeight: "600",
+  },
+  emptyState: {
+    backgroundColor: colors.surfaceSecondary,
+    borderRadius: borderRadius.lg,
+    padding: spacing.xl,
+    alignItems: "center",
+    marginTop: spacing.md,
+  },
+  emptyText: {
+    fontSize: fontSize.md,
+    color: colors.textSecondary,
+    marginBottom: spacing.md,
+  },
+  inviteButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
+    gap: spacing.sm,
+  },
+  inviteButtonText: {
+    color: "#FFFFFF",
+    fontSize: fontSize.md,
+    fontWeight: "600",
+  },
+  inviteDescription: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    marginBottom: spacing.lg,
+    lineHeight: 20,
+  },
+  inviteCodeBox: {
+    backgroundColor: colors.surfaceSecondary,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    alignItems: "center",
+    marginBottom: spacing.lg,
+  },
+  inviteCodeLabel: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    marginBottom: spacing.xs,
+  },
+  inviteCodeValue: {
+    fontSize: fontSize.xxl,
+    fontWeight: "700",
+    color: colors.primary,
+    letterSpacing: 4,
+  },
+  inviteActions: {
+    gap: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  inviteActionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
+    gap: spacing.sm,
+  },
+  whatsappButton: {
+    backgroundColor: "#25D366",
+  },
+  inviteActionText: {
+    color: "#FFFFFF",
+    fontSize: fontSize.md,
+    fontWeight: "600",
+  },
+  addLocalButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surfaceSecondary,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  addLocalButtonText: {
+    color: colors.primary,
     fontSize: fontSize.md,
     fontWeight: "600",
   },
