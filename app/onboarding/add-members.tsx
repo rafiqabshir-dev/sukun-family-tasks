@@ -107,21 +107,31 @@ export default function AddMembersScreen() {
     );
   };
 
-  const canContinue = members.some(
-    (m) => m.name.trim() && m.age && parseInt(m.age) > 0
-  );
+  const canContinue = members.some((m) => {
+    const hasName = m.name.trim().length > 0;
+    const hasValidAge = m.age && parseInt(m.age) > 0;
+    // Guardians don't require age, kids do
+    return hasName && (m.role === "guardian" || hasValidAge);
+  });
 
   const handleContinue = () => {
-    const validMembers = members.filter(
-      (m) => m.name.trim() && m.age && parseInt(m.age) > 0
-    );
+    const validMembers = members.filter((m) => {
+      const hasName = m.name.trim().length > 0;
+      const hasValidAge = m.age && parseInt(m.age) > 0;
+      // Guardians don't require age, kids do
+      return hasName && (m.role === "guardian" || hasValidAge);
+    });
 
     existingMembers.forEach((m) => useStore.getState().removeMember(m.id));
 
     validMembers.forEach((m) => {
+      // Guardians default to age 0 if not provided (age not required for guardians)
+      const parsedAge = parseInt(m.age);
+      const age = isNaN(parsedAge) || parsedAge <= 0 ? 0 : parsedAge;
+      
       addMember({
         name: m.name.trim(),
-        age: parseInt(m.age),
+        age: age,
         role: m.role,
       });
     });

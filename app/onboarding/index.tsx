@@ -43,9 +43,6 @@ export default function WelcomeScreen() {
       <View style={styles.content}>
         <Image source={sukunLogo} style={styles.logo} resizeMode="contain" />
 
-        <Text style={styles.title}>Sukun</Text>
-        <Text style={styles.subtitle}>Family Tasks Made Simple</Text>
-
         <View style={styles.features}>
           <View style={styles.featureItem}>
             <Ionicons name="people" size={24} color={colors.primary} />
@@ -132,22 +129,8 @@ const styles = StyleSheet.create({
     height: 180,
     marginBottom: spacing.lg,
   },
-  title: {
-    fontSize: fontSize.xxxl,
-    fontWeight: "700",
-    color: colors.primary,
-    textAlign: "center",
-    marginBottom: spacing.md,
-  },
-  subtitle: {
-    fontSize: fontSize.md,
-    color: colors.textSecondary,
-    textAlign: "center",
-    maxWidth: 300,
-    lineHeight: 24,
-  },
   features: {
-    marginTop: spacing.xxl,
+    marginTop: spacing.xl,
     gap: spacing.lg,
   },
   featureItem: {
