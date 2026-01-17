@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -25,10 +25,11 @@ export default function FamilySetupScreen() {
   const [error, setError] = useState<string | null>(null);
   const [debugInfo, setDebugInfo] = useState<string>('');
 
-  if (family) {
-    router.replace('/(tabs)/today');
-    return null;
-  }
+  useEffect(() => {
+    if (family) {
+      router.replace('/(tabs)/today');
+    }
+  }, [family]);
 
   async function handleCreateFamily() {
     if (!familyName.trim()) {
