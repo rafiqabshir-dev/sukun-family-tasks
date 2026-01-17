@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { AppState, Member, TaskTemplate, TaskInstance, StagedTask, Reward, DEFAULT_STATE, Power, PowerKey } from "./types";
+import { AppState, Member, TaskTemplate, TaskInstance, StagedTask, Reward, StarDeduction, DEFAULT_STATE, Power, PowerKey } from "./types";
+import { generateStarterTasks } from "./starterTasks";
 
 const STORAGE_KEY = "barakah-kids-race:v1";
 const DEBOUNCE_MS = 300;
@@ -31,6 +32,7 @@ interface StoreActions {
   updateReward: (id: string, updates: Partial<Reward>) => void;
   redeemReward: (rewardId: string, memberId: string) => boolean;
   deleteReward: (id: string) => void;
+  deductStars: (memberId: string, stars: number, reason: string, createdBy: string) => void;
   completeOnboarding: () => void;
   toggleSound: () => void;
   reset: () => Promise<void>;
@@ -50,6 +52,7 @@ function saveToStorage(state: AppState): void {
         spinQueue: state.spinQueue,
         lastWinnerIds: state.lastWinnerIds,
         rewards: state.rewards,
+        starDeductions: state.starDeductions,
         settings: state.settings
       };
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
@@ -60,17 +63,26 @@ function saveToStorage(state: AppState): void {
 }
 
 function migrateTemplates(templates: TaskTemplate[]): TaskTemplate[] {
-  return templates.map((t) => ({
-    ...t,
-    title: t.title || "Untitled Task",
-    iconKey: t.iconKey || "person",
-    category: t.category || "personal",
-    defaultStars: t.defaultStars || 1,
-    difficulty: t.difficulty || "medium",
-    preferredPowers: t.preferredPowers || [],
-    enabled: t.enabled !== undefined ? t.enabled : true,
-    isArchived: t.isArchived || false,
-  }));
+  const starterTasks = generateStarterTasks();
+  const starterMap = new Map(starterTasks.map(t => [t.id, t]));
+  
+  return templates.map((t) => {
+    const starter = starterMap.get(t.id);
+    if (starter && (!t.title || t.title === "Untitled Task")) {
+      return { ...starter, enabled: t.enabled !== undefined ? t.enabled : true, isArchived: t.isArchived || false };
+    }
+    return {
+      ...t,
+      title: t.title || "Untitled Task",
+      iconKey: t.iconKey || "person",
+      category: t.category || "personal",
+      defaultStars: t.defaultStars || 1,
+      difficulty: t.difficulty || "medium",
+      preferredPowers: t.preferredPowers || [],
+      enabled: t.enabled !== undefined ? t.enabled : true,
+      isArchived: t.isArchived || false,
+    };
+  });
 }
 
 export const useStore = create<AppState & StoreActions & { isReady: boolean }>((set, get) => ({
@@ -94,6 +106,7 @@ export const useStore = create<AppState & StoreActions & { isReady: boolean }>((
             spinQueue: parsed.spinQueue || [],
             lastWinnerIds: parsed.lastWinnerIds || [],
             rewards: parsed.rewards || [],
+            starDeductions: parsed.starDeductions || [],
             isReady: true 
           });
           return;
@@ -314,6 +327,31 @@ export const useStore = create<AppState & StoreActions & { isReady: boolean }>((
     const rewards = get().rewards.filter((r) => r.id !== id);
     set({ rewards });
     saveToStorage({ ...get(), rewards });
+  },
+
+  deductStars: (memberId, stars, reason, createdBy) => {
+    const state = get();
+    const member = state.members.find((m) => m.id === memberId);
+    if (!member) return;
+
+    const newDeduction: StarDeduction = {
+      id: `deduction-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      memberId,
+      stars,
+      reason,
+      createdAt: new Date().toISOString(),
+      createdBy
+    };
+
+    const members = state.members.map((m) =>
+      m.id === memberId
+        ? { ...m, starsTotal: Math.max(0, m.starsTotal - stars) }
+        : m
+    );
+
+    const starDeductions = [...state.starDeductions, newDeduction];
+    set({ members, starDeductions });
+    saveToStorage({ ...get(), members, starDeductions });
   },
 
   completeOnboarding: () => {

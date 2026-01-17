@@ -119,6 +119,11 @@ Six starter powers kids can choose (1-2 per kid):
   - Larger, more visible checkmark buttons
   - Stars properly awarded to the assigned kid
 - **Template Migration**: Auto-fixes templates missing title/icon with sensible defaults
+  - Looks up starter tasks by ID to restore original task names
+- **Star Deductions**: Guardians can deduct stars for misbehavior
+  - Requires a reason to be entered
+  - Tracks who made the deduction and when
+  - Deduction history visible on Member Detail screen
 - **Navigation**: 6 tabs now - Today, Tasks, Spin, Leaderboard, Rewards, Setup
 
 ### Islamic Values Tone

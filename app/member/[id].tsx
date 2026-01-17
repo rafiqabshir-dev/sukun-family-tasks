@@ -6,6 +6,7 @@ import { colors, spacing, borderRadius, fontSize } from "@/lib/theme";
 import { useStore } from "@/lib/store";
 import { POWER_INFO } from "@/lib/types";
 import { format, isBefore, startOfDay } from "date-fns";
+import { useMemo } from "react";
 
 export default function MemberDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -14,8 +15,22 @@ export default function MemberDetailScreen() {
   const members = useStore((s) => s.members);
   const taskInstances = useStore((s) => s.taskInstances);
   const taskTemplates = useStore((s) => s.taskTemplates);
+  const starDeductions = useStore((s) => s.starDeductions);
   
   const member = members.find((m) => m.id === id);
+  
+  const memberDeductions = useMemo(() => {
+    if (!member) return [];
+    return starDeductions
+      .filter((d) => d.memberId === member.id)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 10);
+  }, [starDeductions, member?.id]);
+
+  const getGuardianName = (guardianId: string) => {
+    const guardian = members.find((m) => m.id === guardianId);
+    return guardian?.name || "Guardian";
+  };
   
   if (!member) {
     return (
@@ -157,7 +172,30 @@ export default function MemberDetailScreen() {
               </View>
             )}
 
-            {memberTasks.length === 0 && (
+            {memberDeductions.length > 0 && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Star Deductions</Text>
+                {memberDeductions.map((deduction) => (
+                  <View key={deduction.id} style={styles.deductionCard}>
+                    <View style={styles.deductionHeader}>
+                      <View style={styles.deductionStars}>
+                        <Ionicons name="remove-circle" size={18} color={colors.error} />
+                        <Text style={styles.deductionAmount}>-{deduction.stars}</Text>
+                      </View>
+                      <Text style={styles.deductionDate}>
+                        {format(new Date(deduction.createdAt), "MMM d, yyyy")}
+                      </Text>
+                    </View>
+                    <Text style={styles.deductionReason}>{deduction.reason}</Text>
+                    <Text style={styles.deductionBy}>
+                      By: {getGuardianName(deduction.createdBy)}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {memberTasks.length === 0 && memberDeductions.length === 0 && (
               <View style={styles.emptyState}>
                 <Ionicons name="clipboard-outline" size={48} color={colors.textMuted} />
                 <Text style={styles.emptyText}>No tasks assigned yet</Text>
@@ -346,5 +384,43 @@ const styles = StyleSheet.create({
     fontSize: fontSize.md,
     color: colors.textMuted,
     marginTop: spacing.sm,
+  },
+  deductionCard: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.error,
+  },
+  deductionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: spacing.xs,
+  },
+  deductionStars: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  deductionAmount: {
+    fontSize: fontSize.md,
+    fontWeight: "700",
+    color: colors.error,
+  },
+  deductionDate: {
+    fontSize: fontSize.sm,
+    color: colors.textMuted,
+  },
+  deductionReason: {
+    fontSize: fontSize.md,
+    color: colors.text,
+    marginBottom: spacing.xs,
+  },
+  deductionBy: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    fontStyle: "italic",
   },
 });

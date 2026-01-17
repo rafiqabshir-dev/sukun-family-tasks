@@ -1,9 +1,9 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Platform } from "react-native";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput } from "react-native";
 import { useState, useMemo } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, borderRadius, fontSize } from "@/lib/theme";
 import { useStore } from "@/lib/store";
-import { TaskInstance, TaskTemplate, Member } from "@/lib/types";
+import { TaskInstance, TaskTemplate } from "@/lib/types";
 import { format, isToday, isBefore, startOfDay } from "date-fns";
 
 function getTaskStatus(task: TaskInstance): "open" | "done" | "overdue" {
@@ -21,11 +21,16 @@ export default function TodayScreen() {
   const actingMemberId = useStore((s) => s.actingMemberId);
   const addTaskInstance = useStore((s) => s.addTaskInstance);
   const completeTask = useStore((s) => s.completeTask);
+  const deductStars = useStore((s) => s.deductStars);
 
   const [showAssignModal, setShowAssignModal] = useState(false);
+  const [showDeductModal, setShowDeductModal] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<TaskTemplate | null>(null);
   const [selectedKid, setSelectedKid] = useState<string>("");
   const [dueDate, setDueDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [deductKid, setDeductKid] = useState<string>("");
+  const [deductAmount, setDeductAmount] = useState<number>(1);
+  const [deductReason, setDeductReason] = useState<string>("");
 
   const openAssignModal = () => {
     const kidsList = members.filter((m) => m.role === "kid");
@@ -77,6 +82,25 @@ export default function TodayScreen() {
     setSelectedTemplate(null);
     setSelectedKid("");
     setDueDate(format(new Date(), "yyyy-MM-dd"));
+  };
+
+  const openDeductModal = () => {
+    const kidsList = kids;
+    if (kidsList.length === 1) {
+      setDeductKid(kidsList[0].id);
+    }
+    setDeductAmount(1);
+    setDeductReason("");
+    setShowDeductModal(true);
+  };
+
+  const handleDeductStars = () => {
+    if (!deductKid || !deductReason.trim() || deductAmount < 1 || !actingMemberId) return;
+    deductStars(deductKid, deductAmount, deductReason.trim(), actingMemberId);
+    setShowDeductModal(false);
+    setDeductKid("");
+    setDeductAmount(1);
+    setDeductReason("");
   };
 
   const renderTaskCard = (task: TaskInstance & { computedStatus: string }, showAssignee = false) => {
@@ -156,14 +180,24 @@ export default function TodayScreen() {
         </View>
 
         {isGuardian && (
-          <TouchableOpacity
-            style={styles.assignButton}
-            onPress={openAssignModal}
-            data-testid="button-assign-task"
-          >
-            <Ionicons name="add-circle" size={24} color="#FFFFFF" />
-            <Text style={styles.assignButtonText}>Assign New Task</Text>
-          </TouchableOpacity>
+          <View style={styles.guardianActions}>
+            <TouchableOpacity
+              style={styles.assignButton}
+              onPress={openAssignModal}
+              data-testid="button-assign-task"
+            >
+              <Ionicons name="add-circle" size={24} color="#FFFFFF" />
+              <Text style={styles.assignButtonText}>Assign Task</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.deductButton}
+              onPress={openDeductModal}
+              data-testid="button-deduct-stars"
+            >
+              <Ionicons name="remove-circle" size={24} color="#FFFFFF" />
+              <Text style={styles.deductButtonText}>Deduct Stars</Text>
+            </TouchableOpacity>
+          </View>
         )}
 
         {!isGuardian && myTasks.length > 0 && (
@@ -283,6 +317,94 @@ export default function TodayScreen() {
           </View>
         </View>
       </Modal>
+
+      <Modal visible={showDeductModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Deduct Stars</Text>
+              <TouchableOpacity onPress={() => setShowDeductModal(false)}>
+                <Ionicons name="close" size={28} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.modalLabel}>Select Child</Text>
+            <View style={styles.kidsList}>
+              {kids.map((kid) => (
+                <TouchableOpacity
+                  key={kid.id}
+                  style={[
+                    styles.kidChip,
+                    deductKid === kid.id && styles.kidChipSelected,
+                  ]}
+                  onPress={() => setDeductKid(kid.id)}
+                  data-testid={`button-deduct-kid-${kid.id}`}
+                >
+                  <View style={styles.kidChipContent}>
+                    <Text
+                      style={[
+                        styles.kidChipText,
+                        deductKid === kid.id && styles.kidChipTextSelected,
+                      ]}
+                    >
+                      {kid.name}
+                    </Text>
+                    <Text style={[styles.kidStars, deductKid === kid.id && styles.kidChipTextSelected]}>
+                      {kid.starsTotal} stars
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={styles.modalLabel}>Stars to Deduct</Text>
+            <View style={styles.amountRow}>
+              {[1, 2, 3, 5].map((amt) => (
+                <TouchableOpacity
+                  key={amt}
+                  style={[
+                    styles.amountChip,
+                    deductAmount === amt && styles.amountChipSelected,
+                  ]}
+                  onPress={() => setDeductAmount(amt)}
+                >
+                  <Text
+                    style={[
+                      styles.amountChipText,
+                      deductAmount === amt && styles.amountChipTextSelected,
+                    ]}
+                  >
+                    {amt}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={styles.modalLabel}>Reason (Required)</Text>
+            <TextInput
+              style={styles.reasonInput}
+              value={deductReason}
+              onChangeText={setDeductReason}
+              placeholder="Why are stars being deducted?"
+              placeholderTextColor={colors.textMuted}
+              multiline
+              numberOfLines={3}
+            />
+
+            <TouchableOpacity
+              style={[
+                styles.deductConfirmButton,
+                (!deductKid || !deductReason.trim()) && styles.confirmButtonDisabled,
+              ]}
+              onPress={handleDeductStars}
+              disabled={!deductKid || !deductReason.trim()}
+              data-testid="button-confirm-deduct"
+            >
+              <Text style={styles.confirmButtonText}>Deduct {deductAmount} Star{deductAmount > 1 ? "s" : ""}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -314,13 +436,13 @@ const styles = StyleSheet.create({
     color: colors.primary,
   },
   assignButton: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.primary,
     padding: spacing.md,
     borderRadius: borderRadius.lg,
-    marginBottom: spacing.lg,
     gap: spacing.sm,
   },
   assignButtonText: {
@@ -531,5 +653,74 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: fontSize.md,
     fontWeight: "600",
+  },
+  guardianActions: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  deductButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.error,
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    gap: spacing.sm,
+  },
+  deductButtonText: {
+    color: "#FFFFFF",
+    fontSize: fontSize.md,
+    fontWeight: "600",
+  },
+  kidChipContent: {
+    alignItems: "center",
+  },
+  kidStars: {
+    fontSize: fontSize.xs,
+    color: colors.textMuted,
+    marginTop: 2,
+  },
+  amountRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+  },
+  amountChip: {
+    width: 48,
+    height: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surfaceSecondary,
+    borderRadius: borderRadius.md,
+  },
+  amountChipSelected: {
+    backgroundColor: colors.error,
+  },
+  amountChipText: {
+    fontSize: fontSize.lg,
+    fontWeight: "600",
+    color: colors.text,
+  },
+  amountChipTextSelected: {
+    color: "#FFFFFF",
+  },
+  reasonInput: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    fontSize: fontSize.md,
+    color: colors.text,
+    backgroundColor: colors.surface,
+    minHeight: 80,
+    textAlignVertical: "top",
+  },
+  deductConfirmButton: {
+    backgroundColor: colors.error,
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    alignItems: "center",
+    marginTop: spacing.lg,
   },
 });

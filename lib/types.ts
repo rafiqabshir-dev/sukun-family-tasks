@@ -83,6 +83,15 @@ export interface Reward {
   status: RewardStatus;
 }
 
+export interface StarDeduction {
+  id: string;
+  memberId: string;
+  stars: number;
+  reason: string;
+  createdAt: string;
+  createdBy: string;
+}
+
 export interface AppState {
   schemaVersion: number;
   onboardingComplete: boolean;
@@ -93,6 +102,7 @@ export interface AppState {
   spinQueue: StagedTask[];
   lastWinnerIds: string[];
   rewards: Reward[];
+  starDeductions: StarDeduction[];
   settings: Settings;
 }
 
@@ -106,6 +116,7 @@ export const DEFAULT_STATE: AppState = {
   spinQueue: [],
   lastWinnerIds: [],
   rewards: [],
+  starDeductions: [],
   settings: {
     islamicValuesMode: true,
     soundsEnabled: false
