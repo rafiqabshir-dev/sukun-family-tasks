@@ -93,16 +93,29 @@ export const useStore = create<AppState & StoreActions & { isReady: boolean }>((
     if (isInitialized) return;
     isInitialized = true;
     
+    const starterTasks = generateStarterTasks();
+    
     try {
       const stored = await AsyncStorage.getItem(STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
         if (parsed.schemaVersion === DEFAULT_STATE.schemaVersion) {
-          const migratedTemplates = migrateTemplates(parsed.taskTemplates || []);
+          let templates = parsed.taskTemplates || [];
+          
+          // If no templates exist or all are untitled, load starter tasks
+          const hasValidTemplates = templates.length > 0 && 
+            templates.some((t: TaskTemplate) => t.title && t.title !== "Untitled Task");
+          
+          if (!hasValidTemplates) {
+            templates = starterTasks;
+          } else {
+            templates = migrateTemplates(templates);
+          }
+          
           set({ 
             ...DEFAULT_STATE, 
             ...parsed, 
-            taskTemplates: migratedTemplates,
+            taskTemplates: templates,
             spinQueue: parsed.spinQueue || [],
             lastWinnerIds: parsed.lastWinnerIds || [],
             rewards: parsed.rewards || [],
@@ -115,7 +128,14 @@ export const useStore = create<AppState & StoreActions & { isReady: boolean }>((
     } catch (e) {
       console.error("Failed to load from AsyncStorage:", e);
     }
-    set({ isReady: true });
+    
+    // Fresh start - load starter tasks
+    set({ 
+      ...DEFAULT_STATE, 
+      taskTemplates: starterTasks,
+      isReady: true 
+    });
+    saveToStorage({ ...DEFAULT_STATE, taskTemplates: starterTasks });
   },
 
   addMember: (member) => {
