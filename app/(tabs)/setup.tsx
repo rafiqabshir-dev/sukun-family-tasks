@@ -1,14 +1,34 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch } from "react-native";
+import { useState, useEffect } from "react";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { colors, spacing, borderRadius, fontSize } from "@/lib/theme";
 import { useStore } from "@/lib/store";
 import { POWER_INFO } from "@/lib/types";
 
+const STORAGE_KEY = "barakah-kids-race:v1";
+
 export default function SetupScreen() {
   const members = useStore((s) => s.members);
   const taskTemplates = useStore((s) => s.taskTemplates);
+  const taskInstances = useStore((s) => s.taskInstances);
   const settings = useStore((s) => s.settings);
+  const schemaVersion = useStore((s) => s.schemaVersion);
   const toggleSound = useStore((s) => s.toggleSound);
+  
+  const [storageKeyExists, setStorageKeyExists] = useState<boolean | null>(null);
+  
+  useEffect(() => {
+    const checkStorage = async () => {
+      try {
+        const value = await AsyncStorage.getItem(STORAGE_KEY);
+        setStorageKeyExists(value !== null);
+      } catch {
+        setStorageKeyExists(false);
+      }
+    };
+    checkStorage();
+  }, [members, taskTemplates, taskInstances]);
 
   const kids = members.filter((m) => m.role === "kid");
   const guardians = members.filter((m) => m.role === "guardian");
@@ -92,6 +112,54 @@ export default function SetupScreen() {
               thumbColor={settings.soundsEnabled ? colors.primary : colors.textMuted}
             />
           </View>
+        </View>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Diagnostics</Text>
+        <View style={styles.card}>
+          <View style={styles.diagRow}>
+            <Text style={styles.diagLabel}>Schema Version</Text>
+            <Text style={styles.diagValue} data-testid="text-schema-version">{schemaVersion}</Text>
+          </View>
+          <View style={styles.divider} />
+          <View style={styles.diagRow}>
+            <Text style={styles.diagLabel}>Members Count</Text>
+            <Text style={styles.diagValue} data-testid="text-members-count">{members.length}</Text>
+          </View>
+          <View style={styles.divider} />
+          <View style={styles.diagRow}>
+            <Text style={styles.diagLabel}>Templates Count</Text>
+            <Text style={styles.diagValue} data-testid="text-templates-count">{taskTemplates.length}</Text>
+          </View>
+          <View style={styles.divider} />
+          <View style={styles.diagRow}>
+            <Text style={styles.diagLabel}>Instances Count</Text>
+            <Text style={styles.diagValue} data-testid="text-instances-count">{taskInstances.length}</Text>
+          </View>
+          <View style={styles.divider} />
+          <View style={styles.diagRow}>
+            <Text style={styles.diagLabel}>AsyncStorage Key</Text>
+            <View style={styles.storageStatus}>
+              <View style={[
+                styles.statusDot,
+                { backgroundColor: storageKeyExists === null 
+                  ? colors.textMuted 
+                  : storageKeyExists 
+                    ? colors.success 
+                    : colors.warning 
+                }
+              ]} />
+              <Text style={styles.diagValue} data-testid="text-storage-status">
+                {storageKeyExists === null 
+                  ? "Checking..." 
+                  : storageKeyExists 
+                    ? "Present" 
+                    : "Not Found"}
+              </Text>
+            </View>
+          </View>
+          <Text style={styles.storageKey} data-testid="text-storage-key">{STORAGE_KEY}</Text>
         </View>
       </View>
     </ScrollView>
@@ -215,5 +283,36 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: fontSize.md,
     color: colors.text,
+  },
+  diagRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: spacing.sm,
+  },
+  diagLabel: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+  },
+  diagValue: {
+    fontSize: fontSize.sm,
+    fontWeight: "600",
+    color: colors.text,
+  },
+  storageStatus: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  storageKey: {
+    fontSize: fontSize.xs,
+    color: colors.textMuted,
+    marginTop: spacing.sm,
+    fontFamily: "monospace",
   },
 });
