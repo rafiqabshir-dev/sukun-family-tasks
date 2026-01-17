@@ -114,9 +114,18 @@ export const useStore = create<AppState & StoreActions & { isReady: boolean }>((
             templates = migrateTemplates(templates);
           }
           
+          // Default actingMemberId to first guardian (owner) if not set
+          let actingMemberId = parsed.actingMemberId;
+          const members = parsed.members || [];
+          if (!actingMemberId && members.length > 0) {
+            const firstGuardian = members.find((m: Member) => m.role === "guardian");
+            actingMemberId = firstGuardian?.id || members[0].id;
+          }
+          
           set({ 
             ...DEFAULT_STATE, 
             ...parsed, 
+            actingMemberId,
             taskTemplates: templates,
             spinQueue: parsed.spinQueue || [],
             lastWinnerIds: parsed.lastWinnerIds || [],

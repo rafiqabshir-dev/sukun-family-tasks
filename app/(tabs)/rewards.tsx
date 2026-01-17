@@ -225,7 +225,7 @@ export default function RewardsScreen() {
               <Text style={styles.emptyTitle}>No Rewards Yet</Text>
               <Text style={styles.emptyText}>
                 {isGuardian 
-                  ? "Add rewards for your kids to work towards!"
+                  ? "Add rewards for participants to work towards!"
                   : "Ask your parents to add some rewards!"}
               </Text>
             </View>

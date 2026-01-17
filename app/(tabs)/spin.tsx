@@ -214,7 +214,7 @@ export default function SpinScreen() {
           </TouchableOpacity>
 
           {kids.length === 0 && (
-            <Text style={styles.warningText}>Add kids in Setup first</Text>
+            <Text style={styles.warningText}>Add participants in Setup first</Text>
           )}
           {spinQueue.length === 0 && kids.length > 0 && (
             <Text style={styles.warningText}>Add tasks to the queue first</Text>

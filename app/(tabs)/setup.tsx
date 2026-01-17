@@ -117,7 +117,7 @@ export default function SetupScreen() {
         <View style={styles.card}>
           <View style={styles.statRow}>
             <Ionicons name="people" size={24} color={colors.primary} />
-            <Text style={styles.statLabel}>Kids</Text>
+            <Text style={styles.statLabel}>Participants</Text>
             <Text style={styles.statValue}>{kids.length}</Text>
           </View>
           <View style={styles.divider} />

@@ -1,5 +1,5 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput } from "react-native";
-import { useState, useMemo } from "react";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Pressable } from "react-native";
+import { useState, useMemo, useEffect } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, borderRadius, fontSize } from "@/lib/theme";
 import { useStore } from "@/lib/store";
@@ -215,30 +215,65 @@ export default function TodayScreen() {
     );
   };
 
-  if (!actingMember) {
+  const setActingMember = useStore((s) => s.setActingMember);
+  const [showUserPicker, setShowUserPicker] = useState(false);
+
+  // Auto-select first guardian if no acting member
+  useEffect(() => {
+    if (!actingMemberId && members.length > 0) {
+      const firstGuardian = members.find((m) => m.role === "guardian");
+      if (firstGuardian) {
+        setActingMember(firstGuardian.id);
+      } else if (members[0]) {
+        setActingMember(members[0].id);
+      }
+    }
+  }, [actingMemberId, members, setActingMember]);
+
+  if (!actingMember && members.length === 0) {
     return (
       <View style={styles.container}>
         <View style={styles.noActorState}>
-          <Ionicons name="person-circle-outline" size={64} color={colors.textMuted} />
-          <Text style={styles.noActorTitle}>Who's using the app?</Text>
+          <Ionicons name="people-outline" size={64} color={colors.textMuted} />
+          <Text style={styles.noActorTitle}>No Family Members</Text>
           <Text style={styles.noActorText}>
-            Go to Setup and select who you are to see your tasks.
+            Add family members in the Setup screen to get started.
           </Text>
         </View>
       </View>
     );
   }
+  
+  if (!actingMember) {
+    return null; // Brief loading state while auto-selecting
+  }
 
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.actingAsBar}>
-          <Ionicons name="person" size={20} color={colors.primary} />
-          <Text style={styles.actingAsText}>
-            Acting as <Text style={styles.actingAsName}>{actingMember.name}</Text>
-            {isGuardian && " (Guardian)"}
-          </Text>
-        </View>
+        <TouchableOpacity 
+          style={styles.actingAsBar}
+          onPress={() => setShowUserPicker(true)}
+          data-testid="button-switch-user"
+        >
+          <View style={styles.actingAsLeft}>
+            <View style={styles.actingAsAvatar}>
+              <Text style={styles.actingAsAvatarText}>
+                {actingMember.name.charAt(0).toUpperCase()}
+              </Text>
+            </View>
+            <View>
+              <Text style={styles.actingAsName}>{actingMember.name}</Text>
+              <Text style={styles.actingAsRole}>
+                {isGuardian ? "Guardian" : "Participant"}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.actingAsRight}>
+            <Text style={styles.switchText}>Switch</Text>
+            <Ionicons name="chevron-down" size={16} color={colors.primary} />
+          </View>
+        </TouchableOpacity>
 
         {isGuardian && (
           <View style={styles.guardianActions}>
@@ -301,7 +336,7 @@ export default function TodayScreen() {
             <Text style={styles.emptyTitle}>All Clear!</Text>
             <Text style={styles.emptyText}>
               {isGuardian
-                ? "Assign tasks to your kids using the button above."
+                ? "Assign tasks to participants using the button above."
                 : "No tasks right now. Great job!"}
             </Text>
           </View>
@@ -476,6 +511,51 @@ export default function TodayScreen() {
           </View>
         </View>
       </Modal>
+
+      <Modal visible={showUserPicker} animationType="fade" transparent>
+        <Pressable style={styles.userPickerOverlay} onPress={() => setShowUserPicker(false)}>
+          <View style={styles.userPickerContent}>
+            <Text style={styles.userPickerTitle}>Switch User</Text>
+            {members.map((member) => (
+              <TouchableOpacity
+                key={member.id}
+                style={[
+                  styles.userPickerItem,
+                  actingMemberId === member.id && styles.userPickerItemActive,
+                ]}
+                onPress={() => {
+                  setActingMember(member.id);
+                  setShowUserPicker(false);
+                }}
+                data-testid={`button-switch-to-${member.id}`}
+              >
+                <View style={[
+                  styles.userPickerAvatar,
+                  actingMemberId === member.id && styles.userPickerAvatarActive,
+                ]}>
+                  <Text style={styles.userPickerAvatarText}>
+                    {member.name.charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+                <View style={styles.userPickerInfo}>
+                  <Text style={[
+                    styles.userPickerName,
+                    actingMemberId === member.id && styles.userPickerNameActive,
+                  ]}>
+                    {member.name}
+                  </Text>
+                  <Text style={styles.userPickerRole}>
+                    {member.role === "guardian" ? "Guardian" : "Participant"}
+                  </Text>
+                </View>
+                {actingMemberId === member.id && (
+                  <Ionicons name="checkmark-circle" size={22} color={colors.primary} />
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -492,19 +572,117 @@ const styles = StyleSheet.create({
   actingAsBar: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: colors.surfaceSecondary,
-    padding: spacing.sm,
-    borderRadius: borderRadius.md,
-    marginBottom: spacing.md,
+    justifyContent: "space-between",
+    backgroundColor: colors.surface,
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  actingAsLeft: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.sm,
   },
-  actingAsText: {
-    fontSize: fontSize.sm,
-    color: colors.textSecondary,
+  actingAsAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  actingAsAvatarText: {
+    color: "#FFFFFF",
+    fontSize: fontSize.lg,
+    fontWeight: "600",
   },
   actingAsName: {
     fontWeight: "600",
+    color: colors.text,
+    fontSize: fontSize.md,
+  },
+  actingAsRole: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+  },
+  actingAsRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
+  switchText: {
     color: colors.primary,
+    fontSize: fontSize.sm,
+    fontWeight: "500",
+  },
+  userPickerOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: spacing.lg,
+  },
+  userPickerContent: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.xl,
+    padding: spacing.lg,
+    width: "100%",
+    maxWidth: 340,
+  },
+  userPickerTitle: {
+    fontSize: fontSize.lg,
+    fontWeight: "600",
+    color: colors.text,
+    marginBottom: spacing.md,
+    textAlign: "center",
+  },
+  userPickerItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    marginBottom: spacing.sm,
+    backgroundColor: colors.background,
+    gap: spacing.sm,
+  },
+  userPickerItemActive: {
+    backgroundColor: colors.primaryLight,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  userPickerAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.textMuted,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  userPickerAvatarActive: {
+    backgroundColor: colors.primary,
+  },
+  userPickerAvatarText: {
+    color: "#FFFFFF",
+    fontSize: fontSize.md,
+    fontWeight: "600",
+  },
+  userPickerInfo: {
+    flex: 1,
+  },
+  userPickerName: {
+    fontSize: fontSize.md,
+    fontWeight: "500",
+    color: colors.text,
+  },
+  userPickerNameActive: {
+    color: colors.primary,
+    fontWeight: "600",
+  },
+  userPickerRole: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
   },
   assignButton: {
     flex: 1,
