@@ -162,11 +162,18 @@ Six starter powers kids can choose (1-2 per kid):
   - `joinFamily()` creates a join_request with "pending" status
   - Requester sees pending-approval waiting screen with auto-refresh every 10 seconds
   - Family owner/guardians can approve or reject requests from Setup screen
+- **Pending Request Persistence**: Users with pending requests are routed directly to pending-approval on login
+  - `useProtectedRoute` in `app/_layout.tsx` checks `pendingJoinRequest` state
+  - Routes to `/auth/pending-approval` when session exists with pending request (no family yet)
+  - `validateSession` in AuthContext calls `checkPendingJoinRequest()` to restore pending state
 - **AuthContext Updates**:
   - New states: `pendingJoinRequest`, `requestedFamily`
   - New functions: `cancelJoinRequest()`, `getPendingJoinRequests()`, `approveJoinRequest()`, `rejectJoinRequest()`
+  - `checkPendingJoinRequest()` queries for existing pending requests during session validation
 - **Pending Approval Screen** (`app/auth/pending-approval.tsx`):
   - Shows waiting state with family info and pending status
+  - SafeAreaView wrapper prevents notch/status bar overlap
+  - "Request Pending" header title at top of screen
   - Manual "Check Status" button and auto-refresh every 10 seconds
   - Cancel request button to withdraw and return to family-setup
   - Auto-redirects when approved (family set) or rejected (no pending request)
