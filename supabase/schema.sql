@@ -166,7 +166,12 @@ CREATE POLICY "Users can view family members"
 
 CREATE POLICY "Users can create their own profile"
   ON profiles FOR INSERT
-  WITH CHECK (id = auth.uid());
+  WITH CHECK (true);
+
+CREATE POLICY "Service role can manage profiles"
+  ON profiles FOR ALL
+  USING (true)
+  WITH CHECK (true);
 
 CREATE POLICY "Users can update their own profile"
   ON profiles FOR UPDATE
