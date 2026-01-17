@@ -6,7 +6,7 @@ import { spawn } from 'child_process';
 
 console.log('Starting Expo app...');
 
-const expo = spawn('npx', ['expo', 'start', '--web', '--port', '5000'], {
+const expo = spawn('npx', ['expo', 'start', '--tunnel', '--port', '5000'], {
   stdio: 'inherit',
   cwd: process.cwd()
 });
