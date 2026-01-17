@@ -13,7 +13,7 @@ const STORAGE_KEY = "barakah-kids-race:v1";
 
 export default function SetupScreen() {
   const router = useRouter();
-  const { profile, family, signOut, isConfigured, getPendingJoinRequests, approveJoinRequest, rejectJoinRequest } = useAuth();
+  const { profile, family, signOut, isConfigured, getPendingJoinRequests, approveJoinRequest, rejectJoinRequest, updateProfileName } = useAuth();
   const members = useStore((s) => s.members);
   const taskTemplates = useStore((s) => s.taskTemplates);
   const taskInstances = useStore((s) => s.taskInstances);
@@ -23,10 +23,14 @@ export default function SetupScreen() {
   const toggleSound = useStore((s) => s.toggleSound);
   const setActingMember = useStore((s) => s.setActingMember);
   const addMember = useStore((s) => s.addMember);
+  const updateMember = useStore((s) => s.updateMember);
   
   const [storageKeyExists, setStorageKeyExists] = useState<boolean | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showInviteDrawer, setShowInviteDrawer] = useState(false);
+  const [showEditNameModal, setShowEditNameModal] = useState(false);
+  const [editingName, setEditingName] = useState("");
+  const [savingName, setSavingName] = useState(false);
   const [newName, setNewName] = useState("");
   const [newAge, setNewAge] = useState("");
   const [newRole, setNewRole] = useState<"kid" | "guardian">("kid");
@@ -225,6 +229,43 @@ export default function SetupScreen() {
     );
   };
 
+  const handleOpenEditName = () => {
+    const currentMember = members.find((m) => m.id === profile?.id);
+    setEditingName(currentMember?.name || profile?.display_name || "");
+    setShowEditNameModal(true);
+  };
+
+  const handleSaveEditedName = async () => {
+    if (!editingName.trim()) {
+      Alert.alert("Error", "Name cannot be empty");
+      return;
+    }
+
+    setSavingName(true);
+    
+    // Update in Supabase if configured
+    if (isConfigured) {
+      const { error } = await updateProfileName(editingName.trim());
+      if (error) {
+        Alert.alert("Error", error.message);
+        setSavingName(false);
+        return;
+      }
+    }
+
+    // Update in local store
+    if (profile?.id) {
+      updateMember(profile.id, { name: editingName.trim() });
+    }
+
+    setSavingName(false);
+    setShowEditNameModal(false);
+    setEditingName("");
+  };
+
+  // Find current user member for edit button
+  const currentUserMember = members.find((m) => m.id === profile?.id);
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.section}>
@@ -350,24 +391,39 @@ export default function SetupScreen() {
 
         {guardians.length > 0 && (
           <View style={styles.membersList}>
-            {guardians.map((guardian) => (
-              <TouchableOpacity 
-                key={guardian.id} 
-                style={styles.memberItem}
-                onPress={() => router.push(`/member/${guardian.id}`)}
-                data-testid={`button-member-${guardian.id}`}
-              >
-                <View style={[styles.memberAvatar, styles.guardianAvatar]}>
-                  <Text style={styles.memberInitial}>
-                    {guardian.name.charAt(0).toUpperCase()}
-                  </Text>
+            {guardians.map((guardian) => {
+              const isCurrentUser = guardian.id === profile?.id;
+              return (
+                <View key={guardian.id} style={styles.memberItem}>
+                  <TouchableOpacity 
+                    style={styles.memberItemContent}
+                    onPress={() => router.push(`/member/${guardian.id}`)}
+                    data-testid={`button-member-${guardian.id}`}
+                  >
+                    <View style={[styles.memberAvatar, styles.guardianAvatar]}>
+                      <Text style={styles.memberInitial}>
+                        {guardian.name.charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+                    <View style={styles.memberInfo}>
+                      <Text style={styles.memberName}>{guardian.name}</Text>
+                      <Text style={styles.memberAge}>
+                        Guardian{isCurrentUser ? " (You)" : ""}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                  {isCurrentUser && (
+                    <TouchableOpacity
+                      style={styles.editNameButton}
+                      onPress={handleOpenEditName}
+                      data-testid="button-edit-name"
+                    >
+                      <Ionicons name="pencil" size={16} color={colors.primary} />
+                    </TouchableOpacity>
+                  )}
                 </View>
-                <View style={styles.memberInfo}>
-                  <Text style={styles.memberName}>{guardian.name}</Text>
-                  <Text style={styles.memberAge}>Guardian</Text>
-                </View>
-              </TouchableOpacity>
-            ))}
+              );
+            })}
           </View>
         )}
       </View>
@@ -382,8 +438,9 @@ export default function SetupScreen() {
           </View>
           <View style={styles.membersList}>
             {joinRequests.map((request) => {
-              const requesterName = request.requester_profile?.display_name?.trim() || "Pending User";
-              const requesterInitial = requesterName.charAt(0).toUpperCase();
+              const displayName = request.requester_profile?.display_name?.trim();
+              const requesterName = displayName && displayName.length > 0 ? displayName : "Name not provided";
+              const requesterInitial = displayName && displayName.length > 0 ? displayName.charAt(0).toUpperCase() : "?";
               return (
               <View key={request.id} style={styles.requestItem} data-testid={`join-request-${request.id}`}>
                 <View style={styles.requestInfo}>
@@ -393,7 +450,7 @@ export default function SetupScreen() {
                     </Text>
                   </View>
                   <View style={styles.memberInfo}>
-                    <Text style={styles.memberName}>
+                    <Text style={[styles.memberName, !displayName && styles.missingName]}>
                       {requesterName}
                     </Text>
                     <Text style={styles.memberAge}>
@@ -696,6 +753,53 @@ export default function SetupScreen() {
           </View>
         </View>
       </Modal>
+
+      <Modal visible={showEditNameModal} animationType="slide" transparent>
+        <KeyboardAvoidingView 
+          style={styles.modalOverlay}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Edit Your Name</Text>
+              <TouchableOpacity onPress={() => setShowEditNameModal(false)}>
+                <Ionicons name="close" size={28} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.editNameDescription}>
+              Update your display name. This is how you appear to other family members.
+            </Text>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Your Name</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="Enter your name"
+                placeholderTextColor={colors.textMuted}
+                value={editingName}
+                onChangeText={setEditingName}
+                autoFocus
+                data-testid="input-edit-name"
+              />
+            </View>
+
+            <TouchableOpacity
+              style={[
+                styles.confirmButton,
+                (!editingName.trim() || savingName) && styles.confirmButtonDisabled,
+              ]}
+              onPress={handleSaveEditedName}
+              disabled={!editingName.trim() || savingName}
+              data-testid="button-save-name"
+            >
+              <Text style={styles.confirmButtonText}>
+                {savingName ? "Saving..." : "Save Name"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </ScrollView>
   );
 }
@@ -878,6 +982,25 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     color: colors.textSecondary,
     marginTop: 2,
+  },
+  missingName: {
+    fontStyle: "italic",
+    color: colors.textMuted,
+  },
+  memberItemContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    flex: 1,
+  },
+  editNameButton: {
+    width: 32,
+    height: 32,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.surfaceSecondary,
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: spacing.sm,
   },
   memberStars: {
     flexDirection: "row",
@@ -1107,6 +1230,12 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   inviteDescription: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    marginBottom: spacing.lg,
+    lineHeight: 20,
+  },
+  editNameDescription: {
     fontSize: fontSize.sm,
     color: colors.textSecondary,
     marginBottom: spacing.lg,

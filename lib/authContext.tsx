@@ -21,6 +21,7 @@ type AuthContextType = {
   createFamily: (familyName: string, onProgress?: (step: string) => void) => Promise<{ error: Error | null; family: Family | null }>;
   joinFamily: (inviteCode: string) => Promise<{ error: Error | null }>;
   refreshProfile: () => Promise<void>;
+  updateProfileName: (newName: string) => Promise<{ error: Error | null }>;
   cancelJoinRequest: () => Promise<{ error: Error | null }>;
   getPendingJoinRequests: () => Promise<JoinRequestWithProfile[]>;
   approveJoinRequest: (requestId: string) => Promise<{ error: Error | null }>;
@@ -509,6 +510,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  async function updateProfileName(newName: string): Promise<{ error: Error | null }> {
+    if (!user || !profile) {
+      return { error: new Error('Not authenticated') };
+    }
+
+    const trimmedName = newName.trim();
+    if (!trimmedName) {
+      return { error: new Error('Name cannot be empty') };
+    }
+
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ display_name: trimmedName })
+        .eq('id', user.id);
+
+      if (error) {
+        return { error: new Error(error.message) };
+      }
+
+      // Update local profile state
+      setProfile({ ...profile, display_name: trimmedName });
+
+      return { error: null };
+    } catch (error) {
+      return { error: error as Error };
+    }
+  }
+
   async function getPendingJoinRequests(): Promise<JoinRequestWithProfile[]> {
     if (!family) return [];
 
@@ -628,7 +658,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         session, user, profile, family, loading,
         isConfigured: isSupabaseConfigured(),
         pendingJoinRequest, requestedFamily,
-        signUp, signIn, signOut, createFamily, joinFamily, refreshProfile,
+        signUp, signIn, signOut, createFamily, joinFamily, refreshProfile, updateProfileName,
         cancelJoinRequest, getPendingJoinRequests, approveJoinRequest, rejectJoinRequest,
       }}
     >
