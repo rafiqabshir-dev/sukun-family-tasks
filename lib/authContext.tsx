@@ -64,10 +64,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
+        try {
+          await ensureProfileExistsInternal(session.user);
+        } catch (error) {
+          console.error('Error ensuring profile on initial load:', error);
+        }
         fetchProfile(session.user.id);
       } else {
         setLoading(false);
@@ -76,6 +81,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error('Error getting session:', error);
       setLoading(false);
     });
+
+    // Safety timeout - ensure loading ends after 10 seconds max
+    const timeout = setTimeout(() => {
+      setLoading(false);
+    }, 10000);
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
@@ -95,7 +105,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(timeout);
+    };
   }, []);
 
   async function fetchProfile(userId: string) {
