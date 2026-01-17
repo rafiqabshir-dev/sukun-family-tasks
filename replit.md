@@ -111,7 +111,7 @@ Six starter powers kids can choose (1-2 per kid):
   - **Reroll**: Spin again without creating assignment
   - **Accept**: Creates TaskInstance, removes from queue, records winner
 - **Fairness System**: Tracks last 3 winners, reduces probability of same kid winning repeatedly
-- **Navigation**: 5 tabs now - Today, Tasks, Spin, Leaderboard, Setup
+- **Navigation**: 3 visible tabs (Today, Leaderboard, Rewards) with hamburger menu for Tasks, Spin, Setup
 
 ### V1 Prompt 3B - Rewards + Task Completion Improvements
 - **Rewards System**: New Rewards tab for parents to set goals
@@ -135,7 +135,22 @@ Six starter powers kids can choose (1-2 per kid):
   - Approver cannot be the same person who requested completion
   - Stars only awarded after approval
   - "Needs Approval" section shows pending tasks on Today tab
-- **Navigation**: 6 tabs now - Today, Tasks, Spin, Leaderboard, Rewards, Setup
+- **Navigation**: 3 visible tabs (Today, Leaderboard, Rewards) + hamburger menu (Tasks, Spin, Setup)
+
+### V1 Prompt 4 - Settings & Owner Controls
+- **Sign-Out Button**: Added to Settings section in Setup screen (only shows in cloud mode)
+  - Confirmation dialog before signing out
+  - Redirects to sign-in screen after logout
+- **Owner-Only Member Management**: 
+  - Only the family owner (first guardian to join) can add new members
+  - Queries Supabase to determine ownership based on earliest guardian created_at
+  - In offline mode, any guardian can manage members (single-device scenario)
+- **Invite Members Drawer**: When no participants exist, shows "No participants yet" with invite button
+  - Copy invite code to clipboard
+  - Share on WhatsApp
+  - Add member locally option
+- **User Switcher**: Today screen has tappable user card to switch between all family members
+- **Terminology**: Replaced "kids" with "participants" throughout UI
 
 ### Islamic Values Tone
 - Positive, gentle wording throughout
