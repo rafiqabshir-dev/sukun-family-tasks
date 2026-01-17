@@ -1,0 +1,125 @@
+V1+ PROMPT (BUILD) — MULTI-USER ACCESS + CLOUD SYNC + APPROVAL WORKFLOW (FAST PATH)
+
+CONTEXT
+- Current app is offline-first with Zustand + AsyncStorage.
+- Before final V1 lock, we need: (1) each guardian + selected kids can sign in with their own credentials, (2) shared family data across devices, (3) kids can mark tasks complete, and (4) completion requires approval by a DIFFERENT guardian.
+
+GOAL
+Add the fastest, efficient, Replit-friendly backend for:
+- Auth (email/password)
+- Family data sharing (members, tasks, assignments, completions, approvals)
+- Simple sync (cloud as source of truth, with local cache)
+- Approval workflow enforced server-side
+
+FASTEST TOOL CHOICE (RECOMMENDED)
+Use Supabase:
+- Supabase Auth: email/password sign-in
+- Postgres DB: structured tables for family/members/tasks/task_instances/approvals
+- Realtime (optional): live updates across devices
+- Supabase JS client works in Expo + Replit quickly
+
+CLIENT STORAGE TOOLS
+- expo-secure-store: store auth session securely
+- Zustand + AsyncStorage: keep local cached state for offline viewing
+- “Sync on launch + pull-to-refresh” to keep it simple (Realtime optional)
+
+SCOPE
+1) AUTHENTICATION (CREDENTIALS)
+- Add Login / Signup screen (email + password).
+- Only guardians + specific kids (flagged “requiresLogin”) must sign in.
+- After sign-in, user is associated with a Family.
+
+2) FAMILY DATA SHARING (CLOUD SYNC)
+- Move family data to Supabase (cloud).
+- App loads from cloud on launch, caches locally.
+- Writes go to cloud first when online; if offline, queue changes locally and retry.
+
+3) PERMISSIONS (MINIMUM)
+- Guardian: can create/edit templates, assign tasks, approve/reject completions.
+- Kid (logged-in): can view assigned tasks and mark tasks “Completed (Pending Approval)”.
+- Enforce at DB level with Row Level Security (RLS) policies.
+
+4) TASK COMPLETION + APPROVAL (REQUIRED)
+- Kid marks task instance as “pending_approval”.
+- Approval must be performed by a DIFFERENT guardian (not the same user who completed it).
+- Require at least 1 guardian approval; if multiple guardians exist, enforce “approver != completer”.
+- On approval:
+  - status becomes “approved”
+  - award stars
+- On rejection:
+  - status becomes “rejected”
+  - optionally return to “open” or keep “rejected” with reason
+
+WHAT TO BUILD (STEP-BY-STEP)
+
+A) SUPABASE SETUP
+- Create a Supabase project.
+- Create tables (minimum):
+  - families(id, name, created_at)
+  - profiles(id uuid = auth.user.id, family_id, role enum('guardian','kid'), display_name, requires_login bool)
+  - tasks(id, family_id, title, category, is_archived, created_at)
+  - task_instances(id, family_id, task_id, assignee_profile_id, created_by_profile_id, status enum('open','pending_approval','approved','rejected'), due_at, created_at, completed_at)
+  - task_approvals(id, task_instance_id, approver_profile_id, decision enum('approved','rejected'), reason text, created_at)
+  - stars_ledger(id, family_id, profile_id, delta int, reason text, created_at, created_by_profile_id)
+- Enable RLS on all tables.
+- Add RLS policies:
+  - Only users in the same family can read family rows.
+  - Only guardians can insert/update tasks and assign tasks.
+  - Kids can update ONLY their own task_instances from open -> pending_approval.
+  - Guardians can approve/reject pending_approval where approver != completer.
+  - Stars ledger inserts only by guardians when approving/rejecting.
+
+B) APP INTEGRATION (EXPO)
+- Add dependencies:
+  - @supabase/supabase-js
+  - expo-secure-store
+- Create a `lib/supabase.ts` client.
+- Implement Auth screens:
+  - Sign up / sign in / sign out
+  - Persist session in SecureStore
+- Add a “Select Family / Join Family” flow:
+  - Simplest: guardian creates family on first sign-in; generates a “family invite code” stored in DB
+  - Other users enter invite code to link their profile to that family
+
+C) SYNC STRATEGY (FAST + RELIABLE)
+- Cloud-first reads:
+  - On app launch: fetch family data -> hydrate Zustand -> cache to AsyncStorage
+- Writes:
+  - When online: write to Supabase then update local store
+  - When offline: write to local “outbox queue” in AsyncStorage; retry on next launch / when network returns
+- Keep Realtime optional:
+  - If easy: subscribe to changes in task_instances and tasks; otherwise rely on refresh button
+
+D) UI FLOW CHANGES
+- “Act As” stays for demo/testing, but when signed in:
+  - default actor = logged-in profile
+- Kids view:
+  - Assigned tasks list
+  - “Mark Complete” button sets status to pending_approval
+- Guardians view:
+  - Today tab shows “Needs Approval”
+  - Approve / Reject requires optional reason on reject
+  - Approval triggers stars award via stars_ledger
+
+DONE CRITERIA
+- A guardian can sign up/sign in and create a family
+- Another guardian can join the same family and see shared data
+- A logged-in kid can see assigned tasks and mark one as complete (pending_approval)
+- A DIFFERENT guardian can approve it (approver != completer) and stars are granted
+- Changes are visible across devices after refresh (or realtime if implemented)
+- Session persists after app restart
+
+VALIDATION CHECKLIST
+- [ ] Guardian A signs in, creates family, assigns a task to Kid
+- [ ] Kid signs in, sees the task, marks complete -> status pending_approval
+- [ ] Guardian A cannot approve if they are the completer (if applicable) and system enforces rules
+- [ ] Guardian B approves -> status approved + stars ledger updated
+- [ ] Both devices reflect updated status after refresh
+- [ ] Offline: Kid marks complete while offline -> queued -> syncs when online -> appears for guardians
+
+NOTES (FASTEST PRACTICAL CHOICES)
+- Supabase is chosen for speed: Auth + DB + policies in one place.
+- RLS policies are mandatory to prevent cheating.
+- Keep sync simple (launch + manual refresh) unless realtime is easy.
+
+END PROMPT
