@@ -405,25 +405,26 @@ export const useStore = create<AppState & StoreActions & { isReady: boolean }>((
     
     // For each recurring template, check if there's already a task for today
     const newInstances: TaskInstance[] = [];
+    const kids = state.members.filter((m) => m.role === "kid");
     
     for (const template of recurringTemplates) {
-      // Check if there's already an open/pending task for today
-      const existingToday = state.taskInstances.find((instance) => {
-        if (instance.templateId !== template.id) return false;
-        if (instance.scheduleType !== "recurring_daily") return false;
-        const instanceDate = format(parseISO(instance.createdAt), "yyyy-MM-dd");
-        return instanceDate === todayStr && (instance.status === "open" || instance.status === "pending_approval");
-      });
-      
-      if (!existingToday) {
-        // Find kids to assign to (all kids if no specific assignment)
-        const kids = state.members.filter((m) => m.role === "kid");
+      for (const kid of kids) {
+        // Check age restrictions
+        if (template.minAge && kid.age < template.minAge) continue;
+        if (template.maxAge && kid.age > template.maxAge) continue;
         
-        for (const kid of kids) {
-          // Check age restrictions
-          if (template.minAge && kid.age < template.minAge) continue;
-          if (template.maxAge && kid.age > template.maxAge) continue;
-          
+        // Check if there's already an open/pending/done task for this kid and template today
+        const existingForKidToday = state.taskInstances.find((instance) => {
+          if (instance.templateId !== template.id) return false;
+          if (instance.assignedToMemberId !== kid.id) return false;
+          if (instance.scheduleType !== "recurring_daily") return false;
+          const instanceDate = format(parseISO(instance.createdAt), "yyyy-MM-dd");
+          // Consider any status except expired (don't recreate if there's an open, pending, or done task)
+          return instanceDate === todayStr && instance.status !== "expired";
+        });
+        
+        // Only create if no existing task for this kid today
+        if (!existingForKidToday) {
           const newInstance: TaskInstance = {
             id: `task-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             templateId: template.id,

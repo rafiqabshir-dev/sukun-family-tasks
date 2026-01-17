@@ -1,18 +1,55 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Pressable } from "react-native";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, borderRadius, fontSize } from "@/lib/theme";
 import { useStore } from "@/lib/store";
 import { TaskInstance, TaskTemplate } from "@/lib/types";
-import { format, isToday, isBefore, startOfDay } from "date-fns";
+import { format, isToday, isBefore, startOfDay, differenceInMinutes, differenceInSeconds, parseISO, isAfter } from "date-fns";
 
-function getTaskStatus(task: TaskInstance): "open" | "pending_approval" | "done" | "overdue" {
+function getTaskStatus(task: TaskInstance): "open" | "pending_approval" | "done" | "overdue" | "expired" {
   if (task.status === "done") return "done";
+  if (task.status === "expired") return "expired";
   if (task.status === "pending_approval") return "pending_approval";
+  
+  const now = new Date();
+  
+  // Check expiration for time-sensitive tasks
+  if (task.expiresAt) {
+    const expiresAt = parseISO(task.expiresAt);
+    if (isAfter(now, expiresAt)) return "expired";
+  }
+  
   const dueDate = new Date(task.dueAt);
-  const today = startOfDay(new Date());
+  const today = startOfDay(now);
   if (isBefore(dueDate, today)) return "overdue";
   return "open";
+}
+
+function getTimeRemaining(expiresAt: string): { minutes: number; seconds: number; isExpired: boolean } {
+  const now = new Date();
+  const expires = parseISO(expiresAt);
+  const diffSeconds = differenceInSeconds(expires, now);
+  
+  if (diffSeconds <= 0) {
+    return { minutes: 0, seconds: 0, isExpired: true };
+  }
+  
+  return {
+    minutes: Math.floor(diffSeconds / 60),
+    seconds: diffSeconds % 60,
+    isExpired: false
+  };
+}
+
+function formatTimeRemaining(expiresAt: string): string {
+  const { minutes, seconds, isExpired } = getTimeRemaining(expiresAt);
+  if (isExpired) return "Expired";
+  if (minutes >= 60) {
+    const hours = Math.floor(minutes / 60);
+    const remainingMins = minutes % 60;
+    return `${hours}h ${remainingMins}m`;
+  }
+  return `${minutes}m ${seconds}s`;
 }
 
 export default function TodayScreen() {
@@ -25,6 +62,33 @@ export default function TodayScreen() {
   const approveTask = useStore((s) => s.approveTask);
   const rejectTask = useStore((s) => s.rejectTask);
   const deductStars = useStore((s) => s.deductStars);
+  const [currentTime, setCurrentTime] = useState(new Date());
+  
+  // Timer for countdown display updates only - does NOT call store actions
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+  
+  // Check expired tasks and regenerate recurring tasks on mount and periodically
+  // Using useStore.getState() to avoid stale closure issues
+  useEffect(() => {
+    const runExpiredAndRecurringChecks = () => {
+      const state = useStore.getState();
+      state.checkExpiredTasks();
+      state.regenerateRecurringTasks();
+    };
+    
+    // Run once on mount
+    runExpiredAndRecurringChecks();
+    
+    // Run every minute
+    const interval = setInterval(runExpiredAndRecurringChecks, 60000);
+    
+    return () => clearInterval(interval);
+  }, []);
 
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showDeductModal, setShowDeductModal] = useState(false);
@@ -163,7 +227,12 @@ export default function TodayScreen() {
     const template = getTemplate(task.templateId);
     const assignee = getMember(task.assignedToMemberId);
     const isMyTask = task.assignedToMemberId === actingMemberId;
-    const canComplete = (isMyTask || isGuardian) && task.computedStatus !== "done" && task.status === "open";
+    const isExpired = task.computedStatus === "expired";
+    const canComplete = (isMyTask || isGuardian) && task.computedStatus !== "done" && task.computedStatus !== "expired" && task.status === "open";
+    
+    const hasExpiration = task.expiresAt && task.status === "open" && !isExpired;
+    const timeRemaining = hasExpiration ? formatTimeRemaining(task.expiresAt!) : null;
+    const isUrgent = hasExpiration && getTimeRemaining(task.expiresAt!).minutes < 5;
 
     return (
       <View
@@ -172,11 +241,30 @@ export default function TodayScreen() {
           styles.taskCard,
           task.computedStatus === "overdue" && styles.taskCardOverdue,
           task.computedStatus === "done" && styles.taskCardDone,
+          task.computedStatus === "expired" && styles.taskCardExpired,
         ]}
       >
         <View style={styles.taskContent}>
           <View style={styles.taskHeader}>
-            <Text style={styles.taskTitle}>{template?.title || "Task"}</Text>
+            <View style={styles.taskTitleRow}>
+              <Text style={styles.taskTitle}>{template?.title || "Task"}</Text>
+              {task.scheduleType && task.scheduleType !== "one_time" && (
+                <View style={[
+                  styles.scheduleTypeBadge,
+                  task.scheduleType === "recurring_daily" && styles.dailyBadge,
+                  task.scheduleType === "time_sensitive" && styles.timedBadge,
+                ]}>
+                  <Ionicons 
+                    name={task.scheduleType === "recurring_daily" ? "refresh" : "timer-outline"} 
+                    size={10} 
+                    color="#FFFFFF" 
+                  />
+                  <Text style={styles.scheduleTypeBadgeText}>
+                    {task.scheduleType === "recurring_daily" ? "Daily" : "Timed"}
+                  </Text>
+                </View>
+              )}
+            </View>
             <View style={styles.starsContainer}>
               <Ionicons name="star" size={16} color={colors.secondary} />
               <Text style={styles.starsValue}>{template?.defaultStars || 1}</Text>
@@ -185,12 +273,25 @@ export default function TodayScreen() {
           {showAssignee && assignee && (
             <Text style={styles.taskAssignee}>For: {assignee.name}</Text>
           )}
-          <Text style={styles.taskDue}>
-            Due: {format(new Date(task.dueAt), "MMM d, yyyy")}
-            {task.computedStatus === "overdue" && (
-              <Text style={styles.overdueLabel}> (Overdue)</Text>
+          <View style={styles.taskMetaRow}>
+            <Text style={styles.taskDue}>
+              Due: {format(new Date(task.dueAt), "MMM d, yyyy")}
+              {task.computedStatus === "overdue" && (
+                <Text style={styles.overdueLabel}> (Overdue)</Text>
+              )}
+              {task.computedStatus === "expired" && (
+                <Text style={styles.expiredLabel}> (Expired)</Text>
+              )}
+            </Text>
+            {hasExpiration && (
+              <View style={[styles.countdownBadge, isUrgent && styles.countdownBadgeUrgent]}>
+                <Ionicons name="timer-outline" size={12} color={isUrgent ? "#FFFFFF" : colors.warning} />
+                <Text style={[styles.countdownText, isUrgent && styles.countdownTextUrgent]}>
+                  {timeRemaining}
+                </Text>
+              </View>
             )}
-          </Text>
+          </View>
         </View>
         {canComplete && task.status === "open" && (
           <TouchableOpacity
@@ -209,6 +310,11 @@ export default function TodayScreen() {
         {task.computedStatus === "done" && (
           <View style={styles.doneIndicator}>
             <Ionicons name="checkmark-done" size={24} color={colors.success} />
+          </View>
+        )}
+        {task.computedStatus === "expired" && (
+          <View style={styles.expiredIndicator}>
+            <Ionicons name="close-circle" size={24} color={colors.error} />
           </View>
         )}
       </View>
@@ -728,19 +834,53 @@ const styles = StyleSheet.create({
   taskCardDone: {
     opacity: 0.6,
   },
+  taskCardExpired: {
+    borderLeftWidth: 4,
+    borderLeftColor: colors.textMuted,
+    opacity: 0.7,
+  },
+  taskCardPending: {
+    borderLeftWidth: 4,
+    borderLeftColor: colors.warning,
+  },
   taskContent: {
     flex: 1,
   },
   taskHeader: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     justifyContent: "space-between",
+  },
+  taskTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    flexWrap: "wrap",
+    gap: spacing.xs,
   },
   taskTitle: {
     fontSize: fontSize.md,
     fontWeight: "600",
     color: colors.text,
-    flex: 1,
+  },
+  scheduleTypeBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 2,
+    borderRadius: borderRadius.sm,
+    gap: 2,
+  },
+  dailyBadge: {
+    backgroundColor: colors.primary,
+  },
+  timedBadge: {
+    backgroundColor: colors.warning,
+  },
+  scheduleTypeBadgeText: {
+    fontSize: fontSize.xs,
+    fontWeight: "600",
+    color: "#FFFFFF",
   },
   starsContainer: {
     flexDirection: "row",
@@ -766,10 +906,43 @@ const styles = StyleSheet.create({
     color: colors.error,
     fontWeight: "600",
   },
+  expiredLabel: {
+    color: colors.textMuted,
+    fontWeight: "600",
+  },
+  taskMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 4,
+  },
+  countdownBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 2,
+    backgroundColor: colors.surfaceSecondary,
+    borderRadius: borderRadius.sm,
+    gap: 4,
+  },
+  countdownBadgeUrgent: {
+    backgroundColor: colors.error,
+  },
+  countdownText: {
+    fontSize: fontSize.xs,
+    fontWeight: "600",
+    color: colors.warning,
+  },
+  countdownTextUrgent: {
+    color: "#FFFFFF",
+  },
   completeButton: {
     padding: spacing.sm,
   },
   doneIndicator: {
+    padding: spacing.sm,
+  },
+  expiredIndicator: {
     padding: spacing.sm,
   },
   noActorState: {

@@ -30,8 +30,10 @@ Preferred communication style: Simple, everyday language.
 
 ### Data Model (TypeScript)
 - **Member**: id, name, role ("kid"|"guardian"), age, starsTotal, powers[]
-- **TaskTemplate**: id, title, category, iconKey, defaultStars, difficulty, preferredPowers[], minAge?, maxAge?, enabled
-- **TaskInstance**: id, templateId, assignedToMemberId, dueAt, status, createdAt, completedAt?
+- **TaskTemplate**: id, title, category, iconKey, defaultStars, difficulty, preferredPowers[], minAge?, maxAge?, enabled, scheduleType?, timeWindowMinutes?
+- **TaskInstance**: id, templateId, assignedToMemberId, dueAt, status, createdAt, completedAt?, expiresAt?, scheduleType?
+- **TaskScheduleType**: "one_time" | "recurring_daily" | "time_sensitive"
+- **TaskStatus**: "open" | "pending_approval" | "done" | "expired"
 - **Settings**: islamicValuesMode, soundsEnabled
 
 ### File Structure
@@ -151,6 +153,28 @@ Six starter powers kids can choose (1-2 per kid):
   - Add member locally option
 - **User Switcher**: Today screen has tappable user card to switch between all family members
 - **Terminology**: Replaced "kids" with "participants" throughout UI
+
+### V1 - Task Types (Recurring & Time-Sensitive)
+- **Task Schedule Types**: Three types of tasks now supported:
+  - **One-Time**: Default behavior, complete once (no changes from before)
+  - **Recurring Daily**: Auto-regenerates each day for all kids, expires at end of day
+  - **Time-Sensitive**: Expires after specified minutes (5, 10, 15, 30, or 60)
+- **Task Creation UI**: Tasks tab now includes schedule type selector
+  - Visual toggle between One-Time, Daily, and Timed
+  - Time window picker appears when "Timed" is selected
+- **Expiration System**:
+  - `expiresAt` field on TaskInstance tracks when task expires
+  - `checkExpiredTasks()` runs on mount and every 60 seconds
+  - Expired tasks marked with "expired" status and grayed out
+- **Recurring Regeneration**:
+  - `regenerateRecurringTasks()` creates daily instances each morning
+  - Checks age restrictions before assigning to kids
+  - Only creates if no open/pending task exists for today
+- **Today View Enhancements**:
+  - Schedule type badges (Daily/Timed) on task cards
+  - Live countdown timer for time-sensitive tasks
+  - Urgent styling (red) when less than 5 minutes remain
+  - Expired indicator and status for expired tasks
 
 ### Islamic Values Tone
 - Positive, gentle wording throughout
