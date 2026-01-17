@@ -19,6 +19,37 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Helper function to create profile if it doesn't exist
+async function ensureProfileExistsInternal(user: User): Promise<void> {
+  // Check if profile already exists
+  const { data: existingProfile } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('id', user.id)
+    .single();
+
+  if (existingProfile) return;
+
+  // Create profile from user metadata
+  const metadata = user.user_metadata || {};
+  const displayName = metadata.display_name || user.email?.split('@')[0] || 'User';
+  const role = metadata.role || 'guardian';
+
+  const { error: profileError } = await supabase
+    .from('profiles')
+    .insert({
+      id: user.id,
+      display_name: displayName,
+      role: role,
+      requires_login: true,
+      powers: [],
+    });
+
+  if (profileError) {
+    console.error('Error creating profile:', profileError);
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
@@ -46,10 +77,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
+        // Ensure profile exists before fetching (handles email confirmation flow)
+        await ensureProfileExistsInternal(session.user);
         fetchProfile(session.user.id);
       } else {
         setProfile(null);
@@ -116,27 +149,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     role: 'guardian' | 'kid'
   ): Promise<{ error: Error | null }> {
     try {
+      // Sign up with user metadata - profile will be created on first sign-in
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          data: {
+            display_name: displayName,
+            role: role,
+          }
+        }
       });
 
       if (error) return { error };
 
-      if (data.user) {
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert({
-            id: data.user.id,
-            display_name: displayName,
-            role,
-            requires_login: true,
-            powers: [],
-          });
-
-        if (profileError) {
-          return { error: new Error(profileError.message) };
-        }
+      // If session is immediately available (email confirmation disabled),
+      // try to create the profile now
+      if (data.session && data.user) {
+        await ensureProfileExistsInternal(data.user);
       }
 
       return { error: null };
