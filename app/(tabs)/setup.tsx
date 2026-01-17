@@ -31,9 +31,57 @@ export default function SetupScreen() {
   const [newAge, setNewAge] = useState("");
   const [newRole, setNewRole] = useState<"kid" | "guardian">("kid");
   const [copiedCode, setCopiedCode] = useState(false);
+  const [isOwner, setIsOwner] = useState(false);
+  const [ownershipChecked, setOwnershipChecked] = useState(false);
   
-  // Check if current user is the owner (first guardian in the family)
-  const isOwner = profile?.role === "guardian";
+  // Check if current user is the family owner (first guardian to join)
+  useEffect(() => {
+    const checkOwnership = async () => {
+      setOwnershipChecked(false);
+      
+      if (!isConfigured) {
+        // In offline mode (no Supabase), allow any guardian to manage members
+        setIsOwner(profile?.role === "guardian");
+        setOwnershipChecked(true);
+        return;
+      }
+      
+      if (!profile || !family) {
+        setIsOwner(false);
+        setOwnershipChecked(true);
+        return;
+      }
+      
+      try {
+        const { supabase } = await import("@/lib/supabase");
+        const { data: familyGuardians, error } = await supabase
+          .from("profiles")
+          .select("id, created_at")
+          .eq("family_id", family.id)
+          .eq("role", "guardian")
+          .order("created_at", { ascending: true })
+          .limit(1);
+        
+        if (error) {
+          console.error("Error checking ownership:", error);
+          // On error, deny access (strict security)
+          setIsOwner(false);
+        } else if (familyGuardians && familyGuardians.length > 0) {
+          setIsOwner(familyGuardians[0].id === profile.id);
+        } else {
+          setIsOwner(false);
+        }
+      } catch (error) {
+        console.error("Error checking ownership:", error);
+        // On error, deny access (strict security)
+        setIsOwner(false);
+      }
+      
+      setOwnershipChecked(true);
+    };
+    
+    checkOwnership();
+  }, [profile, family, isConfigured]);
   
   useEffect(() => {
     const checkStorage = async () => {
