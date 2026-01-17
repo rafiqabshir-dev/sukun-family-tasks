@@ -138,7 +138,7 @@ export default function SignUpScreen() {
                   color={role === 'kid' ? '#fff' : theme.colors.primary}
                 />
                 <Text style={[styles.roleText, role === 'kid' && styles.roleTextActive]}>
-                  Kid
+                  Participant
                 </Text>
               </TouchableOpacity>
             </View>

@@ -59,7 +59,7 @@ export default function RewardsScreen() {
     if (!kid || kid.starsTotal < selectedReward.starsCost) {
       Alert.alert(
         "Not Enough Stars",
-        `${kid?.name || "This kid"} needs ${selectedReward.starsCost} stars but only has ${kid?.starsTotal || 0}.`
+        `${kid?.name || "This participant"} needs ${selectedReward.starsCost} stars but only has ${kid?.starsTotal || 0}.`
       );
       return;
     }

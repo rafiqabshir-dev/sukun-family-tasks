@@ -463,7 +463,7 @@ export default function SetupScreen() {
                       newRole === "kid" && styles.roleTextActive,
                     ]}
                   >
-                    Kid
+                    Participant
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity

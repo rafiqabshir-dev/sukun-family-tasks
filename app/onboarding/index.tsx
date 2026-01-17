@@ -29,7 +29,7 @@ export default function WelcomeScreen() {
             <View>
               <Text style={styles.userName}>{profile.display_name}</Text>
               <Text style={styles.userRole}>
-                {profile.role === "guardian" ? "Guardian" : "Kid"}
+                {profile.role === "guardian" ? "Guardian" : "Participant"}
                 {family ? ` • ${family.name}` : ""}
               </Text>
             </View>

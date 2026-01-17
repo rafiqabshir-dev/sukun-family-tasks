@@ -164,7 +164,7 @@ export default function PowersScreen() {
           activeOpacity={0.8}
         >
           <Text style={styles.continueButtonText}>
-            {currentKidIndex < kids.length - 1 ? "Next Kid" : "Continue"}
+            {currentKidIndex < kids.length - 1 ? "Next Participant" : "Continue"}
           </Text>
           <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
         </TouchableOpacity>

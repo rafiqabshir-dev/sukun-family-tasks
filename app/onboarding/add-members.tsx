@@ -157,7 +157,7 @@ export default function AddMembersScreen() {
             <View>
               <Text style={styles.userName}>{profile.display_name}</Text>
               <Text style={styles.userRole}>
-                {profile.role === "guardian" ? "Guardian" : "Kid"}
+                {profile.role === "guardian" ? "Guardian" : "Participant"}
                 {family ? ` • ${family.name}` : ""}
               </Text>
             </View>
@@ -280,7 +280,7 @@ export default function AddMembersScreen() {
                         member.role === "kid" && styles.roleTextActive,
                       ]}
                     >
-                      Kid
+                      Participant
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity

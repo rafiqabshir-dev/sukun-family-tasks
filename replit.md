@@ -152,7 +152,7 @@ Six starter powers kids can choose (1-2 per kid):
   - Share on WhatsApp
   - Add member locally option
 - **User Switcher**: Today screen has tappable user card to switch between all family members
-- **Terminology**: Replaced "kids" with "participants" throughout UI
+- **Terminology**: Replaced "kids" with "participants" throughout all UI text and labels (role selectors, empty states, leaderboard, rewards, onboarding, etc.)
 
 ### V1 - Task Types (Recurring & Time-Sensitive)
 - **Task Schedule Types**: Three types of tasks now supported:

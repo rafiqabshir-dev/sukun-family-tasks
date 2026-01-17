@@ -25,9 +25,9 @@ export default function LeaderboardScreen() {
           <View style={styles.emptyIcon}>
             <Ionicons name="trophy-outline" size={64} color={colors.primary} />
           </View>
-          <Text style={styles.emptyTitle}>No Kids Yet</Text>
+          <Text style={styles.emptyTitle}>No Participants Yet</Text>
           <Text style={styles.emptyText}>
-            Add kids to your family to start tracking their stars!
+            Add participants to your family to start tracking their stars!
           </Text>
         </View>
       ) : (

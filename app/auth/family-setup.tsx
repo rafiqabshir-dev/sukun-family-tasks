@@ -97,7 +97,7 @@ export default function FamilySetupScreen() {
             <View>
               <Text style={styles.userName}>{profile?.display_name}</Text>
               <Text style={styles.userRole}>
-                {profile?.role === 'guardian' ? 'Guardian' : 'Kid'}
+                {profile?.role === 'guardian' ? 'Guardian' : 'Participant'}
               </Text>
             </View>
           </View>
