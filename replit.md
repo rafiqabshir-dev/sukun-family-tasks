@@ -45,6 +45,12 @@ Preferred communication style: Simple, everyday language.
 - Count refreshes on: tab focus, family/profile changes, Setup screen polling (30s), and after approve/reject actions.
 - The Setup screen shows join request cards with role-based fallback ("New Guardian"/"New Participant") when display_name is empty.
 
+### Auth Gate
+- Unauthenticated users are always redirected to the sign-in page when Supabase is configured.
+- The `app/index.tsx` waits for both store (`isReady`) and auth (`loading`) before routing decisions.
+- Routing logic: no session → sign-in, pending request → pending-approval, no family → family-setup, authenticated → today.
+- Note: Keep routing rules in `index.tsx` and `useProtectedRoute` in `_layout.tsx` synchronized to avoid regressions.
+
 ## External Dependencies
 
 - expo (expo, expo-router, expo-constants, expo-linking, expo-status-bar)
