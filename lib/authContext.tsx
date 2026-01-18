@@ -40,6 +40,10 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const AUTH_TIMEOUT_MS = 8000;
 
+// Module-level flag to prevent auth init from running multiple times across component remounts
+// Set synchronously at the very start of useEffect, before any async operations
+let authInitStarted = false;
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
@@ -50,7 +54,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [requestedFamily, setRequestedFamily] = useState<Family | null>(null);
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
   
-  const authInProgress = useRef(false);
   const mounted = useRef(true);
 
   useEffect(() => {
@@ -74,7 +77,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setFamily(null);
         setLoading(false);
       }
-      authInProgress.current = false;
     }
 
     async function validateSession(currentSession: Session): Promise<boolean> {
@@ -200,11 +202,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     async function initializeAuth() {
-      if (authInProgress.current) {
-        console.log('[Auth] Init already running');
-        return;
-      }
-      authInProgress.current = true;
       console.log('[Auth] Init start');
 
       try {
@@ -237,7 +234,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setUser(null);
             setLoading(false);
           }
-          authInProgress.current = false;
           return;
         }
 
@@ -255,7 +251,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         console.log('[Auth] Init complete');
         if (mounted.current) setLoading(false);
-        authInProgress.current = false;
 
       } catch (error: any) {
         console.log('[Auth] Init error:', error?.message);
@@ -263,7 +258,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    initializeAuth();
+    // Use module-level flag to prevent multiple initializations across remounts
+    if (!authInitStarted) {
+      authInitStarted = true;
+      initializeAuth();
+    } else {
+      console.log('[Auth] Already started, skipping init');
+      // Still need to set loading to false if we're not initializing
+      setLoading(false);
+    }
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       console.log('[Auth] Event:', event);
@@ -271,6 +274,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (event === 'INITIAL_SESSION') return;
 
       if (event === 'SIGNED_OUT' || !newSession) {
+        // Allow re-initialization after sign out
+        authInitStarted = false;
         if (mounted.current) {
           setSession(null);
           setUser(null);
@@ -278,21 +283,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setFamily(null);
           setLoading(false);
         }
-        authInProgress.current = false;
         return;
       }
 
       if (event === 'SIGNED_IN' && newSession?.user) {
-        if (authInProgress.current) {
-          console.log('[Auth] Event during init');
-          if (mounted.current) {
-            setSession(newSession);
-            setUser(newSession.user);
-          }
-          return;
-        }
-
-        authInProgress.current = true;
+        // Handle new sign-in: update session and validate
         if (mounted.current) {
           setLoading(true);
           setSession(newSession);
@@ -305,7 +300,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await clearAuthState('sign-in validation failed');
         } else {
           if (mounted.current) setLoading(false);
-          authInProgress.current = false;
         }
       }
 
