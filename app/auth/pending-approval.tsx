@@ -66,7 +66,51 @@ export default function PendingApprovalScreen() {
     setChecking(false);
   };
 
+  // For participants without loaded request data, show a waiting screen
+  // instead of infinite spinner
   if (!pendingJoinRequest || !requestedFamily) {
+    // If user is a kid/participant, show a helpful waiting message
+    if (profile?.role === 'kid') {
+      return (
+        <SafeAreaView style={styles.container}>
+          <Text style={styles.headerTitle}>Waiting for Approval</Text>
+          <View style={styles.content}>
+            <View style={styles.iconContainer}>
+              <Ionicons name="hourglass-outline" size={64} color={colors.primary} />
+            </View>
+            <Text style={styles.title}>Almost There!</Text>
+            <Text style={styles.message}>
+              Your request to join your family is being processed.
+            </Text>
+            <Text style={styles.subMessage}>
+              A guardian needs to approve your request. Check back soon!
+            </Text>
+            
+            <TouchableOpacity
+              style={styles.checkButton}
+              onPress={handleCheckStatus}
+              disabled={checking}
+            >
+              {checking ? (
+                <ActivityIndicator size="small" color={colors.primary} />
+              ) : (
+                <>
+                  <Ionicons name="refresh" size={20} color={colors.primary} />
+                  <Text style={styles.checkButtonText}>Check Status</Text>
+                </>
+              )}
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
+              <Ionicons name="log-out-outline" size={20} color={colors.textSecondary} />
+              <Text style={styles.signOutButtonText}>Sign Out</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      );
+    }
+    
+    // For guardians or unknown role, show spinner briefly
     return (
       <SafeAreaView style={styles.container}>
         <ActivityIndicator size="large" color={colors.primary} />
