@@ -274,8 +274,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       initializeAuth();
     } else {
       console.log('[Auth] Already started, skipping init');
-      // Still need to set loading to false if we're not initializing
+      // Still need to set loading to false and familyCheckComplete to true if we're not initializing
+      // This ensures authReady becomes true even when init is skipped
       setLoading(false);
+      setFamilyCheckComplete(true);
     }
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
