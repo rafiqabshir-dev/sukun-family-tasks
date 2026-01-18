@@ -173,9 +173,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                   });
                   
                   useStore.getState().syncMembersFromCloud(members);
-                  // Set acting member to the authenticated user
-                  useStore.getState().setActingMember(currentUser.id);
-                  console.log('[Auth] Synced', members.length, 'members, acting as', currentUser.id);
+                  console.log('[Auth] Synced', members.length, 'members for user', currentUser.id);
                 }
               } catch (syncError: any) {
                 console.log('[Auth] Member sync error:', syncError?.message);

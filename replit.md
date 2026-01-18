@@ -21,9 +21,13 @@ Preferred communication style: Simple, everyday language.
 - **Gamification**: Includes a "Powers" system for kids (e.g., Organizer, Fast Cleaner), a "Spin" game for task assignment, and a "Leaderboard" to track stars.
 - **Task Management**: Supports "One-Time", "Recurring Daily", and "Time-Sensitive" task types with expiration mechanisms and regeneration for daily tasks. Guardians can assign tasks, and kids can complete them for stars.
 - **Rewards System**: Guardians can set star-cost rewards, which kids can claim, with star deductions for misbehavior also supported.
-- **Approval Workflows**: Tasks require approval from a different family member before stars are awarded. Family joining also involves an approval process by the family owner.
-- **Multi-User & Roles**: Differentiates between "kids" and "guardians" with specific permissions. Guardians can manage members and tasks, while kids can complete assigned tasks. An "Act As" selector allows switching between family members.
-- **User Management**: Family owners (first guardian) control member invitations and approvals. User profiles can be edited, and a user switcher facilitates interaction.
+- **Approval Workflows**: 
+  - Participants (kids) always require guardian approval for task completion.
+  - Single guardian families: guardians can complete tasks directly without approval.
+  - Multiple guardian families: guardians require cross-approval from another guardian.
+  - Family joining involves an approval process by the family owner.
+- **Multi-User & Roles**: Differentiates between "kids" (participants) and "guardians" with specific permissions. Guardians can manage members and tasks, while kids can complete assigned tasks. Each user interacts as themselves based on their authenticated profile (no user switching).
+- **User Management**: Family owners (first guardian) control member invitations and approvals. User profiles can be edited from the Setup screen.
 - **Data Model**: Core entities include `Member` (id, name, role, age, starsTotal, powers, profileId), `TaskTemplate` (id, title, category, defaultStars, scheduleType), `TaskInstance` (assigned to member, dueAt, status), and `Settings`.
 - **UI/UX**: Features a tab-based navigation (Today, Spin, Leaderboard, Setup), an onboarding flow, and consistent typography. Islamic values are reflected in a gentle tone and default sound settings.
 
@@ -32,7 +36,7 @@ Preferred communication style: Simple, everyday language.
 - **Auth Flow**: Standard email/password sign-up, with options to create or join a family using invite codes.
 - **Offline Mode**: Operates locally using AsyncStorage if Supabase is not configured.
 - **Security**: Utilizes Row Level Security (RLS) for data access control and an immutable `stars_ledger` for audit trails.
-- **ID Matching**: Local store uses `member-*` IDs while Supabase uses UUIDs. Members now have an optional `profileId` field that stores the Supabase UUID for reliable matching. The `findCurrentUserMember()` helper in Setup uses a priority chain: profileId → id → name+role → actingMemberId (offline mode).
+- **ID Matching**: Local store uses `member-*` IDs while Supabase uses UUIDs. Members now have an optional `profileId` field that stores the Supabase UUID for reliable matching. The `findCurrentUserMember()` helper in Setup uses a priority chain: profileId → id → name+role → first guardian (offline mode).
 
 ### Profile Name Editing
 - Users can edit their display name from the Setup screen by tapping the pencil icon next to their entry.

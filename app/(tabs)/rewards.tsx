@@ -3,12 +3,13 @@ import { useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, borderRadius, fontSize } from "@/lib/theme";
 import { useStore } from "@/lib/store";
+import { useAuth } from "@/lib/authContext";
 import { Reward, Member } from "@/lib/types";
 
 export default function RewardsScreen() {
+  const { profile } = useAuth();
   const members = useStore((s) => s.members);
   const rewards = useStore((s) => s.rewards);
-  const actingMemberId = useStore((s) => s.actingMemberId);
   const addReward = useStore((s) => s.addReward);
   const updateReward = useStore((s) => s.updateReward);
   const deleteReward = useStore((s) => s.deleteReward);
@@ -23,8 +24,13 @@ export default function RewardsScreen() {
   const [newDescription, setNewDescription] = useState("");
   const [newStarsCost, setNewStarsCost] = useState("10");
 
-  const actingMember = members.find((m) => m.id === actingMemberId);
-  const isGuardian = actingMember?.role === "guardian";
+  // Current user is the authenticated user, with fallback for offline mode
+  const currentUserId = profile?.id;
+  const authenticatedMember = members.find((m) => m.id === currentUserId || m.profileId === currentUserId);
+  // Fallback to first guardian for offline/local mode when no authenticated profile
+  const fallbackMember = members.find((m) => m.role === "guardian") || members[0];
+  const currentMember = authenticatedMember || fallbackMember;
+  const isGuardian = currentMember?.role === "guardian";
   const kids = members.filter((m) => m.role === "kid");
   const activeRewards = rewards.filter((r) => r.status === "active");
   const redeemedRewards = rewards.filter((r) => r.status === "redeemed");

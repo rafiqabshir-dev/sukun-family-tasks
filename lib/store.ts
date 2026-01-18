@@ -18,7 +18,6 @@ interface StoreActions {
   syncMembersFromCloud: (members: Member[]) => void;
   upsertMemberWithUUID: (uuid: string, name: string, role: 'guardian' | 'kid', age?: number) => void;
   setMemberPowers: (memberId: string, powers: PowerKey[]) => void;
-  setActingMember: (memberId: string | null) => void;
   setTaskTemplates: (templates: TaskTemplate[]) => void;
   toggleTaskTemplate: (id: string) => void;
   addTaskTemplate: (template: Omit<TaskTemplate, "id">) => TaskTemplate;
@@ -52,7 +51,6 @@ function saveToStorage(state: AppState): void {
       const toSave: AppState = {
         schemaVersion: state.schemaVersion,
         onboardingComplete: state.onboardingComplete,
-        actingMemberId: state.actingMemberId,
         members: state.members,
         taskTemplates: state.taskTemplates,
         taskInstances: state.taskInstances,
@@ -119,18 +117,9 @@ export const useStore = create<AppState & StoreActions & { isReady: boolean }>((
             templates = migrateTemplates(templates);
           }
           
-          // Default actingMemberId to first guardian (owner) if not set
-          let actingMemberId = parsed.actingMemberId;
-          const members = parsed.members || [];
-          if (!actingMemberId && members.length > 0) {
-            const firstGuardian = members.find((m: Member) => m.role === "guardian");
-            actingMemberId = firstGuardian?.id || members[0].id;
-          }
-          
           set({ 
             ...DEFAULT_STATE, 
             ...parsed, 
-            actingMemberId,
             taskTemplates: templates,
             spinQueue: parsed.spinQueue || [],
             lastWinnerIds: parsed.lastWinnerIds || [],
@@ -289,11 +278,6 @@ export const useStore = create<AppState & StoreActions & { isReady: boolean }>((
     saveToStorage({ ...get(), members });
   },
 
-  setActingMember: (memberId) => {
-    set({ actingMemberId: memberId });
-    saveToStorage({ ...get(), actingMemberId: memberId });
-  },
-
   setTaskTemplates: (templates) => {
     set({ taskTemplates: templates });
     saveToStorage({ ...get(), taskTemplates: templates });
@@ -382,20 +366,58 @@ export const useStore = create<AppState & StoreActions & { isReady: boolean }>((
     
     if (!instance || instance.status !== "open") return;
 
-    // Request approval instead of completing directly
-    const taskInstances = state.taskInstances.map((t) =>
-      t.id === instanceId
-        ? { 
-            ...t, 
-            status: "pending_approval" as const, 
-            completionRequestedAt: new Date().toISOString(),
-            completionRequestedBy: requestedBy
-          }
-        : t
-    );
+    const requester = state.members.find((m) => m.id === requestedBy || m.profileId === requestedBy);
+    const guardians = state.members.filter((m) => m.role === "guardian");
+    const guardianCount = guardians.length;
+    const isRequesterGuardian = requester?.role === "guardian";
 
-    set({ taskInstances });
-    saveToStorage({ ...get(), taskInstances });
+    // Approval logic:
+    // - Single guardian can complete any task directly (no approval needed)
+    // - Multiple guardians: guardian needs approval from different guardian
+    // - Participants always need guardian approval
+    const canCompleteDirectly = isRequesterGuardian && guardianCount === 1;
+
+    if (canCompleteDirectly) {
+      // Complete the task directly without approval
+      const template = state.taskTemplates.find((t) => t.id === instance.templateId);
+      const starsEarned = template?.defaultStars || 1;
+
+      const taskInstances = state.taskInstances.map((t) =>
+        t.id === instanceId
+          ? { 
+              ...t, 
+              status: "done" as const, 
+              completedAt: new Date().toISOString(),
+              completionRequestedBy: requestedBy,
+              approvedBy: requestedBy
+            }
+          : t
+      );
+
+      const members = state.members.map((m) =>
+        m.id === instance.assignedToMemberId
+          ? { ...m, starsTotal: m.starsTotal + starsEarned }
+          : m
+      );
+
+      set({ taskInstances, members });
+      saveToStorage({ ...get(), taskInstances, members });
+    } else {
+      // Request approval
+      const taskInstances = state.taskInstances.map((t) =>
+        t.id === instanceId
+          ? { 
+              ...t, 
+              status: "pending_approval" as const, 
+              completionRequestedAt: new Date().toISOString(),
+              completionRequestedBy: requestedBy
+            }
+          : t
+      );
+
+      set({ taskInstances });
+      saveToStorage({ ...get(), taskInstances });
+    }
   },
 
   approveTask: (instanceId, approvedBy) => {
@@ -403,6 +425,10 @@ export const useStore = create<AppState & StoreActions & { isReady: boolean }>((
     const instance = state.taskInstances.find((t) => t.id === instanceId);
     
     if (!instance || instance.status !== "pending_approval") return;
+    
+    // Approver must be a guardian
+    const approver = state.members.find((m) => m.id === approvedBy || m.profileId === approvedBy);
+    if (approver?.role !== "guardian") return;
     
     // Approver must be different from the person who requested completion
     if (instance.completionRequestedBy === approvedBy) return;

@@ -58,7 +58,6 @@ export default function TodayScreen() {
   const members = useStore((s) => s.members);
   const taskTemplates = useStore((s) => s.taskTemplates);
   const taskInstances = useStore((s) => s.taskInstances);
-  const actingMemberId = useStore((s) => s.actingMemberId);
   const addTaskInstance = useStore((s) => s.addTaskInstance);
   const completeTask = useStore((s) => s.completeTask);
   const approveTask = useStore((s) => s.approveTask);
@@ -101,6 +100,17 @@ export default function TodayScreen() {
   const [deductAmount, setDeductAmount] = useState<number>(1);
   const [deductReason, setDeductReason] = useState<string>("");
 
+  // Current user is the authenticated user, with fallback for offline mode
+  const currentUserId = profile?.id;
+  const authenticatedMember = members.find((m) => m.id === currentUserId || m.profileId === currentUserId);
+  // Fallback to first guardian for offline/local mode when no authenticated profile
+  const fallbackMember = members.find((m) => m.role === "guardian") || members[0];
+  const currentMember = authenticatedMember || fallbackMember;
+  const isCurrentUserGuardian = currentMember?.role === "guardian";
+  
+  // Count guardians for approval logic
+  const guardianCount = members.filter((m) => m.role === "guardian").length;
+
   const openAssignModal = () => {
     const kidsList = members.filter((m) => m.role === "kid");
     if (kidsList.length === 1) {
@@ -109,8 +119,6 @@ export default function TodayScreen() {
     setShowAssignModal(true);
   };
 
-  const actingMember = members.find((m) => m.id === actingMemberId);
-  const isGuardian = actingMember?.role === "guardian";
   const kids = members.filter((m) => m.role === "kid");
   const enabledTemplates = taskTemplates.filter((t) => t.enabled);
 
@@ -122,7 +130,7 @@ export default function TodayScreen() {
   }, [taskInstances]);
 
   const myTasks = tasksWithStatus.filter(
-    (t) => t.assignedToMemberId === actingMemberId && t.computedStatus !== "done"
+    (t) => t.assignedToMemberId === currentMember?.id && t.computedStatus !== "done"
   );
 
   const dueTodayTasks = tasksWithStatus.filter(
@@ -168,8 +176,8 @@ export default function TodayScreen() {
   };
 
   const handleDeductStars = () => {
-    if (!deductKid || !deductReason.trim() || deductAmount < 1 || !actingMemberId) return;
-    deductStars(deductKid, deductAmount, deductReason.trim(), actingMemberId);
+    if (!deductKid || !deductReason.trim() || deductAmount < 1 || !currentMember?.id) return;
+    deductStars(deductKid, deductAmount, deductReason.trim(), currentMember.id);
     setShowDeductModal(false);
     setDeductKid("");
     setDeductAmount(1);
@@ -180,7 +188,10 @@ export default function TodayScreen() {
     const template = getTemplate(task.templateId);
     const assignee = getMember(task.assignedToMemberId);
     const requester = getMember(task.completionRequestedBy || "");
-    const canApprove = actingMemberId !== task.completionRequestedBy;
+    
+    // Approval rules: guardians can approve if they're not the requester
+    const isRequester = currentMember?.id === task.completionRequestedBy;
+    const canApprove = isCurrentUserGuardian && !isRequester;
 
     return (
       <View key={task.id} style={[styles.taskCard, styles.taskCardPending]}>
@@ -203,7 +214,7 @@ export default function TodayScreen() {
           <View style={styles.approvalButtons}>
             <TouchableOpacity
               style={styles.approveButton}
-              onPress={() => actingMemberId && approveTask(task.id, actingMemberId)}
+              onPress={() => currentMember?.id && approveTask(task.id, currentMember.id)}
               data-testid={`button-approve-${task.id}`}
             >
               <Ionicons name="checkmark" size={24} color="#FFFFFF" />
@@ -218,7 +229,9 @@ export default function TodayScreen() {
           </View>
         ) : (
           <View style={styles.waitingIndicator}>
-            <Text style={styles.waitingText}>Waiting for approval</Text>
+            <Text style={styles.waitingText}>
+              {isRequester ? "Waiting for approval" : "Only guardians can approve"}
+            </Text>
           </View>
         )}
       </View>
@@ -228,9 +241,9 @@ export default function TodayScreen() {
   const renderTaskCard = (task: TaskInstance & { computedStatus: string }, showAssignee = false) => {
     const template = getTemplate(task.templateId);
     const assignee = getMember(task.assignedToMemberId);
-    const isMyTask = task.assignedToMemberId === actingMemberId;
+    const isMyTask = task.assignedToMemberId === currentMember?.id;
     const isExpired = task.computedStatus === "expired";
-    const canComplete = (isMyTask || isGuardian) && task.computedStatus !== "done" && task.computedStatus !== "expired" && task.status === "open";
+    const canComplete = (isMyTask || isCurrentUserGuardian) && task.computedStatus !== "done" && task.computedStatus !== "expired" && task.status === "open";
     
     const hasExpiration = task.expiresAt && task.status === "open" && !isExpired;
     const timeRemaining = hasExpiration ? formatTimeRemaining(task.expiresAt!) : null;
@@ -298,7 +311,7 @@ export default function TodayScreen() {
         {canComplete && task.status === "open" && (
           <TouchableOpacity
             style={styles.completeButton}
-            onPress={() => actingMemberId && completeTask(task.id, actingMemberId)}
+            onPress={() => currentMember?.id && completeTask(task.id, currentMember.id)}
             data-testid={`button-complete-${task.id}`}
           >
             <Ionicons name="checkmark-circle" size={40} color={colors.secondary} />
@@ -323,37 +336,7 @@ export default function TodayScreen() {
     );
   };
 
-  const setActingMember = useStore((s) => s.setActingMember);
-  const [showUserPicker, setShowUserPicker] = useState(false);
-
-  // Auto-select acting member: prefer authenticated user's profile, then first guardian
-  useEffect(() => {
-    if (members.length === 0) return;
-    
-    // If we have an authenticated profile, check if actingMemberId matches
-    if (profile?.id) {
-      const authenticatedMember = members.find((m) => m.id === profile.id);
-      if (authenticatedMember) {
-        // If actingMemberId doesn't match the authenticated user, fix it
-        if (actingMemberId !== profile.id) {
-          setActingMember(profile.id);
-        }
-        return;
-      }
-    }
-    
-    // Fallback: if no acting member set, default to first guardian
-    if (!actingMemberId) {
-      const firstGuardian = members.find((m) => m.role === "guardian");
-      if (firstGuardian) {
-        setActingMember(firstGuardian.id);
-      } else if (members[0]) {
-        setActingMember(members[0].id);
-      }
-    }
-  }, [actingMemberId, members, setActingMember, profile?.id]);
-
-  if (!actingMember && members.length === 0) {
+  if (!currentMember && members.length === 0) {
     return (
       <View style={styles.container}>
         <View style={styles.noActorState}>
@@ -367,38 +350,34 @@ export default function TodayScreen() {
     );
   }
   
-  if (!actingMember) {
-    return null; // Brief loading state while auto-selecting
+  if (!currentMember) {
+    return null; // Brief loading state while syncing
   }
 
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
-        <TouchableOpacity 
-          style={styles.actingAsBar}
-          onPress={() => setShowUserPicker(true)}
-          data-testid="button-switch-user"
-        >
+        <View style={styles.currentUserBar} data-testid="current-user-info">
           <View style={styles.actingAsLeft}>
             <View style={styles.actingAsAvatar}>
               <Text style={styles.actingAsAvatarText}>
-                {actingMember.name.charAt(0).toUpperCase()}
+                {currentMember.name.charAt(0).toUpperCase()}
               </Text>
             </View>
             <View>
-              <Text style={styles.actingAsName}>{actingMember.name}</Text>
+              <Text style={styles.actingAsName}>{currentMember.name}</Text>
               <Text style={styles.actingAsRole}>
-                {isGuardian ? "Guardian" : "Participant"}
+                {isCurrentUserGuardian ? "Guardian" : "Participant"}
               </Text>
             </View>
           </View>
-          <View style={styles.actingAsRight}>
-            <Text style={styles.switchText}>Switch</Text>
-            <Ionicons name="chevron-down" size={16} color={colors.primary} />
+          <View style={styles.starsDisplay}>
+            <Ionicons name="star" size={18} color={colors.secondary} />
+            <Text style={styles.starsCount}>{currentMember.starsTotal}</Text>
           </View>
-        </TouchableOpacity>
+        </View>
 
-        {isGuardian && (
+        {isCurrentUserGuardian && (
           <View style={styles.guardianActions}>
             <TouchableOpacity
               style={styles.assignButton}
@@ -419,21 +398,21 @@ export default function TodayScreen() {
           </View>
         )}
 
-        {!isGuardian && myTasks.length > 0 && (
+        {!isCurrentUserGuardian && myTasks.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>My Tasks</Text>
             {myTasks.map((task) => renderTaskCard(task, false))}
           </View>
         )}
 
-        {isGuardian && dueTodayTasks.length > 0 && (
+        {isCurrentUserGuardian && dueTodayTasks.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Due Today</Text>
             {dueTodayTasks.map((task) => renderTaskCard(task, true))}
           </View>
         )}
 
-        {isGuardian && overdueTasks.length > 0 && (
+        {isCurrentUserGuardian && overdueTasks.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Overdue</Text>
             {overdueTasks.map((task) => renderTaskCard(task, true))}
@@ -450,7 +429,7 @@ export default function TodayScreen() {
           </View>
         )}
 
-        {(isGuardian 
+        {(isCurrentUserGuardian 
           ? dueTodayTasks.length === 0 && overdueTasks.length === 0 && pendingApprovalTasks.length === 0
           : myTasks.length === 0 && pendingApprovalTasks.length === 0
         ) && (
@@ -458,7 +437,7 @@ export default function TodayScreen() {
             <Ionicons name="sunny-outline" size={64} color={colors.primary} />
             <Text style={styles.emptyTitle}>All Clear!</Text>
             <Text style={styles.emptyText}>
-              {isGuardian
+              {isCurrentUserGuardian
                 ? "Assign tasks to participants using the button above."
                 : "No tasks right now. Great job!"}
             </Text>
@@ -634,51 +613,6 @@ export default function TodayScreen() {
           </View>
         </View>
       </Modal>
-
-      <Modal visible={showUserPicker} animationType="fade" transparent>
-        <Pressable style={styles.userPickerOverlay} onPress={() => setShowUserPicker(false)}>
-          <View style={styles.userPickerContent}>
-            <Text style={styles.userPickerTitle}>Switch User</Text>
-            {members.map((member) => (
-              <TouchableOpacity
-                key={member.id}
-                style={[
-                  styles.userPickerItem,
-                  actingMemberId === member.id && styles.userPickerItemActive,
-                ]}
-                onPress={() => {
-                  setActingMember(member.id);
-                  setShowUserPicker(false);
-                }}
-                data-testid={`button-switch-to-${member.id}`}
-              >
-                <View style={[
-                  styles.userPickerAvatar,
-                  actingMemberId === member.id && styles.userPickerAvatarActive,
-                ]}>
-                  <Text style={styles.userPickerAvatarText}>
-                    {member.name.charAt(0).toUpperCase()}
-                  </Text>
-                </View>
-                <View style={styles.userPickerInfo}>
-                  <Text style={[
-                    styles.userPickerName,
-                    actingMemberId === member.id && styles.userPickerNameActive,
-                  ]}>
-                    {member.name}
-                  </Text>
-                  <Text style={styles.userPickerRole}>
-                    {member.role === "guardian" ? "Guardian" : "Participant"}
-                  </Text>
-                </View>
-                {actingMemberId === member.id && (
-                  <Ionicons name="checkmark-circle" size={22} color={colors.primary} />
-                )}
-              </TouchableOpacity>
-            ))}
-          </View>
-        </Pressable>
-      </Modal>
     </View>
   );
 }
@@ -692,7 +626,7 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     paddingBottom: spacing.xxl,
   },
-  actingAsBar: {
+  currentUserBar: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -730,82 +664,19 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     color: colors.textSecondary,
   },
-  actingAsRight: {
+  starsDisplay: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.xs,
-  },
-  switchText: {
-    color: colors.primary,
-    fontSize: fontSize.sm,
-    fontWeight: "500",
-  },
-  userPickerOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: spacing.lg,
-  },
-  userPickerContent: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.xl,
-    padding: spacing.lg,
-    width: "100%",
-    maxWidth: 340,
-  },
-  userPickerTitle: {
-    fontSize: fontSize.lg,
-    fontWeight: "600",
-    color: colors.text,
-    marginBottom: spacing.md,
-    textAlign: "center",
-  },
-  userPickerItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: spacing.md,
+    backgroundColor: colors.secondaryLight,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
     borderRadius: borderRadius.md,
-    marginBottom: spacing.sm,
-    backgroundColor: colors.background,
-    gap: spacing.sm,
   },
-  userPickerItemActive: {
-    backgroundColor: colors.primaryLight,
-    borderWidth: 1,
-    borderColor: colors.primary,
-  },
-  userPickerAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.textMuted,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  userPickerAvatarActive: {
-    backgroundColor: colors.primary,
-  },
-  userPickerAvatarText: {
-    color: "#FFFFFF",
+  starsCount: {
     fontSize: fontSize.md,
     fontWeight: "600",
-  },
-  userPickerInfo: {
-    flex: 1,
-  },
-  userPickerName: {
-    fontSize: fontSize.md,
-    fontWeight: "500",
     color: colors.text,
-  },
-  userPickerNameActive: {
-    color: colors.primary,
-    fontWeight: "600",
-  },
-  userPickerRole: {
-    fontSize: fontSize.sm,
-    color: colors.textSecondary,
   },
   assignButton: {
     flex: 1,
