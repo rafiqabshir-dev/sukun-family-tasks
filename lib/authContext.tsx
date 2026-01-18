@@ -671,9 +671,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Refresh pending join requests count for guardians who own a family
   const refreshPendingRequestsCount = useCallback(async () => {
-    console.log('[Badge] refreshPendingRequestsCount called, family:', family?.id, 'role:', profile?.role);
     if (!family || profile?.role !== 'guardian') {
-      console.log('[Badge] Skipping - no family or not guardian');
       setPendingRequestsCount(0);
       return;
     }
@@ -685,17 +683,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .eq('family_id', family.id)
         .eq('status', 'pending');
       
-      console.log('[Badge] Query result - count:', count, 'error:', error?.message);
-      
       if (error) {
-        console.log('[Auth] Error fetching pending requests count:', error.message);
         setPendingRequestsCount(0);
       } else {
-        console.log('[Badge] Setting pendingRequestsCount to:', count || 0);
         setPendingRequestsCount(count || 0);
       }
     } catch (error) {
-      console.log('[Auth] Exception fetching pending requests count:', error);
       setPendingRequestsCount(0);
     }
   }, [family?.id, profile?.role]);

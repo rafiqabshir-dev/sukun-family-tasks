@@ -7,12 +7,34 @@ import { useAuth } from "@/lib/authContext";
 
 type IconName = "today" | "today-outline" | "list" | "list-outline" | "sync" | "sync-outline" | "trophy" | "trophy-outline" | "gift" | "gift-outline" | "menu" | "menu-outline";
 
+// Separate component that re-renders when pendingRequestsCount changes
+function HeaderMenuButton({ onPress }: { onPress: () => void }) {
+  const { pendingRequestsCount } = useAuth();
+  
+  return (
+    <TouchableOpacity 
+      style={{ marginRight: spacing.md }}
+      onPress={onPress}
+      data-testid="button-more-menu"
+    >
+      <View style={{ overflow: 'visible' }}>
+        <Ionicons name="menu" size={24} color="#FFFFFF" />
+        {pendingRequestsCount > 0 && (
+          <View style={styles.menuBadge}>
+            <Text style={styles.menuBadgeText}>
+              {pendingRequestsCount > 9 ? '9+' : pendingRequestsCount}
+            </Text>
+          </View>
+        )}
+      </View>
+    </TouchableOpacity>
+  );
+}
+
 export default function TabLayout() {
   const router = useRouter();
-  const { pendingRequestsCount, refreshPendingRequestsCount } = useAuth();
+  const { refreshPendingRequestsCount } = useAuth();
   const [showMenu, setShowMenu] = useState(false);
-
-  console.log('[TabLayout] Rendering with pendingRequestsCount:', pendingRequestsCount);
 
   // Refresh pending requests count when tabs get focus
   useFocusEffect(
@@ -39,24 +61,7 @@ export default function TabLayout() {
           headerTitleStyle: {
             fontWeight: "600",
           },
-          headerRight: () => (
-            <TouchableOpacity 
-              style={{ marginRight: spacing.md }}
-              onPress={() => setShowMenu(true)}
-              data-testid="button-more-menu"
-            >
-              <View style={{ overflow: 'visible' }}>
-                <Ionicons name="menu" size={24} color="#FFFFFF" />
-                {pendingRequestsCount > 0 && (
-                  <View style={styles.menuBadge}>
-                    <Text style={styles.menuBadgeText}>
-                      {pendingRequestsCount > 9 ? '9+' : pendingRequestsCount}
-                    </Text>
-                  </View>
-                )}
-              </View>
-            </TouchableOpacity>
-          ),
+          headerRight: () => <HeaderMenuButton onPress={() => setShowMenu(true)} />,
           tabBarActiveTintColor: colors.primary,
           tabBarInactiveTintColor: colors.textMuted,
           tabBarStyle: {
