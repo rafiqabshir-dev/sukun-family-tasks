@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -131,96 +131,101 @@ export default function PendingApprovalScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
-        <View style={styles.iconContainer}>
-          <Ionicons name="hourglass-outline" size={64} color={colors.primary} />
-        </View>
-
-        <Text style={styles.title}>Request Pending</Text>
-        
-        <Text style={styles.message}>
-          Your request to join{" "}
-          <Text style={styles.familyName}>{requestedFamily.name}</Text>
-          {" "}is waiting for approval.
-        </Text>
-
-        <Text style={styles.subMessage}>
-          The family owner will review your request. You'll gain access once approved.
-        </Text>
-
-        <View style={styles.statusCard}>
-          <View style={styles.statusRow}>
-            <Text style={styles.statusLabel}>Family</Text>
-            <Text style={styles.statusValue}>{requestedFamily.name}</Text>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.content}>
+          <View style={styles.iconContainer}>
+            <Ionicons name="hourglass-outline" size={64} color={colors.primary} />
           </View>
-          <View style={styles.divider} />
-          <View style={styles.statusRow}>
-            <Text style={styles.statusLabel}>Status</Text>
-            <View style={styles.statusBadge}>
-              <Ionicons name="time-outline" size={14} color={colors.warning} />
-              <Text style={styles.statusBadgeText}>Pending</Text>
+
+          <Text style={styles.title}>Request Pending</Text>
+          
+          <Text style={styles.message}>
+            Your request to join{" "}
+            <Text style={styles.familyName}>{requestedFamily.name}</Text>
+            {" "}is waiting for approval.
+          </Text>
+
+          <Text style={styles.subMessage}>
+            The family owner will review your request. You'll gain access once approved.
+          </Text>
+
+          <View style={styles.statusCard}>
+            <View style={styles.statusRow}>
+              <Text style={styles.statusLabel}>Family</Text>
+              <Text style={styles.statusValue}>{requestedFamily.name}</Text>
+            </View>
+            <View style={styles.divider} />
+            <View style={styles.statusRow}>
+              <Text style={styles.statusLabel}>Status</Text>
+              <View style={styles.statusBadge}>
+                <Ionicons name="time-outline" size={14} color={colors.warning} />
+                <Text style={styles.statusBadgeText}>Pending</Text>
+              </View>
+            </View>
+            <View style={styles.divider} />
+            <View style={styles.statusRow}>
+              <Text style={styles.statusLabel}>Your Role</Text>
+              <Text style={styles.statusValue}>
+                {profile?.role === "guardian" ? "Guardian" : "Participant"}
+              </Text>
             </View>
           </View>
-          <View style={styles.divider} />
-          <View style={styles.statusRow}>
-            <Text style={styles.statusLabel}>Your Role</Text>
-            <Text style={styles.statusValue}>
-              {profile?.role === "guardian" ? "Guardian" : "Participant"}
-            </Text>
-          </View>
-        </View>
 
-        {displayPasscode && profile?.role === 'kid' && (
-          <View style={styles.passcodeReminder}>
-            <Text style={styles.passcodeLabel}>Your Login Code</Text>
-            <View style={styles.passcodeBox}>
-              <Text style={styles.passcodeText}>{displayPasscode}</Text>
+          {displayPasscode && profile?.role === 'kid' && (
+            <View style={styles.passcodeReminder}>
+              <Text style={styles.passcodeLabel}>Your Login Code</Text>
+              <View style={styles.passcodeBox}>
+                <Text style={styles.passcodeText}>{displayPasscode}</Text>
+              </View>
+              <Text style={styles.passcodeHint}>Remember this code to log in!</Text>
             </View>
-            <Text style={styles.passcodeHint}>Remember this code to log in!</Text>
-          </View>
-        )}
-
-        <TouchableOpacity
-          style={styles.checkButton}
-          onPress={handleCheckStatus}
-          disabled={checking}
-          data-testid="button-check-status"
-        >
-          {checking ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
-          ) : (
-            <>
-              <Ionicons name="refresh" size={20} color="#FFFFFF" />
-              <Text style={styles.checkButtonText}>Check Status</Text>
-            </>
           )}
-        </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.cancelButton}
-          onPress={handleCancel}
-          disabled={cancelling}
-          data-testid="button-cancel-request"
-        >
-          {cancelling ? (
-            <ActivityIndicator size="small" color={colors.error} />
-          ) : (
-            <>
-              <Ionicons name="close-circle-outline" size={20} color={colors.error} />
-              <Text style={styles.cancelButtonText}>Cancel Request</Text>
-            </>
-          )}
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.checkButton}
+            onPress={handleCheckStatus}
+            disabled={checking}
+            data-testid="button-check-status"
+          >
+            {checking ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <>
+                <Ionicons name="refresh" size={20} color="#FFFFFF" />
+                <Text style={styles.checkButtonText}>Check Status</Text>
+              </>
+            )}
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.signOutButton}
-          onPress={handleSignOut}
-          data-testid="button-sign-out"
-        >
-          <Ionicons name="log-out-outline" size={20} color={colors.textSecondary} />
-          <Text style={styles.signOutButtonText}>Sign Out</Text>
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity
+            style={styles.cancelButton}
+            onPress={handleCancel}
+            disabled={cancelling}
+            data-testid="button-cancel-request"
+          >
+            {cancelling ? (
+              <ActivityIndicator size="small" color={colors.error} />
+            ) : (
+              <>
+                <Ionicons name="close-circle-outline" size={20} color={colors.error} />
+                <Text style={styles.cancelButtonText}>Cancel Request</Text>
+              </>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.signOutButton}
+            onPress={handleSignOut}
+            data-testid="button-sign-out"
+          >
+            <Ionicons name="log-out-outline" size={20} color={colors.textSecondary} />
+            <Text style={styles.signOutButtonText}>Sign Out</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -237,10 +242,13 @@ const styles = StyleSheet.create({
     textAlign: "center",
     paddingVertical: spacing.md,
   },
+  scrollContent: {
+    flexGrow: 1,
+  },
   content: {
-    flex: 1,
     padding: spacing.xl,
     paddingTop: spacing.xxl,
+    paddingBottom: spacing.xxl,
     alignItems: "center",
     maxWidth: 400,
     alignSelf: "center",
