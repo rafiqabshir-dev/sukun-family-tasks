@@ -284,14 +284,14 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   setupBadge: {
-    backgroundColor: colors.danger,
-    borderRadius: borderRadius.sm,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
+    backgroundColor: '#EF4444',
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
   },
   setupBadgeText: {
-    color: "#FFFFFF",
-    fontSize: fontSize.xs,
-    fontWeight: "600",
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
   },
 });
