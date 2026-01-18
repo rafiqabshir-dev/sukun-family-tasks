@@ -33,7 +33,7 @@ function HeaderMenuButton({ onPress }: { onPress: () => void }) {
 
 export default function TabLayout() {
   const router = useRouter();
-  const { refreshPendingRequestsCount } = useAuth();
+  const { pendingRequestsCount, refreshPendingRequestsCount } = useAuth();
   const [showMenu, setShowMenu] = useState(false);
 
   // Refresh pending requests count when tabs get focus
