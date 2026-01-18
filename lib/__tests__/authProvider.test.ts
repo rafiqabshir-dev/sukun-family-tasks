@@ -508,6 +508,153 @@ describe('Module-level Init Flag Behavior', () => {
   });
 });
 
+describe('Regression: Family Check Complete Before Auth Ready', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockAuthChangeCallback.current = null;
+    __resetAuthInitForTesting();
+  });
+
+  it('authReady waits for family data to load before becoming true', async () => {
+    const sessionWithFamily = {
+      user: { id: 'user-with-family', email: 'test@example.com', user_metadata: { role: 'guardian' } },
+      access_token: 'token',
+    };
+    
+    const profileWithFamilyId = {
+      id: 'user-with-family',
+      display_name: 'Test User',
+      role: 'guardian',
+      passcode: null,
+      family_id: 'family-123',
+      powers: [],
+    };
+    
+    const familyData = {
+      id: 'family-123',
+      name: 'Test Family',
+      invite_code: 'ABC123',
+    };
+    
+    let profileResolved = false;
+    let familyResolved = false;
+    
+    mockGetSession.mockResolvedValue({
+      data: { session: sessionWithFamily },
+      error: null,
+    });
+    
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'profiles') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockImplementation(() => {
+                profileResolved = true;
+                return Promise.resolve({ data: profileWithFamilyId, error: null });
+              }),
+            }),
+          }),
+          insert: vi.fn().mockReturnThis(),
+        };
+      }
+      if (table === 'families') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockImplementation(() => {
+                familyResolved = true;
+                return Promise.resolve({ data: familyData, error: null });
+              }),
+            }),
+          }),
+        };
+      }
+      if (table === 'stars_ledger') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue(Promise.resolve({ data: [], error: null })),
+          }),
+        };
+      }
+      return createMockFromChain(null, null);
+    });
+
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+    
+    await waitFor(() => {
+      expect(result.current.authReady).toBe(true);
+    });
+    
+    expect(result.current.profile).not.toBe(null);
+    expect(result.current.family).not.toBe(null);
+    expect(result.current.family?.id).toBe('family-123');
+  });
+
+  it('authReady becomes true for users without family after pending check completes', async () => {
+    const sessionNoFamily = {
+      user: { id: 'user-no-family', email: 'new@example.com', user_metadata: { role: 'guardian' } },
+      access_token: 'token',
+    };
+    
+    const profileNoFamily = {
+      id: 'user-no-family',
+      display_name: 'New User',
+      role: 'guardian',
+      passcode: null,
+      family_id: null,
+      powers: [],
+    };
+    
+    mockGetSession.mockResolvedValue({
+      data: { session: sessionNoFamily },
+      error: null,
+    });
+    
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'profiles') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({ data: profileNoFamily, error: null }),
+            }),
+          }),
+          insert: vi.fn().mockReturnThis(),
+        };
+      }
+      if (table === 'join_requests') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+              }),
+            }),
+          }),
+        };
+      }
+      return createMockFromChain(null, null);
+    });
+
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+    
+    await waitFor(() => {
+      expect(result.current.authReady).toBe(true);
+    });
+    
+    expect(result.current.profile).not.toBe(null);
+    expect(result.current.family).toBe(null);
+  });
+});
+
 describe('Regression: Infinite Initialization Loop Prevention', () => {
   beforeEach(() => {
     vi.clearAllMocks();

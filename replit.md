@@ -77,9 +77,9 @@ Preferred communication style: Simple, everyday language.
 - **Auth readiness**: `authReady` flag is true only when session + profile + family check all completed
   - Uses `familyCheckComplete` state to prevent race condition where navigation runs before family data loads
   - Prevents the issue where user is redirected to sign-in after successful login
-- **Unit tests**: 101 tests across 6 test files covering auth + navigation:
+- **Unit tests**: 103 tests across 6 test files covering auth + navigation:
   - `navigation.test.ts` (23 tests) - Core navigation logic and persona derivation
-  - `authProvider.test.ts` (19 tests) - AuthProvider lifecycle with mocked Supabase
+  - `authProvider.test.ts` (21 tests) - AuthProvider lifecycle with mocked Supabase
   - `authState.test.ts` (20 tests) - Auth state transitions via resolveRoute
   - `authNavigation.test.ts` (13 tests) - Complete user journeys
   - `authEdgeCases.test.ts` (23 tests) - Edge cases and boundary conditions
