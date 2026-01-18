@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -15,14 +15,18 @@ import { Link, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../lib/authContext';
 import { theme } from '../../lib/theme';
+import { resolveRoute, AuthState } from '../../lib/navigation';
+import { useStore } from '../../lib/store';
 
 const sukunLogo = require('../../assets/sukun-logo.png');
 
 export default function PasscodeLoginScreen() {
-  const { signInWithPasscode } = useAuth();
+  const { signInWithPasscode, session, profile, family, pendingJoinRequest, authReady } = useAuth();
+  const isReady = useStore((s) => s.isReady);
   const [passcode, setPasscode] = useState(['', '', '', '']);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loginComplete, setLoginComplete] = useState(false);
   
   const inputRefs = [
     useRef<TextInput>(null),
@@ -30,6 +34,32 @@ export default function PasscodeLoginScreen() {
     useRef<TextInput>(null),
     useRef<TextInput>(null),
   ];
+
+  // Navigate after login when auth state is ready
+  useEffect(() => {
+    if (!loginComplete) return;
+    if (!authReady || !isReady) return;
+    
+    const authState: AuthState = {
+      session: !!session,
+      profile: profile ? {
+        id: profile.id,
+        role: profile.role,
+        passcode: profile.passcode,
+        family_id: profile.family_id,
+      } : null,
+      family: family ? { id: family.id } : null,
+      pendingJoinRequest: !!pendingJoinRequest,
+      authReady: true,
+      storeReady: true,
+    };
+    
+    const result = resolveRoute(authState);
+    if (result) {
+      setLoading(false);
+      router.replace(result.path as any);
+    }
+  }, [loginComplete, authReady, isReady, session, profile, family, pendingJoinRequest]);
 
   function handleDigitChange(index: number, value: string) {
     if (value.length > 1) {
@@ -79,7 +109,8 @@ export default function PasscodeLoginScreen() {
       setPasscode(['', '', '', '']);
       inputRefs[0].current?.focus();
     } else {
-      router.replace('/(tabs)/today');
+      // Mark login complete to trigger navigation via useEffect
+      setLoginComplete(true);
     }
   }
 

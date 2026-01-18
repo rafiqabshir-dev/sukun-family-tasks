@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -15,16 +15,46 @@ import { Link, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../lib/authContext';
 import { theme } from '../../lib/theme';
+import { resolveRoute, AuthState } from '../../lib/navigation';
+import { useStore } from '../../lib/store';
 
 const sukunLogo = require('../../assets/sukun-logo.png');
 
 export default function SignInScreen() {
-  const { signIn } = useAuth();
+  const { signIn, session, profile, family, pendingJoinRequest, authReady } = useAuth();
+  const isReady = useStore((s) => s.isReady);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [signInComplete, setSignInComplete] = useState(false);
+
+  // Navigate after sign-in when auth state is ready
+  useEffect(() => {
+    if (!signInComplete) return;
+    if (!authReady || !isReady) return;
+    
+    const authState: AuthState = {
+      session: !!session,
+      profile: profile ? {
+        id: profile.id,
+        role: profile.role,
+        passcode: profile.passcode,
+        family_id: profile.family_id,
+      } : null,
+      family: family ? { id: family.id } : null,
+      pendingJoinRequest: !!pendingJoinRequest,
+      authReady: true,
+      storeReady: true,
+    };
+    
+    const result = resolveRoute(authState);
+    if (result) {
+      setLoading(false);
+      router.replace(result.path as any);
+    }
+  }, [signInComplete, authReady, isReady, session, profile, family, pendingJoinRequest]);
 
   async function handleSignIn() {
     if (!email.trim() || !password) {
@@ -41,7 +71,8 @@ export default function SignInScreen() {
       setError(signInError.message);
       setLoading(false);
     } else {
-      router.replace('/(tabs)/today');
+      // Mark sign-in complete to trigger navigation via useEffect
+      setSignInComplete(true);
     }
   }
 
