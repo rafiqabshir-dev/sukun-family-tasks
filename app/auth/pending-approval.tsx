@@ -86,6 +86,16 @@ export default function PendingApprovalScreen() {
               A guardian needs to approve your request. Check back soon!
             </Text>
             
+            {profile?.passcode && (
+              <View style={styles.passcodeReminder}>
+                <Text style={styles.passcodeLabel}>Your Login Code</Text>
+                <View style={styles.passcodeBox}>
+                  <Text style={styles.passcodeText}>{profile.passcode}</Text>
+                </View>
+                <Text style={styles.passcodeHint}>Remember this code to log in!</Text>
+              </View>
+            )}
+            
             <TouchableOpacity
               style={styles.checkButton}
               onPress={handleCheckStatus}
@@ -344,5 +354,36 @@ const styles = StyleSheet.create({
   signOutButtonText: {
     fontSize: fontSize.sm,
     color: colors.textSecondary,
+  },
+  passcodeReminder: {
+    alignItems: "center",
+    marginVertical: spacing.lg,
+    width: "100%",
+  },
+  passcodeLabel: {
+    fontSize: fontSize.xs,
+    fontWeight: "600",
+    color: colors.textSecondary,
+    marginBottom: spacing.sm,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+  passcodeBox: {
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.xl * 2,
+    borderRadius: borderRadius.lg,
+    marginBottom: spacing.xs,
+  },
+  passcodeText: {
+    fontSize: 36,
+    fontWeight: "bold",
+    color: "#FFFFFF",
+    letterSpacing: 6,
+  },
+  passcodeHint: {
+    fontSize: fontSize.xs,
+    color: colors.textMuted,
+    fontStyle: "italic",
   },
 });
