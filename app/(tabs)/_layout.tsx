@@ -61,7 +61,7 @@ export default function TabLayout() {
               onPress={() => setShowMenu(true)}
               data-testid="button-more-menu"
             >
-              <View>
+              <View style={{ overflow: 'visible' }}>
                 <Ionicons name="menu" size={24} color="#FFFFFF" />
                 {pendingRequestsCount > 0 && (
                   <View style={styles.menuBadge}>

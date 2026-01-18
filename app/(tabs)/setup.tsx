@@ -229,8 +229,21 @@ export default function SetupScreen() {
     );
   };
 
+  // Find current user member using flexible ID matching (handles local vs cloud ID mismatch)
+  const findCurrentUserMember = () => {
+    // First try to match by UUID
+    let member = members.find((m) => m.id === profile?.id);
+    if (!member && profile?.display_name) {
+      // Fallback: match by display_name + role
+      member = members.find(
+        (m) => m.name === profile.display_name && m.role === profile.role
+      );
+    }
+    return member;
+  };
+
   const handleOpenEditName = () => {
-    const currentMember = members.find((m) => m.id === profile?.id);
+    const currentMember = findCurrentUserMember();
     setEditingName(currentMember?.name || profile?.display_name || "");
     setShowEditNameModal(true);
   };
@@ -242,10 +255,11 @@ export default function SetupScreen() {
     }
 
     setSavingName(true);
+    const newName = editingName.trim();
     
     // Update in Supabase if configured
     if (isConfigured) {
-      const { error } = await updateProfileName(editingName.trim());
+      const { error } = await updateProfileName(newName);
       if (error) {
         Alert.alert("Error", error.message);
         setSavingName(false);
@@ -253,9 +267,10 @@ export default function SetupScreen() {
       }
     }
 
-    // Update in local store
-    if (profile?.id) {
-      updateMember(profile.id, { name: editingName.trim() });
+    // Update in local store - find the member using flexible matching
+    const currentMember = findCurrentUserMember();
+    if (currentMember) {
+      updateMember(currentMember.id, { name: newName });
     }
 
     setSavingName(false);
@@ -263,8 +278,8 @@ export default function SetupScreen() {
     setEditingName("");
   };
 
-  // Find current user member for edit button
-  const currentUserMember = members.find((m) => m.id === profile?.id);
+  // Find current user member for edit button - use the flexible matching function
+  const currentUserMember = findCurrentUserMember();
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -441,8 +456,13 @@ export default function SetupScreen() {
           <View style={styles.membersList}>
             {joinRequests.map((request) => {
               const displayName = request.requester_profile?.display_name?.trim();
-              const requesterName = displayName && displayName.length > 0 ? displayName : "Name not provided";
-              const requesterInitial = displayName && displayName.length > 0 ? displayName.charAt(0).toUpperCase() : "?";
+              const roleLabel = request.requester_profile?.role === "guardian" ? "Guardian" : "Participant";
+              const requesterName = displayName && displayName.length > 0 
+                ? displayName 
+                : `New ${roleLabel}`;
+              const requesterInitial = displayName && displayName.length > 0 
+                ? displayName.charAt(0).toUpperCase() 
+                : roleLabel.charAt(0).toUpperCase();
               return (
               <View key={request.id} style={styles.requestItem} data-testid={`join-request-${request.id}`}>
                 <View style={styles.requestInfo}>
