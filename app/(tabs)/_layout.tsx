@@ -20,19 +20,18 @@ function HeaderMenuButton({ onPress }: { onPress: () => void }) {
       <Ionicons name="menu" size={24} color="#FFFFFF" />
       {pendingRequestsCount > 0 && (
         <View style={{
-          marginLeft: 4,
-          backgroundColor: colors.danger,
-          borderRadius: 10,
-          minWidth: 20,
-          height: 20,
+          marginLeft: 6,
+          backgroundColor: '#EF4444',
+          borderRadius: 12,
+          width: 24,
+          height: 24,
           justifyContent: 'center',
           alignItems: 'center',
-          paddingHorizontal: 6,
         }}>
           <Text style={{
             color: '#FFFFFF',
-            fontSize: 12,
-            fontWeight: '700',
+            fontSize: 14,
+            fontWeight: 'bold',
           }}>
             {pendingRequestsCount > 9 ? '9+' : pendingRequestsCount}
           </Text>
