@@ -53,6 +53,8 @@ Preferred communication style: Simple, everyday language.
 - Unauthenticated users are always redirected to the sign-in page when Supabase is configured.
 - The `app/index.tsx` waits for both store (`isReady`) and auth (`loading`) before routing decisions.
 - Routing logic: no session → sign-in, pending request → pending-approval, no family → family-setup, authenticated → today.
+- When Supabase is configured, auth state is checked FIRST - local onboarding flag is ignored for authenticated users with a family.
+- Local onboarding flag is only used in offline/local mode when Supabase is not configured.
 - Note: Keep routing rules in `index.tsx` and `useProtectedRoute` in `_layout.tsx` synchronized to avoid regressions.
 
 ## External Dependencies

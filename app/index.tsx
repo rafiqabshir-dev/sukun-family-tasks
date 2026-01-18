@@ -18,12 +18,7 @@ export default function Index() {
     );
   }
 
-  // If onboarding not complete, go to onboarding
-  if (!onboardingComplete) {
-    return <Redirect href="/onboarding" />;
-  }
-
-  // If Supabase is configured, check auth state
+  // If Supabase is configured, check auth state FIRST (don't rely on local cache)
   if (isConfigured) {
     // No session = go to sign in
     if (!session) {
@@ -39,8 +34,16 @@ export default function Index() {
     if (session && !family) {
       return <Redirect href="/auth/family-setup" />;
     }
+    
+    // Has session AND family = go to today (skip onboarding check)
+    return <Redirect href="/(tabs)/today" />;
   }
 
-  // Authenticated with family (or offline mode) = go to today
+  // Offline/local mode only: check local onboarding flag
+  if (!onboardingComplete) {
+    return <Redirect href="/onboarding" />;
+  }
+
+  // Offline mode with completed onboarding = go to today
   return <Redirect href="/(tabs)/today" />;
 }
