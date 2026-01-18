@@ -7,6 +7,7 @@ import * as Clipboard from "expo-clipboard";
 import { colors, spacing, borderRadius, fontSize } from "@/lib/theme";
 import { useStore } from "@/lib/store";
 import { POWER_INFO } from "@/lib/types";
+import { fetchFamilyData, profileToMember, computeStarsForProfile } from "@/lib/cloudSync";
 import { useAuth, JoinRequestWithProfile } from "@/lib/authContext";
 
 const STORAGE_KEY = "barakah-kids-race:v1";
@@ -24,6 +25,7 @@ export default function SetupScreen() {
   const setActingMember = useStore((s) => s.setActingMember);
   const addMember = useStore((s) => s.addMember);
   const updateMember = useStore((s) => s.updateMember);
+  const syncMembersFromCloud = useStore((s) => s.syncMembersFromCloud);
   
   const [storageKeyExists, setStorageKeyExists] = useState<boolean | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -127,6 +129,21 @@ export default function SetupScreen() {
       // Remove from list and refresh badge count
       setJoinRequests((prev) => prev.filter((r) => r.id !== requestId));
       refreshPendingRequestsCount();
+      
+      // Sync members from Supabase to include the newly approved member
+      if (family?.id) {
+        try {
+          const cloudData = await fetchFamilyData(family.id);
+          if (cloudData?.profiles) {
+            const cloudMembers = cloudData.profiles.map((p) => 
+              profileToMember(p, computeStarsForProfile(p.id, cloudData.starsLedger || []))
+            );
+            syncMembersFromCloud(cloudMembers);
+          }
+        } catch (syncError) {
+          console.error("Error syncing members after approval:", syncError);
+        }
+      }
     }
     setProcessingRequest(null);
   };
