@@ -41,7 +41,6 @@ interface StoreActions {
   redeemReward: (rewardId: string, memberId: string) => boolean;
   deleteReward: (id: string) => void;
   deductStars: (memberId: string, stars: number, reason: string, createdBy: string) => void;
-  completeOnboarding: () => void;
   toggleSound: () => void;
   reset: () => Promise<void>;
 }
@@ -52,7 +51,6 @@ function saveToStorage(state: AppState): void {
     try {
       const toSave: AppState = {
         schemaVersion: state.schemaVersion,
-        onboardingComplete: state.onboardingComplete,
         members: state.members,
         taskTemplates: state.taskTemplates,
         taskInstances: state.taskInstances,
@@ -696,11 +694,6 @@ export const useStore = create<AppState & StoreActions & { isReady: boolean }>((
     const starDeductions = [...state.starDeductions, newDeduction];
     set({ members, starDeductions });
     saveToStorage({ ...get(), members, starDeductions });
-  },
-
-  completeOnboarding: () => {
-    set({ onboardingComplete: true });
-    saveToStorage({ ...get(), onboardingComplete: true });
   },
 
   toggleSound: () => {

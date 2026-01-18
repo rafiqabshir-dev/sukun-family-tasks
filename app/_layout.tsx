@@ -1,51 +1,89 @@
-import { useEffect } from "react";
-import { Slot, Stack, useSegments, router, useRootNavigationState } from "expo-router";
+import { useEffect, useRef } from "react";
+import { Stack, useRootNavigationState, router, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { View, ActivityIndicator, StyleSheet } from "react-native";
 import { useStore } from "@/lib/store";
 import { colors } from "@/lib/theme";
 import { AuthProvider, useAuth } from "@/lib/authContext";
+import { resolveRoute, shouldNavigate, AuthState, UNPROTECTED_ROUTES } from "@/lib/navigation";
 
-function useProtectedRoute(session: any, family: any, loading: boolean, isReady: boolean, isConfigured: boolean, pendingJoinRequest: any) {
-  const segments = useSegments();
+function NavigationController() {
   const navigationState = useRootNavigationState();
+  const pathname = usePathname();
+  const lastNavigatedPath = useRef<string | null>(null);
+  
+  const isReady = useStore((s) => s.isReady);
+  const { 
+    session, 
+    profile, 
+    family, 
+    loading: authLoading, 
+    isConfigured,
+    pendingJoinRequest, 
+    authReady 
+  } = useAuth();
 
   useEffect(() => {
     if (!navigationState?.key) return;
-    if (loading || !isReady) return;
+    if (!isConfigured) return;
+    
+    const authState: AuthState = {
+      session: !!session,
+      profile: profile ? {
+        id: profile.id,
+        role: profile.role,
+        passcode: profile.passcode,
+        family_id: profile.family_id,
+      } : null,
+      family: family ? {
+        id: family.id,
+      } : null,
+      pendingJoinRequest: !!pendingJoinRequest,
+      authReady: authReady,
+      storeReady: isReady,
+    };
 
-    if (!isConfigured) {
+    const result = resolveRoute(authState);
+    
+    if (!result) {
       return;
     }
 
-    const inAuthGroup = segments[0] === 'auth';
-    const currentRoute = segments.join('/');
-
-    if (!session && !inAuthGroup) {
-      router.replace('/auth/sign-in');
-    } else if (session && !family && pendingJoinRequest && currentRoute !== 'auth/pending-approval') {
-      // User has a pending join request - route directly to pending-approval
-      router.replace('/auth/pending-approval');
-    } else if (session && !family && !pendingJoinRequest && !inAuthGroup) {
-      router.replace('/auth/family-setup');
-    } else if (session && family && inAuthGroup) {
-      router.replace('/(tabs)/today');
+    if (UNPROTECTED_ROUTES.some(route => pathname.startsWith(route))) {
+      return;
     }
-  }, [session, family, segments, loading, isReady, isConfigured, navigationState?.key, pendingJoinRequest]);
+
+    if (shouldNavigate(pathname, result.path) && lastNavigatedPath.current !== result.path) {
+      lastNavigatedPath.current = result.path;
+      router.replace(result.path);
+    }
+  }, [
+    session, 
+    profile, 
+    family, 
+    pendingJoinRequest, 
+    authReady, 
+    isReady, 
+    isConfigured, 
+    navigationState?.key, 
+    pathname
+  ]);
+
+  return null;
 }
 
 function RootLayoutContent() {
   const initialize = useStore((s) => s.initialize);
   const isReady = useStore((s) => s.isReady);
-  const { session, family, loading: authLoading, isConfigured, pendingJoinRequest } = useAuth();
+  const { loading: authLoading, authReady } = useAuth();
 
   useEffect(() => {
     initialize();
   }, []);
 
-  useProtectedRoute(session, family, authLoading, isReady, isConfigured, pendingJoinRequest);
+  const showLoading = !isReady || authLoading || !authReady;
 
-  if (!isReady || authLoading) {
+  if (showLoading) {
     return (
       <View style={styles.loading}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -56,10 +94,10 @@ function RootLayoutContent() {
 
   return (
     <>
+      <NavigationController />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="auth" />
-        <Stack.Screen name="onboarding" options={{ presentation: "fullScreenModal" }} />
         <Stack.Screen name="member/[id]" options={{ presentation: "card" }} />
       </Stack>
       <StatusBar style="dark" />

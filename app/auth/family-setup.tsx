@@ -37,25 +37,6 @@ export default function FamilySetupScreen() {
   const [error, setError] = useState<string | null>(null);
   const [debugInfo, setDebugInfo] = useState<string>('');
 
-  useEffect(() => {
-    if (family) {
-      router.replace('/(tabs)/today');
-    }
-  }, [family]);
-
-  useEffect(() => {
-    if (pendingJoinRequest) {
-      router.replace('/auth/pending-approval');
-    }
-  }, [pendingJoinRequest]);
-
-  // Kids/participants should never be on this screen - redirect to pending-approval
-  useEffect(() => {
-    if (profile?.role === 'kid') {
-      router.replace('/auth/pending-approval');
-    }
-  }, [profile?.role]);
-
   const handleSignOut = async () => {
     await signOut();
     router.replace('/auth/sign-in');

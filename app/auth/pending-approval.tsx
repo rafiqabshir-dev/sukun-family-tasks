@@ -20,21 +20,6 @@ export default function PendingApprovalScreen() {
   const [cancelling, setCancelling] = useState(false);
   const [checking, setChecking] = useState(false);
 
-  // Redirect when approved (family is set)
-  useEffect(() => {
-    if (family) {
-      router.replace("/(tabs)/today");
-    }
-  }, [family, router]);
-
-  // Redirect when request is no longer pending (rejected or cancelled)
-  // BUT only for guardians - participants should stay here and see status
-  useEffect(() => {
-    if (!pendingJoinRequest && !family && !cancelling && profile?.role !== 'kid') {
-      router.replace("/auth/family-setup");
-    }
-  }, [pendingJoinRequest, family, cancelling, profile?.role, router]);
-
   // Refresh profile immediately on mount to get latest data (including passcode)
   useEffect(() => {
     refreshProfile();

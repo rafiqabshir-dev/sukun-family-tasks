@@ -105,7 +105,6 @@ export interface StarDeduction {
 
 export interface AppState {
   schemaVersion: number;
-  onboardingComplete: boolean;
   members: Member[];
   taskTemplates: TaskTemplate[];
   taskInstances: TaskInstance[];
@@ -118,7 +117,6 @@ export interface AppState {
 
 export const DEFAULT_STATE: AppState = {
   schemaVersion: 1,
-  onboardingComplete: false,
   members: [],
   taskTemplates: [],
   taskInstances: [],
