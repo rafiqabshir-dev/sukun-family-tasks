@@ -171,31 +171,46 @@ export const useStore = create<AppState & StoreActions & { isReady: boolean }>((
 
   syncMembersFromCloud: (cloudMembers) => {
     const currentMembers = get().members;
-    const currentMemberMap = new Map(currentMembers.map(m => [m.id, m]));
     const cloudMemberIds = new Set(cloudMembers.map(m => m.id));
+    
+    // Build lookup maps for matching - by ID and by profileId
+    const localByDirectId = new Map(currentMembers.map(m => [m.id, m]));
+    const localByProfileId = new Map(
+      currentMembers.filter(m => m.profileId).map(m => [m.profileId!, m])
+    );
+    
+    // Track which local members were matched to avoid duplicates
+    const matchedLocalIds = new Set<string>();
     
     // Merge cloud members with local data - local fields take priority for non-cloud data
     const mergedCloudMembers = cloudMembers.map(cloudMember => {
-      const localMember = currentMemberMap.get(cloudMember.id);
+      // Try to find matching local member by direct ID OR by profileId
+      const localMember = localByDirectId.get(cloudMember.id) || localByProfileId.get(cloudMember.id);
+      
       if (localMember) {
-        // Preserve local member, only update name from cloud (authoritative)
+        matchedLocalIds.add(localMember.id);
+        // Preserve local member data, update authoritative fields from cloud
         return {
           ...localMember,
+          id: cloudMember.id, // Use cloud UUID as canonical ID
           name: cloudMember.name, // Cloud name is authoritative
           role: cloudMember.role, // Cloud role is authoritative
           age: cloudMember.age || localMember.age, // Use cloud age if available
+          profileId: cloudMember.id, // Ensure profileId is set
           // Preserve local powers (onboarding selections) unless cloud has data
           powers: localMember.powers.length > 0 ? localMember.powers : cloudMember.powers,
           // Use the higher star total to not lose local progress
           starsTotal: Math.max(cloudMember.starsTotal, localMember.starsTotal),
         };
       }
-      // New cloud member - add with their data
-      return cloudMember;
+      // New cloud member - add with their data and set profileId
+      return { ...cloudMember, profileId: cloudMember.id };
     });
     
-    // Keep local-only members (IDs starting with 'member-')
-    const localOnlyMembers = currentMembers.filter(m => !cloudMemberIds.has(m.id) && m.id.startsWith('member-'));
+    // Keep local-only members (IDs starting with 'member-') that weren't matched
+    const localOnlyMembers = currentMembers.filter(
+      m => m.id.startsWith('member-') && !matchedLocalIds.has(m.id) && !cloudMemberIds.has(m.id)
+    );
     const mergedMembers = [...mergedCloudMembers, ...localOnlyMembers];
     
     set({ members: mergedMembers });
