@@ -35,6 +35,11 @@ export default function PendingApprovalScreen() {
     }
   }, [pendingJoinRequest, family, cancelling, profile?.role, router]);
 
+  // Refresh profile immediately on mount to get latest data (including passcode)
+  useEffect(() => {
+    refreshProfile();
+  }, []);
+
   useEffect(() => {
     const interval = setInterval(async () => {
       setChecking(true);
