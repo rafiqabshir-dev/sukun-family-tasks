@@ -398,6 +398,21 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- Function to create a join request for participants (bypasses RLS for unconfirmed emails)
+CREATE OR REPLACE FUNCTION create_participant_join_request(
+  family_uuid UUID,
+  requester_uuid UUID
+)
+RETURNS BOOLEAN AS $$
+BEGIN
+  INSERT INTO join_requests (family_id, requester_profile_id, status)
+  VALUES (family_uuid, requester_uuid, 'pending');
+  RETURN TRUE;
+EXCEPTION WHEN unique_violation THEN
+  RETURN TRUE;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 -- Function to approve a join request and add user to family
 -- Uses SECURITY DEFINER to bypass RLS for updating another user's profile
 CREATE OR REPLACE FUNCTION approve_join_request(

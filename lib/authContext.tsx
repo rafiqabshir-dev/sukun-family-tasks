@@ -498,13 +498,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.error('[signUpParticipant] Failed to save passcode:', updateError);
       }
 
-      const { error: requestError } = await supabase
-        .from('join_requests')
-        .insert({
-          family_id: familyData.id,
-          requester_profile_id: userId,
-          status: 'pending'
-        });
+      // Use SECURITY DEFINER function to bypass RLS (email not confirmed yet)
+      const { error: requestError } = await supabase.rpc('create_participant_join_request', {
+        family_uuid: familyData.id,
+        requester_uuid: userId
+      });
 
       if (requestError) {
         console.error('[signUpParticipant] Failed to create join request:', requestError);
