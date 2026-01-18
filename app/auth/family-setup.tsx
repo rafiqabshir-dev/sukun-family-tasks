@@ -49,6 +49,13 @@ export default function FamilySetupScreen() {
     }
   }, [pendingJoinRequest]);
 
+  // Kids/participants should never be on this screen - redirect to pending-approval
+  useEffect(() => {
+    if (profile?.role === 'kid') {
+      router.replace('/auth/pending-approval');
+    }
+  }, [profile?.role]);
+
   const handleSignOut = async () => {
     await signOut();
     router.replace('/auth/sign-in');

@@ -7,7 +7,7 @@ import { colors } from "@/lib/theme";
 export default function Index() {
   const onboardingComplete = useStore((s) => s.onboardingComplete);
   const isReady = useStore((s) => s.isReady);
-  const { session, family, loading, isConfigured, pendingJoinRequest } = useAuth();
+  const { session, profile, family, loading, isConfigured, pendingJoinRequest } = useAuth();
 
   // Wait for both store and auth to be ready
   if (!isReady || loading) {
@@ -30,7 +30,13 @@ export default function Index() {
       return <Redirect href="/auth/pending-approval" />;
     }
     
-    // Has session but no family = go to family setup
+    // ROLE-BASED ROUTING: Kids/participants without family go to pending-approval
+    // They can NEVER create a family - only guardians can
+    if (session && !family && profile?.role === 'kid') {
+      return <Redirect href="/auth/pending-approval" />;
+    }
+    
+    // Has session but no family (guardians only) = go to family setup
     if (session && !family) {
       return <Redirect href="/auth/family-setup" />;
     }
