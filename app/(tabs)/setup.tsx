@@ -119,11 +119,22 @@ export default function SetupScreen() {
   }, [isOwner, ownershipChecked, isConfigured, getPendingJoinRequests, refreshPendingRequestsCount]);
 
   const handleApproveRequest = async (requestId: string) => {
+    console.log('[Setup] Approving request:', requestId);
     setProcessingRequest(requestId);
     const { error } = await approveJoinRequest(requestId);
+    console.log('[Setup] Approve result - error:', error?.message);
     if (error) {
-      Alert.alert("Error", error.message);
+      console.error('[Setup] Approve error:', error);
+      if (Platform.OS === 'web') {
+        window.alert("Error: " + error.message);
+      } else {
+        Alert.alert("Error", error.message);
+      }
     } else {
+      console.log('[Setup] Approval successful');
+      if (Platform.OS === 'web') {
+        window.alert("Request approved successfully!");
+      }
       // Remove from list and refresh badge count
       setJoinRequests((prev) => prev.filter((r) => r.id !== requestId));
       refreshPendingRequestsCount();
@@ -147,28 +158,41 @@ export default function SetupScreen() {
   };
 
   const handleRejectRequest = async (requestId: string) => {
-    Alert.alert(
-      "Reject Request",
-      "Are you sure you want to reject this join request?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Reject",
-          style: "destructive",
-          onPress: async () => {
-            setProcessingRequest(requestId);
-            const { error } = await rejectJoinRequest(requestId);
-            if (error) {
-              Alert.alert("Error", error.message);
-            } else {
-              setJoinRequests((prev) => prev.filter((r) => r.id !== requestId));
-              refreshPendingRequestsCount();
-            }
-            setProcessingRequest(null);
+    const doReject = async () => {
+      setProcessingRequest(requestId);
+      const { error } = await rejectJoinRequest(requestId);
+      if (error) {
+        if (Platform.OS === 'web') {
+          window.alert("Error: " + error.message);
+        } else {
+          Alert.alert("Error", error.message);
+        }
+      } else {
+        setJoinRequests((prev) => prev.filter((r) => r.id !== requestId));
+        refreshPendingRequestsCount();
+      }
+      setProcessingRequest(null);
+    };
+    
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm("Are you sure you want to reject this join request?");
+      if (confirmed) {
+        await doReject();
+      }
+    } else {
+      Alert.alert(
+        "Reject Request",
+        "Are you sure you want to reject this join request?",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Reject",
+            style: "destructive",
+            onPress: doReject,
           },
-        },
-      ]
-    );
+        ]
+      );
+    }
   };
   
   useEffect(() => {

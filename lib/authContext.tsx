@@ -385,6 +385,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   async function fetchProfile(userId: string) {
+    console.log('[fetchProfile] Starting for userId:', userId.slice(0, 8));
     try {
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
@@ -393,14 +394,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .single();
 
       if (profileError && profileError.code !== 'PGRST116') {
-        console.error('Error fetching profile:', profileError);
+        console.error('[fetchProfile] Error:', profileError.code, profileError.message);
       }
 
       if (profileData) {
-        console.log('[fetchProfile] Got profile, passcode:', profileData.passcode, 'role:', profileData.role);
+        console.log('[fetchProfile] Got profile, passcode:', profileData.passcode, 'role:', profileData.role, 'family_id:', profileData.family_id);
         setProfile(profileData as Profile);
 
         if (profileData.family_id) {
+          console.log('[fetchProfile] Has family_id, loading family...');
           const { data: familyData, error: familyError } = await supabase
             .from('families')
             .select('*')
@@ -408,8 +410,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             .single();
 
           if (familyError) {
+            console.log('[fetchProfile] Family fetch error:', familyError.message);
             setFamily(null);
           } else {
+            console.log('[fetchProfile] Got family:', familyData.name, '- setting family state');
             setFamily(familyData as Family);
             
             // Ensure current user is in local store with their Supabase UUID
