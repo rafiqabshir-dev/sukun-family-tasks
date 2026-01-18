@@ -217,13 +217,14 @@ export const useStore = create<AppState & StoreActions & { isReady: boolean }>((
     const state = get();
     const currentMembers = state.members;
     
-    // Check if member already exists by UUID
-    const existingByUUID = currentMembers.find(m => m.id === uuid);
+    // Check if member already exists by UUID (either as id or profileId)
+    const existingByUUID = currentMembers.find(m => m.id === uuid || m.profileId === uuid);
     if (existingByUUID) {
-      // Just update the name if it changed
-      if (existingByUUID.name !== name) {
+      // Update name and ensure profileId is set
+      const needsUpdate = existingByUUID.name !== name || existingByUUID.profileId !== uuid;
+      if (needsUpdate) {
         const members = currentMembers.map(m => 
-          m.id === uuid ? { ...m, name } : m
+          (m.id === uuid || m.profileId === uuid) ? { ...m, name, profileId: uuid } : m
         );
         set({ members });
         saveToStorage({ ...get(), members });
@@ -249,17 +250,14 @@ export const useStore = create<AppState & StoreActions & { isReady: boolean }>((
     }
     
     if (legacyMember) {
-      // Found matching member - update their ID to UUID, preserve all local data
+      // Found matching member - keep ID but add profileId for reliable matching
       const oldId = legacyMember.id;
       const members = currentMembers.map(m => 
-        m.id === oldId ? { ...m, id: uuid, name } : m
+        m.id === oldId ? { ...m, name, profileId: uuid } : m
       );
       
-      // Update actingMemberId if it was pointing to the old ID
-      const actingMemberId = state.actingMemberId === oldId ? uuid : state.actingMemberId;
-      
-      set({ members, actingMemberId });
-      saveToStorage({ ...get(), members, actingMemberId });
+      set({ members });
+      saveToStorage({ ...get(), members });
       return;
     }
     
@@ -270,7 +268,8 @@ export const useStore = create<AppState & StoreActions & { isReady: boolean }>((
       role,
       age: age || 0,
       starsTotal: 0,
-      powers: []
+      powers: [],
+      profileId: uuid // Store the Supabase UUID as profileId for reliable matching
     };
     const members = [...currentMembers, newMember];
     set({ members });

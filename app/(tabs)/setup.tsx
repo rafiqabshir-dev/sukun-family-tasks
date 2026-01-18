@@ -13,7 +13,7 @@ const STORAGE_KEY = "barakah-kids-race:v1";
 
 export default function SetupScreen() {
   const router = useRouter();
-  const { profile, family, signOut, isConfigured, getPendingJoinRequests, approveJoinRequest, rejectJoinRequest, updateProfileName } = useAuth();
+  const { profile, family, signOut, isConfigured, getPendingJoinRequests, approveJoinRequest, rejectJoinRequest, updateProfileName, refreshPendingRequestsCount } = useAuth();
   const members = useStore((s) => s.members);
   const taskTemplates = useStore((s) => s.taskTemplates);
   const taskInstances = useStore((s) => s.taskInstances);
@@ -102,6 +102,8 @@ export default function SetupScreen() {
       try {
         const requests = await getPendingJoinRequests();
         setJoinRequests(requests);
+        // Also update the badge count in AuthContext
+        refreshPendingRequestsCount();
       } catch (error) {
         console.error("Error fetching join requests:", error);
         setJoinRequests([]);
@@ -114,7 +116,7 @@ export default function SetupScreen() {
     // Poll every 30 seconds for new requests
     const interval = setInterval(fetchJoinRequests, 30000);
     return () => clearInterval(interval);
-  }, [isOwner, ownershipChecked, isConfigured, getPendingJoinRequests]);
+  }, [isOwner, ownershipChecked, isConfigured, getPendingJoinRequests, refreshPendingRequestsCount]);
 
   const handleApproveRequest = async (requestId: string) => {
     setProcessingRequest(requestId);
@@ -122,8 +124,9 @@ export default function SetupScreen() {
     if (error) {
       Alert.alert("Error", error.message);
     } else {
-      // Remove from list
+      // Remove from list and refresh badge count
       setJoinRequests((prev) => prev.filter((r) => r.id !== requestId));
+      refreshPendingRequestsCount();
     }
     setProcessingRequest(null);
   };
@@ -144,6 +147,7 @@ export default function SetupScreen() {
               Alert.alert("Error", error.message);
             } else {
               setJoinRequests((prev) => prev.filter((r) => r.id !== requestId));
+              refreshPendingRequestsCount();
             }
             setProcessingRequest(null);
           },
@@ -229,17 +233,38 @@ export default function SetupScreen() {
     );
   };
 
-  // Find current user member using flexible ID matching (handles local vs cloud ID mismatch)
+  // Find current user member using profileId (reliable link between local member and Supabase profile)
   const findCurrentUserMember = () => {
-    // First try to match by UUID
-    let member = members.find((m) => m.id === profile?.id);
-    if (!member && profile?.display_name) {
-      // Fallback: match by display_name + role
-      member = members.find(
-        (m) => m.name === profile.display_name && m.role === profile.role
-      );
+    // When Supabase is configured and we have a profile ID
+    if (profile?.id) {
+      // Primary: Match by profileId field (most reliable)
+      let member = members.find((m) => m.profileId === profile.id);
+      
+      // Fallback 1: Match by id === profile.id (for members added directly with UUID)
+      if (!member) {
+        member = members.find((m) => m.id === profile.id);
+      }
+      
+      // Fallback 2: Match by display_name + role (for legacy members without profileId)
+      if (!member && profile.display_name) {
+        member = members.find(
+          (m) => m.name === profile.display_name && m.role === profile.role
+        );
+      }
+      
+      if (member) return member;
     }
-    return member;
+    
+    // Offline mode fallback: Use actingMemberId if it's a guardian
+    if (actingMemberId) {
+      const actingMember = members.find((m) => m.id === actingMemberId);
+      if (actingMember?.role === 'guardian') {
+        return actingMember;
+      }
+    }
+    
+    // Final fallback: First guardian in the list
+    return members.find((m) => m.role === 'guardian');
   };
 
   const handleOpenEditName = () => {
@@ -270,7 +295,12 @@ export default function SetupScreen() {
     // Update in local store - find the member using flexible matching
     const currentMember = findCurrentUserMember();
     if (currentMember) {
-      updateMember(currentMember.id, { name: newName });
+      // Update name and set profileId if available for future reliable matching
+      const updates: { name: string; profileId?: string } = { name: newName };
+      if (profile?.id) {
+        updates.profileId = profile.id;
+      }
+      updateMember(currentMember.id, updates);
     }
 
     setSavingName(false);

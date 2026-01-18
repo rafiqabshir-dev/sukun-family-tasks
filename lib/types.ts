@@ -19,6 +19,7 @@ export interface Member {
   age: number;
   starsTotal: number;
   powers: Power[];
+  profileId?: string; // Supabase profile UUID - used to link local member to cloud profile
 }
 
 export type TaskCategory = 

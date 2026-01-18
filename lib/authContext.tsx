@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback, ReactNode } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase, Profile, Family, JoinRequest, isSupabaseConfigured } from './supabase';
 import { useStore } from './store';
@@ -16,6 +16,8 @@ type AuthContextType = {
   isConfigured: boolean;
   pendingJoinRequest: JoinRequest | null;
   requestedFamily: Family | null;
+  pendingRequestsCount: number;
+  refreshPendingRequestsCount: () => Promise<void>;
   signUp: (email: string, password: string, displayName: string, role: 'guardian' | 'kid') => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
@@ -41,6 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [pendingJoinRequest, setPendingJoinRequest] = useState<JoinRequest | null>(null);
   const [requestedFamily, setRequestedFamily] = useState<Family | null>(null);
+  const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
   
   const authInProgress = useRef(false);
   const mounted = useRef(true);
@@ -666,12 +669,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  // Refresh pending join requests count for guardians who own a family
+  const refreshPendingRequestsCount = useCallback(async () => {
+    if (!family || profile?.role !== 'guardian') {
+      setPendingRequestsCount(0);
+      return;
+    }
+    
+    try {
+      const { count, error } = await supabase
+        .from('join_requests')
+        .select('*', { count: 'exact', head: true })
+        .eq('family_id', family.id)
+        .eq('status', 'pending');
+      
+      if (error) {
+        console.log('[Auth] Error fetching pending requests count:', error.message);
+        setPendingRequestsCount(0);
+      } else {
+        setPendingRequestsCount(count || 0);
+      }
+    } catch (error) {
+      console.log('[Auth] Exception fetching pending requests count:', error);
+      setPendingRequestsCount(0);
+    }
+  }, [family?.id, profile?.role]);
+
+  // Refresh count when family or profile changes
+  useEffect(() => {
+    if (family && profile?.role === 'guardian') {
+      refreshPendingRequestsCount();
+    } else {
+      setPendingRequestsCount(0);
+    }
+  }, [family?.id, profile?.id, profile?.role, refreshPendingRequestsCount]);
+
   return (
     <AuthContext.Provider
       value={{
         session, user, profile, family, loading,
         isConfigured: isSupabaseConfigured(),
         pendingJoinRequest, requestedFamily,
+        pendingRequestsCount, refreshPendingRequestsCount,
         signUp, signIn, signOut, createFamily, joinFamily, refreshProfile, updateProfileName,
         cancelJoinRequest, getPendingJoinRequests, approveJoinRequest, rejectJoinRequest,
       }}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { View, TouchableOpacity, Modal, Text, StyleSheet, ScrollView } from "react-native";
 import { Tabs, useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -9,33 +9,15 @@ type IconName = "today" | "today-outline" | "list" | "list-outline" | "sync" | "
 
 export default function TabLayout() {
   const router = useRouter();
-  const { getPendingJoinRequests, profile } = useAuth();
+  const { pendingRequestsCount, refreshPendingRequestsCount } = useAuth();
   const [showMenu, setShowMenu] = useState(false);
-  const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
 
-  const fetchPendingRequests = useCallback(async () => {
-    if (profile?.role === 'guardian') {
-      try {
-        const requests = await getPendingJoinRequests();
-        setPendingRequestsCount(requests.length);
-      } catch (error) {
-        console.log('Error fetching pending requests:', error);
-        setPendingRequestsCount(0);
-      }
-    } else {
-      setPendingRequestsCount(0);
-    }
-  }, [profile?.role, getPendingJoinRequests]);
-
+  // Refresh pending requests count when tabs get focus
   useFocusEffect(
     useCallback(() => {
-      fetchPendingRequests();
-    }, [fetchPendingRequests])
+      refreshPendingRequestsCount();
+    }, [refreshPendingRequestsCount])
   );
-
-  useEffect(() => {
-    fetchPendingRequests();
-  }, [fetchPendingRequests]);
 
   const menuItems = [
     { title: "Tasks", icon: "list-outline" as const, route: "/(tabs)/tasks" as const },
