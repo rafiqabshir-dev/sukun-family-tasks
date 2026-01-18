@@ -635,6 +635,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
     setProfile(null);
     setFamily(null);
+    // Clear temporary passcode from store to avoid leaking across sessions
+    useStore.getState().setParticipantPasscode(null);
   }
 
   async function createFamily(familyName: string, onProgress?: (step: string) => void): Promise<{ error: Error | null; family: Family | null }> {

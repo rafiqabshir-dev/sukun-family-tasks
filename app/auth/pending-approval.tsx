@@ -4,6 +4,7 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, borderRadius, fontSize } from "@/lib/theme";
 import { useAuth } from "@/lib/authContext";
+import { useStore } from "@/lib/store";
 import { useState, useEffect } from "react";
 
 export default function PendingApprovalScreen() {
@@ -17,19 +18,23 @@ export default function PendingApprovalScreen() {
     refreshProfile,
     signOut 
   } = useAuth();
+  const participantPasscode = useStore((s) => s.participantPasscode);
   const [cancelling, setCancelling] = useState(false);
   const [checking, setChecking] = useState(false);
+  
+  // Use passcode from profile or from store (store is set during signup as fallback)
+  const displayPasscode = profile?.passcode || participantPasscode;
 
   // Refresh profile immediately on mount to get latest data (including passcode)
   useEffect(() => {
-    console.log('[PendingApproval] Mount - profile:', profile?.display_name, 'passcode:', profile?.passcode, 'role:', profile?.role);
+    console.log('[PendingApproval] Mount - profile:', profile?.display_name, 'passcode:', profile?.passcode, 'storePasscode:', participantPasscode, 'role:', profile?.role);
     refreshProfile();
   }, []);
 
   // Log profile changes
   useEffect(() => {
-    console.log('[PendingApproval] Profile updated - passcode:', profile?.passcode, 'role:', profile?.role, 'family_id:', profile?.family_id);
-  }, [profile]);
+    console.log('[PendingApproval] Profile updated - passcode:', profile?.passcode, 'storePasscode:', participantPasscode, 'displayPasscode:', displayPasscode, 'role:', profile?.role);
+  }, [profile, participantPasscode, displayPasscode]);
 
   useEffect(() => {
     const interval = setInterval(async () => {
@@ -82,11 +87,11 @@ export default function PendingApprovalScreen() {
               A guardian needs to approve your request. Check back soon!
             </Text>
             
-            {profile?.passcode && (
+            {displayPasscode && (
               <View style={styles.passcodeReminder}>
                 <Text style={styles.passcodeLabel}>Your Login Code</Text>
                 <View style={styles.passcodeBox}>
-                  <Text style={styles.passcodeText}>{profile.passcode}</Text>
+                  <Text style={styles.passcodeText}>{displayPasscode}</Text>
                 </View>
                 <Text style={styles.passcodeHint}>Remember this code to log in!</Text>
               </View>
@@ -166,11 +171,11 @@ export default function PendingApprovalScreen() {
           </View>
         </View>
 
-        {profile?.passcode && profile?.role === 'kid' && (
+        {displayPasscode && profile?.role === 'kid' && (
           <View style={styles.passcodeReminder}>
             <Text style={styles.passcodeLabel}>Your Login Code</Text>
             <View style={styles.passcodeBox}>
-              <Text style={styles.passcodeText}>{profile.passcode}</Text>
+              <Text style={styles.passcodeText}>{displayPasscode}</Text>
             </View>
             <Text style={styles.passcodeHint}>Remember this code to log in!</Text>
           </View>

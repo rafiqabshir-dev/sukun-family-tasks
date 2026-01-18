@@ -14,12 +14,14 @@ import {
 import { Link, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../lib/authContext';
+import { useStore } from '../../lib/store';
 import { theme } from '../../lib/theme';
 
 const sukunLogo = require('../../assets/sukun-logo.png');
 
 export default function ParticipantJoinScreen() {
   const { signUpParticipant } = useAuth();
+  const setParticipantPasscode = useStore((s) => s.setParticipantPasscode);
   const [inviteCode, setInviteCode] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [loading, setLoading] = useState(false);
@@ -50,6 +52,7 @@ export default function ParticipantJoinScreen() {
       setError(joinError.message);
     } else if (passcode) {
       setGeneratedPasscode(passcode);
+      setParticipantPasscode(passcode);
     }
   }
 

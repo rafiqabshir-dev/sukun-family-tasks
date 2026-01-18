@@ -14,6 +14,7 @@ let isInitialized = false;
 interface StoreActions {
   initialize: () => Promise<void>;
   setAuthReady: (ready: boolean) => void;
+  setParticipantPasscode: (passcode: string | null) => void;
   addMember: (member: Omit<Member, "id" | "starsTotal" | "powers">) => void;
   updateMember: (id: string, updates: Partial<Member>) => void;
   removeMember: (id: string) => void;
@@ -91,14 +92,20 @@ function migrateTemplates(templates: TaskTemplate[]): TaskTemplate[] {
   });
 }
 
-export const useStore = create<AppState & StoreActions & { isReady: boolean; authReady: boolean }>((set, get) => ({
+export const useStore = create<AppState & StoreActions & { isReady: boolean; authReady: boolean; participantPasscode: string | null }>((set, get) => ({
   ...DEFAULT_STATE,
   isReady: false,
   authReady: false,
+  participantPasscode: null,
   
   setAuthReady: (ready: boolean) => {
     console.log('[Store] setAuthReady:', ready);
     set({ authReady: ready });
+  },
+  
+  setParticipantPasscode: (passcode: string | null) => {
+    console.log('[Store] setParticipantPasscode:', passcode ? '****' : null);
+    set({ participantPasscode: passcode });
   },
 
   initialize: async () => {
