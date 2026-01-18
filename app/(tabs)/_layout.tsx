@@ -13,30 +13,35 @@ function HeaderMenuButton({ onPress }: { onPress: () => void }) {
   
   return (
     <Pressable 
-      style={{ marginRight: spacing.md, flexDirection: 'row', alignItems: 'center' }}
+      style={{ marginRight: spacing.md }}
       onPress={onPress}
       data-testid="button-more-menu"
     >
-      <Ionicons name="menu" size={24} color="#FFFFFF" />
-      {pendingRequestsCount > 0 && (
-        <View style={{
-          marginLeft: 6,
-          backgroundColor: '#EF4444',
-          borderRadius: 12,
-          width: 24,
-          height: 24,
-          justifyContent: 'center',
-          alignItems: 'center',
-        }}>
-          <Text style={{
-            color: '#FFFFFF',
-            fontSize: 14,
-            fontWeight: 'bold',
+      <View style={{ position: 'relative', width: 32, height: 32, justifyContent: 'center', alignItems: 'center' }}>
+        <Ionicons name="menu" size={24} color="#FFFFFF" />
+        {pendingRequestsCount > 0 && (
+          <View style={{
+            position: 'absolute',
+            top: -2,
+            right: -4,
+            backgroundColor: '#EF4444',
+            borderRadius: 9,
+            minWidth: 18,
+            height: 18,
+            justifyContent: 'center',
+            alignItems: 'center',
+            paddingHorizontal: 4,
           }}>
-            {pendingRequestsCount > 9 ? '9+' : pendingRequestsCount}
-          </Text>
-        </View>
-      )}
+            <Text style={{
+              color: '#FFFFFF',
+              fontSize: 11,
+              fontWeight: 'bold',
+            }}>
+              {pendingRequestsCount > 9 ? '9+' : pendingRequestsCount}
+            </Text>
+          </View>
+        )}
+      </View>
     </Pressable>
   );
 }
