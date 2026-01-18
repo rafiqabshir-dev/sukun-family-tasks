@@ -74,8 +74,16 @@ Preferred communication style: Simple, everyday language.
   4. Pending join request → pending-approval
   5. Participant without family → pending-approval (participants can never create families)
   6. Guardian without family → family-setup
-- **Auth readiness**: `authReady` flag is true only when session + profile + family/pending request all loaded
-- **Unit tests**: 23 tests in `lib/__tests__/navigation.test.ts` cover all persona/state combinations
+- **Auth readiness**: `authReady` flag is true only when session + profile + family check all completed
+  - Uses `familyCheckComplete` state to prevent race condition where navigation runs before family data loads
+  - Prevents the issue where user is redirected to sign-in after successful login
+- **Unit tests**: 101 tests across 6 test files covering auth + navigation:
+  - `navigation.test.ts` (23 tests) - Core navigation logic and persona derivation
+  - `authProvider.test.ts` (19 tests) - AuthProvider lifecycle with mocked Supabase
+  - `authState.test.ts` (20 tests) - Auth state transitions via resolveRoute
+  - `authNavigation.test.ts` (13 tests) - Complete user journeys
+  - `authEdgeCases.test.ts` (23 tests) - Edge cases and boundary conditions
+  - `authIntegration.test.ts` (3 tests) - Complete app lifecycle (sign-in/sign-out cycles)
 
 ## External Dependencies
 

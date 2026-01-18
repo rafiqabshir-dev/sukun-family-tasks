@@ -55,6 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [family, setFamily] = useState<Family | null>(null);
   const [loading, setLoading] = useState(true);
+  const [familyCheckComplete, setFamilyCheckComplete] = useState(false);
   const [pendingJoinRequest, setPendingJoinRequest] = useState<JoinRequest | null>(null);
   const [requestedFamily, setRequestedFamily] = useState<Family | null>(null);
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
@@ -81,6 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfile(null);
         setFamily(null);
         setLoading(false);
+        setFamilyCheckComplete(true);
       }
     }
 
@@ -193,9 +195,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             // Clear any pending request since user is already in a family
             setPendingJoinRequest(null);
             setRequestedFamily(null);
+            if (mounted.current) setFamilyCheckComplete(true);
           } else {
             // No family - check for pending join requests
             await checkPendingJoinRequest(currentUser.id);
+            if (mounted.current) setFamilyCheckComplete(true);
           }
         }
 
@@ -238,6 +242,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setSession(null);
             setUser(null);
             setLoading(false);
+            setFamilyCheckComplete(true);
           }
           return;
         }
@@ -287,6 +292,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setProfile(null);
           setFamily(null);
           setLoading(false);
+          setFamilyCheckComplete(true);
         }
         return;
       }
@@ -295,6 +301,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Handle new sign-in: update session and validate
         if (mounted.current) {
           setLoading(true);
+          setFamilyCheckComplete(false);
           setSession(newSession);
           setUser(newSession.user);
         }
@@ -890,7 +897,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [family?.id, profile?.id, profile?.role, refreshPendingRequestsCount]);
 
   // Compute authReady - true when initial auth check is complete
-  // This means we've checked for session and loaded profile/family if session exists
+  // This means we've checked for session, loaded profile, AND checked family status
   const authReady = useMemo(() => {
     // Still loading initial auth state
     if (loading) return false;
@@ -898,16 +905,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Supabase not configured - considered ready (will be handled by navigation)
     if (!isSupabaseConfigured()) return true;
     
-    // No session - ready to navigate to sign-in
-    if (!session) return true;
+    // No session - ready to navigate to sign-in (familyCheckComplete should be true)
+    if (!session) return familyCheckComplete;
     
     // Has session but profile not loaded yet - not ready
     if (!profile) return false;
     
-    // Profile loaded - we're ready
-    // (family may be null if user doesn't have one, that's expected)
+    // Profile loaded but family check not complete - not ready yet
+    // This prevents navigation before we know if user has a family
+    if (!familyCheckComplete) return false;
+    
+    // Profile and family check complete - we're ready
     return true;
-  }, [loading, session, profile]);
+  }, [loading, session, profile, familyCheckComplete]);
 
   // Derive persona from current auth state
   const persona = useMemo((): Persona => {
