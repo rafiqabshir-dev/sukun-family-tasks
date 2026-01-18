@@ -51,6 +51,16 @@ Preferred communication style: Simple, everyday language.
 - Name changes are persisted to both Supabase (profiles table) and local store.
 - The edit button appears for guardians next to their own entry, identified by "(You)" suffix.
 
+### Role-Based Access Control
+- **Participant Restrictions**:
+  - Tasks page: Hidden New Task/Templates buttons, non-interactive checkboxes, hidden action buttons
+  - Spin page: Guardian-only feature with "Guardians Only" message for participants
+  - Setup page: Read-only view (no family management actions)
+- **Owner-Only Features**:
+  - Participant passcodes visible next to participant age in Setup screen
+  - Remove participant button (X icon) to remove kids from family
+  - Participant removal nullifies their family_id in Supabase
+
 ### Notification Badge
 - Guardians see a badge on the hamburger menu icon when there are pending join requests.
 - Badge count is centralized in AuthContext (`pendingRequestsCount` state) and shared across components.
