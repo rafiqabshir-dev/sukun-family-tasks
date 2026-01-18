@@ -2,7 +2,7 @@
 
 ## Overview
 
-Sukun is a React Native mobile app designed to gamify household responsibilities for children aged 5-12, fostering family-oriented task management with a focus on Islamic values. The app aims to simplify family tasks through a points-based system, featuring onboarding for family setup, assigning unique "powers" to kids, and a starter pack of over 40 kid-appropriate activities. It supports multi-user collaboration via optional cloud synchronization with Supabase.
+Sukun is a React Native mobile app designed to gamify household responsibilities for children aged 5-12, fostering family-oriented task management with a focus on Islamic values. The app aims to simplify family tasks through a points-based system, assigning unique "powers" to kids, and a starter pack of over 40 kid-appropriate activities. It uses Supabase as the cloud backend for multi-user collaboration (Supabase is required - no offline mode).
 
 ## User Preferences
 
@@ -32,7 +32,7 @@ Preferred communication style: Simple, everyday language.
 - **UI/UX**: Features a tab-based navigation (Today, Spin, Leaderboard, Setup), an onboarding flow, and consistent typography. Islamic values are reflected in a gentle tone and default sound settings.
 
 ### Cloud Integration (Supabase)
-- **Cloud-Only Mode**: When Supabase is configured, members are loaded directly from the cloud (no local storage merging). This prevents data duplication and ensures cloud is the single source of truth.
+- **Cloud-Only Mode**: Supabase is required. Members are loaded directly from the cloud (no local storage merging). This prevents data duplication and ensures cloud is the single source of truth.
 - **Auth Flow**: Two authentication methods available:
   1. **Email/password** (for guardians): Standard sign-up with email confirmation
   2. **Passcode** (for participants/kids): Simplified 4-digit code login
@@ -42,7 +42,6 @@ Preferred communication style: Simple, everyday language.
   - Passcode stored in `profiles.passcode` column (unique)
   - Auto-generated email format: `participant{passcode}@sukun.app`
   - Sign-in screen has "Login with Code" option for kids
-- **Offline Mode**: Operates locally using AsyncStorage only if Supabase is not configured.
 - **Security**: Utilizes Row Level Security (RLS) for data access control and an immutable `stars_ledger` for audit trails.
 - **Member Management**: In cloud mode, all family members (including kids/participants) must have their own Supabase accounts. Guardians use email, kids use passcode.
 - **Data Flow**: `setMembersFromCloud()` replaces members entirely from Supabase without merging. Session data is managed by Supabase auth with SecureStore for token persistence.
@@ -58,13 +57,25 @@ Preferred communication style: Simple, everyday language.
 - Count refreshes on: tab focus, family/profile changes, Setup screen polling (30s), and after approve/reject actions.
 - The Setup screen shows join request cards with role-based fallback ("New Guardian"/"New Participant") when display_name is empty.
 
-### Auth Gate
-- Unauthenticated users are always redirected to the sign-in page when Supabase is configured.
-- The `app/index.tsx` waits for both store (`isReady`) and auth (`loading`) before routing decisions.
-- Routing logic: no session → sign-in, pending request → pending-approval, no family → family-setup, authenticated → today.
-- When Supabase is configured, auth state is checked FIRST - local onboarding flag is ignored for authenticated users with a family.
-- Local onboarding flag is only used in offline/local mode when Supabase is not configured.
-- Note: Keep routing rules in `index.tsx` and `useProtectedRoute` in `_layout.tsx` synchronized to avoid regressions.
+### Centralized Navigation System
+- All navigation is handled by a single `NavigationController` in `app/_layout.tsx`
+- Navigation logic is centralized in `lib/navigation.ts` with pure functions:
+  - `derivePersona(state)`: Determines user type (guardian, participant_code, participant_email)
+  - `resolveRoute(state)`: Returns target route based on auth state and persona
+  - `shouldNavigate(from, to)`: Determines if navigation is needed
+- **Persona types**:
+  - `guardian`: Any user with role='guardian' (includes family owners)
+  - `participant_code`: Kid who logs in with 4-digit passcode
+  - `participant_email`: Kid who logs in with email/password
+- **Routing priority** (first match wins):
+  1. Not ready → show loading
+  2. No session → sign-in
+  3. Has family → today (main app)
+  4. Pending join request → pending-approval
+  5. Participant without family → pending-approval (participants can never create families)
+  6. Guardian without family → family-setup
+- **Auth readiness**: `authReady` flag is true only when session + profile + family/pending request all loaded
+- **Unit tests**: 23 tests in `lib/__tests__/navigation.test.ts` cover all persona/state combinations
 
 ## External Dependencies
 

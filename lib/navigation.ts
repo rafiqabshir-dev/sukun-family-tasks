@@ -137,13 +137,16 @@ export function resolveRoute(state: AuthState): RouteResult | null {
 
 /**
  * Routes that don't require navigation controller intervention.
- * These are "leaf" routes where users perform actions.
+ * These are "leaf" routes where users perform actions like signing in,
+ * creating families, or waiting for approval.
  */
 export const UNPROTECTED_ROUTES = [
   '/auth/sign-in',
   '/auth/sign-up', 
   '/auth/passcode-login',
   '/auth/participant-join',
+  '/auth/family-setup',
+  '/auth/pending-approval',
 ];
 
 /**
