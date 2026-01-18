@@ -499,13 +499,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       // Use SECURITY DEFINER function to bypass RLS (email not confirmed yet)
-      const { error: requestError } = await supabase.rpc('create_participant_join_request', {
+      console.log('[signUpParticipant] Creating join request for family:', familyData.id, 'user:', userId);
+      const { data: rpcResult, error: requestError } = await supabase.rpc('create_participant_join_request', {
         family_uuid: familyData.id,
         requester_uuid: userId
       });
 
       if (requestError) {
-        console.error('[signUpParticipant] Failed to create join request:', requestError);
+        console.error('[signUpParticipant] Failed to create join request:', requestError.message, requestError.code, requestError.details);
+      } else {
+        console.log('[signUpParticipant] Join request created successfully, result:', rpcResult);
       }
 
       // NOTE: We intentionally do NOT set pendingJoinRequest here
