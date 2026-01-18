@@ -24,7 +24,7 @@ Preferred communication style: Simple, everyday language.
 - **Approval Workflows**: Tasks require approval from a different family member before stars are awarded. Family joining also involves an approval process by the family owner.
 - **Multi-User & Roles**: Differentiates between "kids" and "guardians" with specific permissions. Guardians can manage members and tasks, while kids can complete assigned tasks. An "Act As" selector allows switching between family members.
 - **User Management**: Family owners (first guardian) control member invitations and approvals. User profiles can be edited, and a user switcher facilitates interaction.
-- **Data Model**: Core entities include `Member` (id, name, role, age, starsTotal, powers), `TaskTemplate` (id, title, category, defaultStars, scheduleType), `TaskInstance` (assigned to member, dueAt, status), and `Settings`.
+- **Data Model**: Core entities include `Member` (id, name, role, age, starsTotal, powers, profileId), `TaskTemplate` (id, title, category, defaultStars, scheduleType), `TaskInstance` (assigned to member, dueAt, status), and `Settings`.
 - **UI/UX**: Features a tab-based navigation (Today, Spin, Leaderboard, Setup), an onboarding flow, and consistent typography. Islamic values are reflected in a gentle tone and default sound settings.
 
 ### Cloud Integration (Supabase)
@@ -32,7 +32,7 @@ Preferred communication style: Simple, everyday language.
 - **Auth Flow**: Standard email/password sign-up, with options to create or join a family using invite codes.
 - **Offline Mode**: Operates locally using AsyncStorage if Supabase is not configured.
 - **Security**: Utilizes Row Level Security (RLS) for data access control and an immutable `stars_ledger` for audit trails.
-- **ID Matching**: Local store uses `member-*` IDs while Supabase uses UUIDs. The `isCurrentUser` check uses flexible matching (ID or display_name+role) to handle this mismatch in UI components.
+- **ID Matching**: Local store uses `member-*` IDs while Supabase uses UUIDs. Members now have an optional `profileId` field that stores the Supabase UUID for reliable matching. The `findCurrentUserMember()` helper in Setup uses a priority chain: profileId → id → name+role → actingMemberId (offline mode).
 
 ### Profile Name Editing
 - Users can edit their display name from the Setup screen by tapping the pencil icon next to their entry.
@@ -41,8 +41,9 @@ Preferred communication style: Simple, everyday language.
 
 ### Notification Badge
 - Guardians see a badge on the hamburger menu icon when there are pending join requests.
-- Badge count is fetched from Supabase on screen focus and updates in real-time.
-- The Setup menu item also shows "X pending" badge text.
+- Badge count is centralized in AuthContext (`pendingRequestsCount` state) and shared across components.
+- Count refreshes on: tab focus, family/profile changes, Setup screen polling (30s), and after approve/reject actions.
+- The Setup screen shows join request cards with role-based fallback ("New Guardian"/"New Participant") when display_name is empty.
 
 ## External Dependencies
 
