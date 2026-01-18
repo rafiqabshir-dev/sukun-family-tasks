@@ -655,6 +655,47 @@ describe('Regression: Family Check Complete Before Auth Ready', () => {
   });
 });
 
+describe('Regression: SIGNED_IN Event During Initialization', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockAuthChangeCallback.current = null;
+    __resetAuthInitForTesting();
+  });
+
+  it('SIGNED_IN event fired during init does not cause loading state race condition', async () => {
+    let getSessionResolve: any;
+    const slowGetSession = new Promise((resolve) => {
+      getSessionResolve = resolve;
+    });
+    
+    mockGetSession.mockImplementation(() => slowGetSession);
+
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    
+    expect(result.current.loading).toBe(true);
+    
+    await new Promise(resolve => setTimeout(resolve, 50));
+    
+    const signedInSession = {
+      user: { id: 'user-1', email: 'test@example.com', user_metadata: {} },
+      access_token: 'token',
+    };
+    
+    act(() => {
+      mockAuthChangeCallback.current?.('SIGNED_IN', signedInSession);
+    });
+    
+    getSessionResolve({ data: { session: null }, error: null });
+    
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+    
+    expect(result.current.authReady).toBe(true);
+    expect(result.current.session).toBe(null);
+  });
+});
+
 describe('Regression: Infinite Initialization Loop Prevention', () => {
   beforeEach(() => {
     vi.clearAllMocks();

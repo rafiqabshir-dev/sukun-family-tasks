@@ -40,13 +40,16 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const AUTH_TIMEOUT_MS = 8000;
 
-// Module-level flag to prevent auth init from running multiple times across component remounts
-// Set synchronously at the very start of useEffect, before any async operations
+// Module-level flags to prevent auth issues across component remounts
+// authInitStarted: prevents multiple initializations
+// authInitInProgress: prevents SIGNED_IN handler from running during init
 let authInitStarted = false;
+let authInitInProgress = false;
 
 // Test helper to reset the module-level flag - only exported for testing
 export function __resetAuthInitForTesting() {
   authInitStarted = false;
+  authInitInProgress = false;
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -71,11 +74,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    async function clearAuthState(reason: string) {
+    async function clearAuthState(reason: string, shouldSignOut: boolean = true) {
       console.log('[Auth] Clearing state:', reason);
-      try {
-        await supabase.auth.signOut();
-      } catch (e) {}
+      // Only sign out if explicitly requested - don't sign out on timeouts
+      // because that triggers SIGNED_OUT/SIGNED_IN loop with cached tokens
+      if (shouldSignOut) {
+        try {
+          await supabase.auth.signOut();
+        } catch (e) {}
+      }
       if (mounted.current) {
         setSession(null);
         setUser(null);
@@ -212,6 +219,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     async function initializeAuth() {
       console.log('[Auth] Init start');
+      authInitInProgress = true;
 
       try {
         const getSessionPromise = supabase.auth.getSession();
@@ -224,7 +232,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           sessionResult = await Promise.race([getSessionPromise, timeoutPromise]);
         } catch (e: any) {
           console.log('[Auth] getSession failed:', e?.message);
-          await clearAuthState('getSession timeout');
+          // Don't sign out on timeout - just clear local state to prevent loop
+          await clearAuthState('getSession timeout', false);
+          authInitInProgress = false;
           return;
         }
 
@@ -233,6 +243,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (sessionError) {
           console.log('[Auth] Session error:', sessionError.message);
           await clearAuthState('session error');
+          authInitInProgress = false;
           return;
         }
 
@@ -244,6 +255,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setLoading(false);
             setFamilyCheckComplete(true);
           }
+          authInitInProgress = false;
           return;
         }
 
@@ -261,10 +273,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         console.log('[Auth] Init complete');
         if (mounted.current) setLoading(false);
+        authInitInProgress = false;
 
       } catch (error: any) {
         console.log('[Auth] Init error:', error?.message);
         await clearAuthState('exception');
+        authInitInProgress = false;
       }
     }
 
@@ -300,6 +314,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (event === 'SIGNED_IN' && newSession?.user) {
+        // Skip SIGNED_IN during initialization - initializeAuth handles it
+        if (authInitInProgress) {
+          console.log('[Auth] Skipping SIGNED_IN during init');
+          return;
+        }
+        
         // Handle new sign-in: update session and validate
         if (mounted.current) {
           setLoading(true);
@@ -311,7 +331,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const isValid = await validateSession(newSession);
 
         if (!isValid) {
-          await clearAuthState('sign-in validation failed');
+          // Don't sign out on validation failure - just clear local state
+          // This prevents infinite loop with cached tokens
+          await clearAuthState('sign-in validation failed', false);
         } else {
           if (mounted.current) setLoading(false);
         }
