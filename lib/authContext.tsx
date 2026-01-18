@@ -140,7 +140,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (familyData && mounted.current) {
               setFamily(familyData as Family);
               
-              // Sync family members from cloud to local store
+              // Load family members directly from cloud (no local merging)
               try {
                 const { data: profiles } = await supabase
                   .from('profiles')
@@ -153,30 +153,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                   .eq('family_id', profileData.family_id);
                 
                 if (profiles && profiles.length > 0) {
-                  // Convert profiles to members and sync
-                  const members = profiles.map((p: any) => {
-                    const stars = (starsLedger || [])
+                  // Convert profiles to members - cloud is the only source of truth
+                  const members = profiles.map((p: any) => ({
+                    id: p.id,
+                    name: p.display_name || '',
+                    role: (p.role === 'kid' ? 'kid' : 'guardian') as 'kid' | 'guardian',
+                    age: p.age || 0,
+                    starsTotal: (starsLedger || [])
                       .filter((e: any) => e.profile_id === p.id)
-                      .reduce((sum: number, e: any) => sum + e.delta, 0);
-                    return {
-                      id: p.id,
-                      name: p.display_name,
-                      role: p.role,
-                      age: p.age || 0,
-                      starsTotal: stars,
-                      powers: (p.powers || []).map((key: string) => ({
-                        powerKey: key,
-                        level: 1,
-                        xp: 0
-                      }))
-                    };
-                  });
+                      .reduce((sum: number, e: any) => sum + e.delta, 0),
+                    powers: (p.powers || []).map((key: string) => ({
+                      powerKey: key,
+                      level: 1,
+                      xp: 0
+                    })),
+                    profileId: p.id,
+                  }));
                   
-                  useStore.getState().syncMembersFromCloud(members);
-                  console.log('[Auth] Synced', members.length, 'members for user', currentUser.id);
+                  // Replace members entirely from cloud - no local merging
+                  useStore.getState().setMembersFromCloud(members);
+                  console.log('[Auth] Loaded', members.length, 'members from cloud for user', currentUser.id);
                 }
               } catch (syncError: any) {
-                console.log('[Auth] Member sync error:', syncError?.message);
+                console.log('[Auth] Member load error:', syncError?.message);
               }
             }
             // Clear any pending request since user is already in a family

@@ -3,6 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AppState, Member, TaskTemplate, TaskInstance, StagedTask, Reward, StarDeduction, DEFAULT_STATE, Power, PowerKey, TaskScheduleType } from "./types";
 import { generateStarterTasks } from "./starterTasks";
 import { startOfDay, endOfDay, isAfter, isBefore, addMinutes, parseISO, format } from "date-fns";
+import { isSupabaseConfigured } from "./supabase";
 
 const STORAGE_KEY = "barakah-kids-race:v1";
 const DEBOUNCE_MS = 300;
@@ -15,6 +16,7 @@ interface StoreActions {
   addMember: (member: Omit<Member, "id" | "starsTotal" | "powers">) => void;
   updateMember: (id: string, updates: Partial<Member>) => void;
   removeMember: (id: string) => void;
+  setMembersFromCloud: (members: Member[]) => void;
   syncMembersFromCloud: (members: Member[]) => void;
   upsertMemberWithUUID: (uuid: string, name: string, role: 'guardian' | 'kid', age?: number) => void;
   setMemberPowers: (memberId: string, powers: PowerKey[]) => void;
@@ -169,6 +171,13 @@ export const useStore = create<AppState & StoreActions & { isReady: boolean }>((
     saveToStorage({ ...get(), members });
   },
 
+  // Cloud-only: Replace members entirely from Supabase (no merging, no local persistence)
+  setMembersFromCloud: (cloudMembers) => {
+    // Just set members in state - no AsyncStorage persistence in cloud mode
+    set({ members: cloudMembers });
+  },
+
+  // Legacy sync function for offline/local mode
   syncMembersFromCloud: (cloudMembers) => {
     const currentMembers = get().members;
     const cloudMemberIds = new Set(cloudMembers.map(m => m.id));

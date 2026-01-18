@@ -32,11 +32,12 @@ Preferred communication style: Simple, everyday language.
 - **UI/UX**: Features a tab-based navigation (Today, Spin, Leaderboard, Setup), an onboarding flow, and consistent typography. Islamic values are reflected in a gentle tone and default sound settings.
 
 ### Cloud Integration (Supabase)
-- **Optional Sync**: Supports multi-user, multi-device collaboration via Supabase.
+- **Cloud-Only Mode**: When Supabase is configured, members are loaded directly from the cloud (no local storage merging). This prevents data duplication and ensures cloud is the single source of truth.
 - **Auth Flow**: Standard email/password sign-up, with options to create or join a family using invite codes.
-- **Offline Mode**: Operates locally using AsyncStorage if Supabase is not configured.
+- **Offline Mode**: Operates locally using AsyncStorage only if Supabase is not configured.
 - **Security**: Utilizes Row Level Security (RLS) for data access control and an immutable `stars_ledger` for audit trails.
-- **ID Matching**: Local store uses `member-*` IDs while Supabase uses UUIDs. Members now have an optional `profileId` field that stores the Supabase UUID for reliable matching. When Supabase is configured, user identity is strictly derived from the authenticated session - no fallback to cached data.
+- **Member Management**: In cloud mode, all family members (including kids/participants) must have their own Supabase accounts and join via invite code. The "Add Member" button shows invite instructions instead of local member creation.
+- **Data Flow**: `setMembersFromCloud()` replaces members entirely from Supabase without merging. Session data is managed by Supabase auth with SecureStore for token persistence.
 
 ### Profile Name Editing
 - Users can edit their display name from the Setup screen by tapping the pencil icon next to their entry.

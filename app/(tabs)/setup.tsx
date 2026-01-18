@@ -23,7 +23,7 @@ export default function SetupScreen() {
   const toggleSound = useStore((s) => s.toggleSound);
   const addMember = useStore((s) => s.addMember);
   const updateMember = useStore((s) => s.updateMember);
-  const syncMembersFromCloud = useStore((s) => s.syncMembersFromCloud);
+  const setMembersFromCloud = useStore((s) => s.setMembersFromCloud);
   
   const [storageKeyExists, setStorageKeyExists] = useState<boolean | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -128,7 +128,7 @@ export default function SetupScreen() {
       setJoinRequests((prev) => prev.filter((r) => r.id !== requestId));
       refreshPendingRequestsCount();
       
-      // Sync members from Supabase to include the newly approved member
+      // Load members from Supabase to include the newly approved member
       if (family?.id) {
         try {
           const cloudData = await fetchFamilyData(family.id);
@@ -136,10 +136,10 @@ export default function SetupScreen() {
             const cloudMembers = cloudData.profiles.map((p) => 
               profileToMember(p, computeStarsForProfile(p.id, cloudData.starsLedger || []))
             );
-            syncMembersFromCloud(cloudMembers);
+            setMembersFromCloud(cloudMembers);
           }
         } catch (syncError) {
-          console.error("Error syncing members after approval:", syncError);
+          console.error("Error loading members after approval:", syncError);
         }
       }
     }
@@ -645,93 +645,116 @@ export default function SetupScreen() {
               </TouchableOpacity>
             </View>
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Name</Text>
-              <TextInput
-                style={styles.textInput}
-                placeholder="Enter name"
-                placeholderTextColor={colors.textMuted}
-                value={newName}
-                onChangeText={setNewName}
-                data-testid="input-member-name"
-              />
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Age</Text>
-              <TextInput
-                style={styles.textInput}
-                placeholder="Enter age"
-                placeholderTextColor={colors.textMuted}
-                value={newAge}
-                onChangeText={(text) => setNewAge(text.replace(/[^0-9]/g, ""))}
-                keyboardType="numeric"
-                maxLength={2}
-                data-testid="input-member-age"
-              />
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Role</Text>
-              <View style={styles.roleToggle}>
+            {isConfigured ? (
+              <View style={styles.cloudModeInfo}>
+                <Ionicons name="information-circle" size={48} color={colors.primary} />
+                <Text style={styles.cloudModeTitle}>Invite Family Members</Text>
+                <Text style={styles.cloudModeText}>
+                  In cloud mode, family members join using the invite code. Each person creates their own account and selects their role (guardian or participant).
+                </Text>
                 <TouchableOpacity
-                  style={[
-                    styles.roleOption,
-                    newRole === "kid" && styles.roleOptionActive,
-                  ]}
-                  onPress={() => setNewRole("kid")}
-                  data-testid="button-role-kid"
+                  style={styles.confirmButton}
+                  onPress={() => {
+                    setShowAddModal(false);
+                    setShowInviteDrawer(true);
+                  }}
+                  data-testid="button-show-invite-code"
                 >
-                  <Ionicons
-                    name="happy"
-                    size={20}
-                    color={newRole === "kid" ? "#FFFFFF" : colors.text}
-                  />
-                  <Text
-                    style={[
-                      styles.roleText,
-                      newRole === "kid" && styles.roleTextActive,
-                    ]}
-                  >
-                    Participant
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.roleOption,
-                    newRole === "guardian" && styles.roleOptionActive,
-                  ]}
-                  onPress={() => setNewRole("guardian")}
-                  data-testid="button-role-guardian"
-                >
-                  <Ionicons
-                    name="shield-checkmark"
-                    size={20}
-                    color={newRole === "guardian" ? "#FFFFFF" : colors.text}
-                  />
-                  <Text
-                    style={[
-                      styles.roleText,
-                      newRole === "guardian" && styles.roleTextActive,
-                    ]}
-                  >
-                    Guardian
-                  </Text>
+                  <Ionicons name="share-outline" size={20} color="#FFFFFF" />
+                  <Text style={styles.confirmButtonText}>Share Invite Code</Text>
                 </TouchableOpacity>
               </View>
-            </View>
+            ) : (
+              <>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Name</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="Enter name"
+                    placeholderTextColor={colors.textMuted}
+                    value={newName}
+                    onChangeText={setNewName}
+                    data-testid="input-member-name"
+                  />
+                </View>
 
-            <TouchableOpacity
-              style={[
-                styles.confirmButton,
-                !canAddMember && styles.confirmButtonDisabled,
-              ]}
-              onPress={handleAddMember}
-              disabled={!canAddMember}
-              data-testid="button-confirm-add-member"
-            >
-              <Text style={styles.confirmButtonText}>Add Member</Text>
-            </TouchableOpacity>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Age</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="Enter age"
+                    placeholderTextColor={colors.textMuted}
+                    value={newAge}
+                    onChangeText={(text) => setNewAge(text.replace(/[^0-9]/g, ""))}
+                    keyboardType="numeric"
+                    maxLength={2}
+                    data-testid="input-member-age"
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Role</Text>
+                  <View style={styles.roleToggle}>
+                    <TouchableOpacity
+                      style={[
+                        styles.roleOption,
+                        newRole === "kid" && styles.roleOptionActive,
+                      ]}
+                      onPress={() => setNewRole("kid")}
+                      data-testid="button-role-kid"
+                    >
+                      <Ionicons
+                        name="happy"
+                        size={20}
+                        color={newRole === "kid" ? "#FFFFFF" : colors.text}
+                      />
+                      <Text
+                        style={[
+                          styles.roleText,
+                          newRole === "kid" && styles.roleTextActive,
+                        ]}
+                      >
+                        Participant
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.roleOption,
+                        newRole === "guardian" && styles.roleOptionActive,
+                      ]}
+                      onPress={() => setNewRole("guardian")}
+                      data-testid="button-role-guardian"
+                    >
+                      <Ionicons
+                        name="shield-checkmark"
+                        size={20}
+                        color={newRole === "guardian" ? "#FFFFFF" : colors.text}
+                      />
+                      <Text
+                        style={[
+                          styles.roleText,
+                          newRole === "guardian" && styles.roleTextActive,
+                        ]}
+                      >
+                        Guardian
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                <TouchableOpacity
+                  style={[
+                    styles.confirmButton,
+                    !canAddMember && styles.confirmButtonDisabled,
+                  ]}
+                  onPress={handleAddMember}
+                  disabled={!canAddMember}
+                  data-testid="button-confirm-add-member"
+                >
+                  <Text style={styles.confirmButtonText}>Add Member</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -1188,6 +1211,25 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: fontSize.md,
     fontWeight: "600",
+  },
+  cloudModeInfo: {
+    alignItems: "center",
+    paddingVertical: spacing.lg,
+  },
+  cloudModeTitle: {
+    fontSize: fontSize.lg,
+    fontWeight: "600",
+    color: colors.text,
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  cloudModeText: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: spacing.md,
+    paddingHorizontal: spacing.md,
   },
   emptyState: {
     backgroundColor: colors.surfaceSecondary,
