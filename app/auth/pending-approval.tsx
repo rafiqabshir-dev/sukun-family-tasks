@@ -28,11 +28,12 @@ export default function PendingApprovalScreen() {
   }, [family, router]);
 
   // Redirect when request is no longer pending (rejected or cancelled)
+  // BUT only for guardians - participants should stay here and see status
   useEffect(() => {
-    if (!pendingJoinRequest && !family && !cancelling) {
+    if (!pendingJoinRequest && !family && !cancelling && profile?.role !== 'kid') {
       router.replace("/auth/family-setup");
     }
-  }, [pendingJoinRequest, family, cancelling, router]);
+  }, [pendingJoinRequest, family, cancelling, profile?.role, router]);
 
   useEffect(() => {
     const interval = setInterval(async () => {
