@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { View, TouchableOpacity, Modal, Text, StyleSheet, ScrollView } from "react-native";
+import { View, TouchableOpacity, Modal, Text, StyleSheet, ScrollView, Pressable } from "react-native";
 import { Tabs, useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, borderRadius, fontSize } from "@/lib/theme";
@@ -12,7 +12,7 @@ function HeaderMenuButton({ onPress }: { onPress: () => void }) {
   const { pendingRequestsCount } = useAuth();
   
   return (
-    <TouchableOpacity 
+    <Pressable 
       style={{ marginRight: spacing.md, flexDirection: 'row', alignItems: 'center' }}
       onPress={onPress}
       data-testid="button-more-menu"
@@ -37,7 +37,7 @@ function HeaderMenuButton({ onPress }: { onPress: () => void }) {
           </Text>
         </View>
       )}
-    </TouchableOpacity>
+    </Pressable>
   );
 }
 
