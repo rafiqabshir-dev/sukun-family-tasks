@@ -508,16 +508,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.error('[signUpParticipant] Failed to create join request:', requestError);
       }
 
-      setPendingJoinRequest({
-        id: '',
-        family_id: familyData.id,
-        requester_profile_id: signUpData.user.id,
-        status: 'pending',
-        reviewed_by_profile_id: null,
-        reviewed_at: null,
-        created_at: new Date().toISOString()
-      });
-      setRequestedFamily(familyData as Family);
+      // NOTE: We intentionally do NOT set pendingJoinRequest here
+      // The participant-join screen needs to show the passcode first
+      // It will navigate to pending-approval after user confirms they saved the code
 
       console.log('[signUpParticipant] Success, passcode:', passcode);
       return { error: null, passcode };
