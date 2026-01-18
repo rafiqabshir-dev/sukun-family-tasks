@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, borderRadius, fontSize } from "@/lib/theme";
 import { useStore } from "@/lib/store";
 import { TaskInstance, TaskTemplate } from "@/lib/types";
+import { useAuth } from "@/lib/authContext";
 import { format, isToday, isBefore, startOfDay, differenceInMinutes, differenceInSeconds, parseISO, isAfter } from "date-fns";
 
 function getTaskStatus(task: TaskInstance): "open" | "pending_approval" | "done" | "overdue" | "expired" {
@@ -53,6 +54,7 @@ function formatTimeRemaining(expiresAt: string): string {
 }
 
 export default function TodayScreen() {
+  const { profile } = useAuth();
   const members = useStore((s) => s.members);
   const taskTemplates = useStore((s) => s.taskTemplates);
   const taskInstances = useStore((s) => s.taskInstances);
@@ -324,9 +326,24 @@ export default function TodayScreen() {
   const setActingMember = useStore((s) => s.setActingMember);
   const [showUserPicker, setShowUserPicker] = useState(false);
 
-  // Auto-select first guardian if no acting member
+  // Auto-select acting member: prefer authenticated user's profile, then first guardian
   useEffect(() => {
-    if (!actingMemberId && members.length > 0) {
+    if (members.length === 0) return;
+    
+    // If we have an authenticated profile, check if actingMemberId matches
+    if (profile?.id) {
+      const authenticatedMember = members.find((m) => m.id === profile.id);
+      if (authenticatedMember) {
+        // If actingMemberId doesn't match the authenticated user, fix it
+        if (actingMemberId !== profile.id) {
+          setActingMember(profile.id);
+        }
+        return;
+      }
+    }
+    
+    // Fallback: if no acting member set, default to first guardian
+    if (!actingMemberId) {
       const firstGuardian = members.find((m) => m.role === "guardian");
       if (firstGuardian) {
         setActingMember(firstGuardian.id);
@@ -334,7 +351,7 @@ export default function TodayScreen() {
         setActingMember(members[0].id);
       }
     }
-  }, [actingMemberId, members, setActingMember]);
+  }, [actingMemberId, members, setActingMember, profile?.id]);
 
   if (!actingMember && members.length === 0) {
     return (

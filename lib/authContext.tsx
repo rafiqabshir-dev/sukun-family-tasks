@@ -139,6 +139,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
             if (familyData && mounted.current) {
               setFamily(familyData as Family);
+              
+              // Sync family members from cloud to local store
+              try {
+                const { data: profiles } = await supabase
+                  .from('profiles')
+                  .select('*')
+                  .eq('family_id', profileData.family_id);
+                
+                const { data: starsLedger } = await supabase
+                  .from('stars_ledger')
+                  .select('*')
+                  .eq('family_id', profileData.family_id);
+                
+                if (profiles && profiles.length > 0) {
+                  // Convert profiles to members and sync
+                  const members = profiles.map((p: any) => {
+                    const stars = (starsLedger || [])
+                      .filter((e: any) => e.profile_id === p.id)
+                      .reduce((sum: number, e: any) => sum + e.delta, 0);
+                    return {
+                      id: p.id,
+                      name: p.display_name,
+                      role: p.role,
+                      age: p.age || 0,
+                      starsTotal: stars,
+                      powers: (p.powers || []).map((key: string) => ({
+                        powerKey: key,
+                        level: 1,
+                        xp: 0
+                      }))
+                    };
+                  });
+                  
+                  useStore.getState().syncMembersFromCloud(members);
+                  // Set acting member to the authenticated user
+                  useStore.getState().setActingMember(currentUser.id);
+                  console.log('[Auth] Synced', members.length, 'members, acting as', currentUser.id);
+                }
+              } catch (syncError: any) {
+                console.log('[Auth] Member sync error:', syncError?.message);
+              }
             }
             // Clear any pending request since user is already in a family
             setPendingJoinRequest(null);
