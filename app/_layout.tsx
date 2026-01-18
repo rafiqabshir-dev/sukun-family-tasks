@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Stack, useRootNavigationState, router, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { View, ActivityIndicator, StyleSheet } from "react-native";
+import { View, ActivityIndicator, StyleSheet, Text } from "react-native";
 import { useStore } from "@/lib/store";
 import { colors } from "@/lib/theme";
 import { AuthProvider, useAuth } from "@/lib/authContext";
@@ -13,14 +13,14 @@ function NavigationController() {
   const lastNavigatedPath = useRef<string | null>(null);
   
   const isReady = useStore((s) => s.isReady);
+  const storeAuthReady = useStore((s) => s.authReady);
   const { 
     session, 
     profile, 
     family, 
     loading: authLoading, 
     isConfigured,
-    pendingJoinRequest, 
-    authReady 
+    pendingJoinRequest
   } = useAuth();
 
   useEffect(() => {
@@ -39,7 +39,7 @@ function NavigationController() {
         id: family.id,
       } : null,
       pendingJoinRequest: !!pendingJoinRequest,
-      authReady: authReady,
+      authReady: storeAuthReady,
       storeReady: isReady,
     };
 
@@ -69,7 +69,7 @@ function NavigationController() {
     profile, 
     family, 
     pendingJoinRequest, 
-    authReady, 
+    storeAuthReady, 
     isReady, 
     isConfigured, 
     navigationState?.key, 
@@ -82,25 +82,31 @@ function NavigationController() {
 function RootLayoutContent() {
   const initialize = useStore((s) => s.initialize);
   const isReady = useStore((s) => s.isReady);
-  const { loading: authLoading, authReady } = useAuth();
+  const storeAuthReady = useStore((s) => s.authReady);
+  const { loading: authLoading } = useAuth();
 
   useEffect(() => {
     initialize();
   }, []);
 
-  const showLoading = !isReady || authLoading || !authReady;
+  // Use store's authReady (persists across remounts) but also gate on authLoading
+  // to prevent protected-view flicker during active authentication
+  const showLoading = !isReady || authLoading || !storeAuthReady;
   
-  console.log('[Layout] showLoading:', showLoading, 'isReady:', isReady, 'authLoading:', authLoading, 'authReady:', authReady);
+  console.log('[Layout] showLoading:', showLoading, 'isReady:', isReady, 'authLoading:', authLoading, 'storeAuthReady:', storeAuthReady);
 
   if (showLoading) {
     return (
       <View style={styles.loading}>
         <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={{ marginTop: 10, color: colors.textMuted }}>Loading...</Text>
         <StatusBar style="dark" />
       </View>
     );
   }
 
+  console.log('[Layout] Rendering main content');
+  
   return (
     <>
       <NavigationController />

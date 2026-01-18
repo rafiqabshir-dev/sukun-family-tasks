@@ -40,26 +40,26 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const AUTH_TIMEOUT_MS = 8000;
 
-// Module-level flag to prevent SIGNED_IN handler race during init
-let authInitInProgress = false;
-
-// Test helper to reset the module-level flag - only exported for testing
+// Test helper - no longer needed but kept for compatibility
 export function __resetAuthInitForTesting() {
-  authInitInProgress = false;
+  // No-op - using instance refs now
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  // Initialize loading based on store's authReady - if auth already completed, don't show loading
+  const storeAuthReady = useStore.getState().authReady;
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [family, setFamily] = useState<Family | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [familyCheckComplete, setFamilyCheckComplete] = useState(false);
+  const [loading, setLoading] = useState(!storeAuthReady);
+  const [familyCheckComplete, setFamilyCheckComplete] = useState(storeAuthReady);
   const [pendingJoinRequest, setPendingJoinRequest] = useState<JoinRequest | null>(null);
   const [requestedFamily, setRequestedFamily] = useState<Family | null>(null);
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
   
   const mounted = useRef(true);
+  const initInProgress = useRef(false);
 
   useEffect(() => {
     mounted.current = true;
@@ -86,6 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setFamily(null);
         setLoading(false);
         setFamilyCheckComplete(true);
+        useStore.getState().setAuthReady(true);
       }
     }
 
@@ -215,7 +216,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     async function initializeAuth() {
       console.log('[Auth] Init start');
-      authInitInProgress = true;
+      initInProgress.current = true;
+      // Don't reset authReady here - it could be a remount after successful auth
+      // Only reset authReady on SIGNED_IN event (actual login) or sign out
 
       try {
         const getSessionPromise = supabase.auth.getSession();
@@ -239,22 +242,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               sessionResult = retryResult;
             } else {
               await clearAuthState('getSession timeout', false);
-              authInitInProgress = false;
+              initInProgress.current = false;
               return;
             }
           } catch {
             await clearAuthState('getSession timeout after retry', false);
-            authInitInProgress = false;
+            initInProgress.current = false;
             return;
           }
         }
 
         const { data: { session: currentSession }, error: sessionError } = sessionResult;
+        console.log('[Auth] getSession result - hasSession:', !!currentSession?.user, 'error:', sessionError?.message);
 
         if (sessionError) {
           console.log('[Auth] Session error:', sessionError.message);
           await clearAuthState('session error');
-          authInitInProgress = false;
+          initInProgress.current = false;
           return;
         }
 
@@ -265,8 +269,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setUser(null);
             setLoading(false);
             setFamilyCheckComplete(true);
+            useStore.getState().setAuthReady(true);
           }
-          authInitInProgress = false;
+          initInProgress.current = false;
           return;
         }
 
@@ -279,25 +284,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (!isValid) {
           await clearAuthState('validation failed');
-          authInitInProgress = false;
+          initInProgress.current = false;
           return;
         }
 
         console.log('[Auth] Init complete');
-        if (mounted.current) setLoading(false);
-        authInitInProgress = false;
+        if (mounted.current) {
+          setLoading(false);
+          useStore.getState().setAuthReady(true);
+        }
+        initInProgress.current = false;
 
       } catch (error: any) {
         console.log('[Auth] Init error:', error?.message);
         await clearAuthState('exception');
-        authInitInProgress = false;
+        initInProgress.current = false;
       }
     }
 
     // Always run init on mount - getSession is idempotent
     // Skip only if another init is currently in progress
-    console.log('[Auth] Mount check - inProgress:', authInitInProgress);
-    if (!authInitInProgress) {
+    console.log('[Auth] Mount check - inProgress:', initInProgress.current);
+    if (!initInProgress.current) {
       initializeAuth();
     } else {
       console.log('[Auth] Init already in progress, waiting...');
@@ -322,16 +330,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setFamily(null);
           setLoading(false);
           setFamilyCheckComplete(true);
+          useStore.getState().setAuthReady(true);
         }
         return;
       }
 
       if (event === 'SIGNED_IN' && newSession?.user) {
         // Skip SIGNED_IN during initialization - initializeAuth handles it
-        if (authInitInProgress) {
+        if (initInProgress.current) {
           console.log('[Auth] Skipping SIGNED_IN during init');
           return;
         }
+        
+        console.log('[Auth] SIGNED_IN handler start, mounted:', mounted.current);
+        
+        // Reset authReady at start of new auth cycle
+        useStore.getState().setAuthReady(false);
         
         // Handle new sign-in: update session and validate
         if (mounted.current) {
@@ -342,13 +356,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         const isValid = await validateSession(newSession);
+        console.log('[Auth] SIGNED_IN validation complete, valid:', isValid, 'mounted:', mounted.current);
 
         if (!isValid) {
           // Don't sign out on validation failure - just clear local state
           // This prevents infinite loop with cached tokens
           await clearAuthState('sign-in validation failed', false);
         } else {
-          if (mounted.current) setLoading(false);
+          if (mounted.current) {
+            console.log('[Auth] SIGNED_IN setting loading=false');
+            setLoading(false);
+            useStore.getState().setAuthReady(true);
+          } else {
+            console.log('[Auth] SIGNED_IN skipped loading=false (unmounted)');
+          }
         }
       }
 

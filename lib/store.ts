@@ -13,6 +13,7 @@ let isInitialized = false;
 
 interface StoreActions {
   initialize: () => Promise<void>;
+  setAuthReady: (ready: boolean) => void;
   addMember: (member: Omit<Member, "id" | "starsTotal" | "powers">) => void;
   updateMember: (id: string, updates: Partial<Member>) => void;
   removeMember: (id: string) => void;
@@ -90,9 +91,15 @@ function migrateTemplates(templates: TaskTemplate[]): TaskTemplate[] {
   });
 }
 
-export const useStore = create<AppState & StoreActions & { isReady: boolean }>((set, get) => ({
+export const useStore = create<AppState & StoreActions & { isReady: boolean; authReady: boolean }>((set, get) => ({
   ...DEFAULT_STATE,
   isReady: false,
+  authReady: false,
+  
+  setAuthReady: (ready: boolean) => {
+    console.log('[Store] setAuthReady:', ready);
+    set({ authReady: ready });
+  },
 
   initialize: async () => {
     if (isInitialized) {
@@ -708,6 +715,6 @@ export const useStore = create<AppState & StoreActions & { isReady: boolean }>((
 
   reset: async () => {
     await AsyncStorage.removeItem(STORAGE_KEY);
-    set({ ...DEFAULT_STATE, isReady: true });
+    set({ ...DEFAULT_STATE, isReady: true, authReady: false });
   }
 }));
