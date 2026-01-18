@@ -44,6 +44,11 @@ const AUTH_TIMEOUT_MS = 8000;
 // Set synchronously at the very start of useEffect, before any async operations
 let authInitStarted = false;
 
+// Test helper to reset the module-level flag - only exported for testing
+export function __resetAuthInitForTesting() {
+  authInitStarted = false;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
