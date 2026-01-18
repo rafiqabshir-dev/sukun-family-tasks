@@ -25,7 +25,7 @@ function createState(overrides: Partial<AuthState> = {}): AuthState {
 }
 
 // Helper to create a profile
-function createProfile(overrides: Partial<AuthState['profile']> = {}): AuthState['profile'] {
+function createProfile(overrides: Partial<NonNullable<AuthState['profile']>> = {}): AuthState['profile'] {
   return {
     id: 'user-123',
     role: 'guardian',
@@ -36,10 +36,9 @@ function createProfile(overrides: Partial<AuthState['profile']> = {}): AuthState
 }
 
 // Helper to create a family
-function createFamily(overrides: Partial<AuthState['family']> = {}): AuthState['family'] {
+function createFamily(overrides: Partial<NonNullable<AuthState['family']>> = {}): AuthState['family'] {
   return {
     id: 'family-456',
-    owner_id: 'user-123',
     ...overrides,
   };
 }
@@ -55,16 +54,9 @@ describe('derivePersona', () => {
     expect(derivePersona(state)).toBe(null);
   });
 
-  it('returns "owner" for guardian who owns the family', () => {
+  it('returns "guardian" for guardian with family', () => {
     const profile = createProfile({ id: 'user-123', role: 'guardian' });
-    const family = createFamily({ owner_id: 'user-123' });
-    const state = createState({ session: true, profile, family });
-    expect(derivePersona(state)).toBe('owner');
-  });
-
-  it('returns "guardian" for guardian who is not owner', () => {
-    const profile = createProfile({ id: 'user-123', role: 'guardian' });
-    const family = createFamily({ owner_id: 'other-user' });
+    const family = createFamily();
     const state = createState({ session: true, profile, family });
     expect(derivePersona(state)).toBe('guardian');
   });
@@ -120,28 +112,10 @@ describe('resolveRoute', () => {
     });
   });
 
-  describe('owner persona', () => {
-    it('routes to today when owner has family', () => {
-      const profile = createProfile({ id: 'user-123', role: 'guardian' });
-      const family = createFamily({ owner_id: 'user-123' });
-      const state = createState({ session: true, profile, family });
-      const result = resolveRoute(state);
-      expect(result?.path).toBe('/(tabs)/today');
-      expect(result?.reason).toContain('owner');
-    });
-
-    it('routes to family-setup when owner has no family', () => {
-      const profile = createProfile({ id: 'user-123', role: 'guardian' });
-      const state = createState({ session: true, profile, family: null });
-      const result = resolveRoute(state);
-      expect(result?.path).toBe('/auth/family-setup');
-    });
-  });
-
-  describe('guardian persona (non-owner)', () => {
+  describe('guardian persona', () => {
     it('routes to today when guardian has family', () => {
       const profile = createProfile({ id: 'user-123', role: 'guardian' });
-      const family = createFamily({ owner_id: 'other-user' });
+      const family = createFamily();
       const state = createState({ session: true, profile, family });
       const result = resolveRoute(state);
       expect(result?.path).toBe('/(tabs)/today');

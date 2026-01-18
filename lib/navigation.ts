@@ -6,7 +6,7 @@
  * and scattered redirect logic.
  */
 
-export type Persona = 'owner' | 'guardian' | 'participant_code' | 'participant_email' | null;
+export type Persona = 'guardian' | 'participant_code' | 'participant_email' | null;
 
 export interface AuthState {
   session: boolean;
@@ -18,7 +18,6 @@ export interface AuthState {
   } | null;
   family: {
     id: string;
-    owner_id: string;
   } | null;
   pendingJoinRequest: boolean;
   authReady: boolean;
@@ -31,19 +30,21 @@ export interface RouteResult {
 }
 
 /**
- * Derives the user's persona from their profile and family relationship
+ * Derives the user's persona from their profile
+ * 
+ * Personas:
+ * - guardian: Any user with role='guardian' (includes family owners)
+ * - participant_code: Kid who logs in with 4-digit passcode
+ * - participant_email: Kid who logs in with email/password
  */
 export function derivePersona(state: AuthState): Persona {
   if (!state.session || !state.profile) {
     return null;
   }
 
-  const { profile, family } = state;
+  const { profile } = state;
 
   if (profile.role === 'guardian') {
-    if (family && family.owner_id === profile.id) {
-      return 'owner';
-    }
     return 'guardian';
   }
 
@@ -120,7 +121,7 @@ export function resolveRoute(state: AuthState): RouteResult | null {
   }
 
   // Guardians without family - can create or join one
-  if (persona === 'owner' || persona === 'guardian') {
+  if (persona === 'guardian') {
     return {
       path: '/auth/family-setup',
       reason: 'Guardian needs to create or join family'

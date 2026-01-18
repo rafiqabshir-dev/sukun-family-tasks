@@ -1,7 +1,8 @@
-import React, { createContext, useContext, useState, useEffect, useRef, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo, ReactNode } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase, Profile, Family, JoinRequest, isSupabaseConfigured } from './supabase';
 import { useStore } from './store';
+import { Persona, derivePersona as derivePersonaFromState, AuthState } from './navigation';
 
 export type JoinRequestWithProfile = JoinRequest & {
   requester_profile?: Profile;
@@ -13,6 +14,8 @@ type AuthContextType = {
   profile: Profile | null;
   family: Family | null;
   loading: boolean;
+  authReady: boolean;
+  persona: Persona;
   isConfigured: boolean;
   pendingJoinRequest: JoinRequest | null;
   requestedFamily: Family | null;
@@ -887,10 +890,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [family?.id, profile?.id, profile?.role, refreshPendingRequestsCount]);
 
+  // Compute authReady - true when initial auth check is complete
+  // This means we've checked for session and loaded profile/family if session exists
+  const authReady = useMemo(() => {
+    // Still loading initial auth state
+    if (loading) return false;
+    
+    // Supabase not configured - considered ready (will be handled by navigation)
+    if (!isSupabaseConfigured()) return true;
+    
+    // No session - ready to navigate to sign-in
+    if (!session) return true;
+    
+    // Has session but profile not loaded yet - not ready
+    if (!profile) return false;
+    
+    // Profile loaded - we're ready
+    // (family may be null if user doesn't have one, that's expected)
+    return true;
+  }, [loading, session, profile]);
+
+  // Derive persona from current auth state
+  const persona = useMemo((): Persona => {
+    if (!session || !profile) return null;
+    
+    const authState: AuthState = {
+      session: !!session,
+      profile: {
+        id: profile.id,
+        role: profile.role,
+        passcode: profile.passcode,
+        family_id: profile.family_id,
+      },
+      family: family ? {
+        id: family.id,
+      } : null,
+      pendingJoinRequest: !!pendingJoinRequest,
+      authReady: true,
+      storeReady: true,
+    };
+    
+    return derivePersonaFromState(authState);
+  }, [session, profile, family, pendingJoinRequest]);
+
   return (
     <AuthContext.Provider
       value={{
-        session, user, profile, family, loading,
+        session, user, profile, family, loading, authReady, persona,
         isConfigured: isSupabaseConfigured(),
         pendingJoinRequest, requestedFamily,
         pendingRequestsCount, refreshPendingRequestsCount,
