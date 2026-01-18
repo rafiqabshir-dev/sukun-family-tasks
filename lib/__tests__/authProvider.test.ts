@@ -720,13 +720,15 @@ describe('Regression: Infinite Initialization Loop Prevention', () => {
     expect(mockGetSession).toHaveBeenCalledTimes(1);
   });
 
-  it('after timeout recovery, state is cleared and getSession not retried automatically', async () => {
+  it('after timeout, retries getSession once to recover from transient network issues', async () => {
     let callCount = 0;
     mockGetSession.mockImplementation(() => {
       callCount++;
       if (callCount === 1) {
+        // First call times out
         return new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 50));
       }
+      // Retry succeeds with no session
       return Promise.resolve({ data: { session: null }, error: null });
     });
     mockSignOut.mockResolvedValue({ error: null });
@@ -740,7 +742,8 @@ describe('Regression: Infinite Initialization Loop Prevention', () => {
     expect(result.current.session).toBe(null);
     expect(result.current.authReady).toBe(true);
     
-    expect(callCount).toBe(1);
+    // Should retry once after initial timeout
+    expect(callCount).toBe(2);
   });
 
   it('SIGNED_IN event after init does not trigger duplicate getSession', async () => {

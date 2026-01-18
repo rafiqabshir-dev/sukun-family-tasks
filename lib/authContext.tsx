@@ -232,10 +232,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           sessionResult = await Promise.race([getSessionPromise, timeoutPromise]);
         } catch (e: any) {
           console.log('[Auth] getSession failed:', e?.message);
-          // Don't sign out on timeout - just clear local state to prevent loop
-          await clearAuthState('getSession timeout', false);
-          authInitInProgress = false;
-          return;
+          // On timeout, try getSession one more time (network might have recovered)
+          // This is safer than relying on cached SIGNED_IN events
+          try {
+            const retryResult = await Promise.race([
+              supabase.auth.getSession(),
+              new Promise<never>((_, reject) => setTimeout(() => reject(new Error('retry timeout')), 3000))
+            ]);
+            if (retryResult.data.session) {
+              console.log('[Auth] Session recovered on retry');
+              sessionResult = retryResult;
+              // Continue to process session below
+            } else {
+              await clearAuthState('getSession timeout', false);
+              authInitInProgress = false;
+              return;
+            }
+          } catch {
+            await clearAuthState('getSession timeout after retry', false);
+            authInitInProgress = false;
+            return;
+          }
         }
 
         const { data: { session: currentSession }, error: sessionError } = sessionResult;
