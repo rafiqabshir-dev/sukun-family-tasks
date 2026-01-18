@@ -413,6 +413,20 @@ EXCEPTION WHEN unique_violation THEN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- Function to set passcode for a profile (bypasses RLS for unconfirmed emails)
+CREATE OR REPLACE FUNCTION set_profile_passcode(
+  profile_uuid UUID,
+  passcode_value TEXT
+)
+RETURNS BOOLEAN AS $$
+BEGIN
+  UPDATE profiles
+  SET passcode = passcode_value
+  WHERE id = profile_uuid;
+  RETURN TRUE;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 -- Function to approve a join request and add user to family
 -- Uses SECURITY DEFINER to bypass RLS for updating another user's profile
 CREATE OR REPLACE FUNCTION approve_join_request(

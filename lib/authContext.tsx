@@ -330,6 +330,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (profileData) {
+        console.log('[fetchProfile] Got profile, passcode:', profileData.passcode, 'role:', profileData.role);
         setProfile(profileData as Profile);
 
         if (profileData.family_id) {
@@ -489,13 +490,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.error('[signUpParticipant] Auto sign-in failed:', signInError);
       }
 
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ passcode: passcode })
-        .eq('id', userId);
+      // Use SECURITY DEFINER function to set passcode (bypasses RLS for unconfirmed emails)
+      const { error: passcodeError } = await supabase.rpc('set_profile_passcode', {
+        profile_uuid: userId,
+        passcode_value: passcode
+      });
 
-      if (updateError) {
-        console.error('[signUpParticipant] Failed to save passcode:', updateError);
+      if (passcodeError) {
+        console.error('[signUpParticipant] Failed to save passcode:', passcodeError);
+      } else {
+        console.log('[signUpParticipant] Passcode saved successfully');
       }
 
       // Use SECURITY DEFINER function to bypass RLS (email not confirmed yet)
