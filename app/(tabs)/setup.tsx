@@ -230,21 +230,29 @@ export default function SetupScreen() {
   };
 
   const handleSignOut = async () => {
-    Alert.alert(
-      "Sign Out",
-      "Are you sure you want to sign out?",
-      [
-        { text: "Cancel", style: "cancel" },
-        { 
-          text: "Sign Out", 
-          style: "destructive",
-          onPress: async () => {
-            await signOut();
-            router.replace("/auth/sign-in");
-          }
-        },
-      ]
-    );
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm("Are you sure you want to sign out?");
+      if (confirmed) {
+        await signOut();
+        router.replace("/auth/sign-in");
+      }
+    } else {
+      Alert.alert(
+        "Sign Out",
+        "Are you sure you want to sign out?",
+        [
+          { text: "Cancel", style: "cancel" },
+          { 
+            text: "Sign Out", 
+            style: "destructive",
+            onPress: async () => {
+              await signOut();
+              router.replace("/auth/sign-in");
+            }
+          },
+        ]
+      );
+    }
   };
 
   // Find current user member using profileId (reliable link between local member and Supabase profile)
@@ -605,23 +613,32 @@ export default function SetupScreen() {
           <View style={styles.divider} />
           <TouchableOpacity
             style={styles.settingRow}
-            onPress={() => {
-              Alert.alert(
-                "Clear Local Data",
-                "This will clear all cached data on this device. You'll need to sign in again. Use this to test with a fresh state.",
-                [
-                  { text: "Cancel", style: "cancel" },
-                  {
-                    text: "Clear & Sign Out",
-                    style: "destructive",
-                    onPress: async () => {
-                      await AsyncStorage.removeItem(STORAGE_KEY);
-                      await signOut();
-                      router.replace("/auth/sign-in");
+            onPress={async () => {
+              if (Platform.OS === 'web') {
+                const confirmed = window.confirm("This will clear all cached data on this device. You'll need to sign in again. Use this to test with a fresh state.");
+                if (confirmed) {
+                  await AsyncStorage.removeItem(STORAGE_KEY);
+                  await signOut();
+                  router.replace("/auth/sign-in");
+                }
+              } else {
+                Alert.alert(
+                  "Clear Local Data",
+                  "This will clear all cached data on this device. You'll need to sign in again. Use this to test with a fresh state.",
+                  [
+                    { text: "Cancel", style: "cancel" },
+                    {
+                      text: "Clear & Sign Out",
+                      style: "destructive",
+                      onPress: async () => {
+                        await AsyncStorage.removeItem(STORAGE_KEY);
+                        await signOut();
+                        router.replace("/auth/sign-in");
+                      }
                     }
-                  }
-                ]
-              );
+                  ]
+                );
+              }
             }}
             data-testid="button-clear-local-data"
           >

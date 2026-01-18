@@ -74,9 +74,13 @@ Preferred communication style: Simple, everyday language.
   4. Pending join request → pending-approval
   5. Participant without family → pending-approval (participants can never create families)
   6. Guardian without family → family-setup
-- **Auth readiness**: `authReady` flag is true only when session + profile + family check all completed
+- **Auth readiness**: `authReady` flag is persisted in Zustand store to survive component remounts
+  - Store's `setAuthReady(true)` is called when auth initialization completes
+  - Store's `setAuthReady(false)` is called when SIGNED_IN event fires (new login cycle)
+  - AuthContext initializes `loading` state from store's `authReady` to prevent flash on remount
   - Uses `familyCheckComplete` state to prevent race condition where navigation runs before family data loads
   - Prevents the issue where user is redirected to sign-in after successful login
+  - Web platform uses `window.confirm` instead of `Alert.alert` for sign-out confirmation
 - **Unit tests**: 104 tests across 6 test files covering auth + navigation:
   - `navigation.test.ts` (23 tests) - Core navigation logic and persona derivation
   - `authProvider.test.ts` (22 tests) - AuthProvider lifecycle with mocked Supabase
