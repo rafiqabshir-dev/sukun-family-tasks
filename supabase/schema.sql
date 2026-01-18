@@ -21,8 +21,12 @@ CREATE TABLE profiles (
   age INTEGER,
   powers TEXT[] DEFAULT '{}',
   requires_login BOOLEAN DEFAULT true,
+  passcode TEXT UNIQUE,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Index for fast passcode lookups
+CREATE INDEX idx_profiles_passcode ON profiles(passcode) WHERE passcode IS NOT NULL;
 
 -- Tasks (templates) table
 CREATE TABLE tasks (

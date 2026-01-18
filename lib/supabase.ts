@@ -97,6 +97,7 @@ export type Profile = {
   age: number | null;
   powers: string[];
   requires_login: boolean;
+  passcode: string | null;
   created_at: string;
 };
 

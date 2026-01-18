@@ -20,6 +20,8 @@ type AuthContextType = {
   refreshPendingRequestsCount: () => Promise<void>;
   signUp: (email: string, password: string, displayName: string, role: 'guardian' | 'kid') => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signUpParticipant: (inviteCode: string, displayName: string) => Promise<{ error: Error | null; passcode: string | null }>;
+  signInWithPasscode: (passcode: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   createFamily: (familyName: string, onProgress?: (step: string) => void) => Promise<{ error: Error | null; family: Family | null }>;
   joinFamily: (inviteCode: string) => Promise<{ error: Error | null }>;
@@ -413,6 +415,141 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  function generatePasscode(): string {
+    const min = 1000;
+    const max = 9999;
+    return String(Math.floor(Math.random() * (max - min + 1)) + min);
+  }
+
+  async function signUpParticipant(
+    inviteCode: string,
+    displayName: string
+  ): Promise<{ error: Error | null; passcode: string | null }> {
+    try {
+      console.log('[signUpParticipant] Starting for:', displayName);
+
+      const { data: familyData, error: familyError } = await supabase
+        .from('families')
+        .select('*')
+        .eq('invite_code', inviteCode.toLowerCase())
+        .single();
+
+      if (familyError || !familyData) {
+        return { error: new Error('Invalid invite code. Please check with your guardian.'), passcode: null };
+      }
+
+      let passcode = generatePasscode();
+      let attempts = 0;
+      const maxAttempts = 10;
+
+      while (attempts < maxAttempts) {
+        const { data: existing } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('passcode', passcode)
+          .single();
+
+        if (!existing) break;
+        passcode = generatePasscode();
+        attempts++;
+      }
+
+      if (attempts >= maxAttempts) {
+        return { error: new Error('Could not generate unique code. Please try again.'), passcode: null };
+      }
+
+      const generatedEmail = `p-${passcode}@sukun.local`;
+      const authPassword = `sukun-${passcode}`;
+
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email: generatedEmail,
+        password: authPassword,
+        options: {
+          data: { display_name: displayName, role: 'kid', passcode: passcode }
+        }
+      });
+
+      if (signUpError) {
+        return { error: new Error(signUpError.message), passcode: null };
+      }
+
+      if (!signUpData.user) {
+        return { error: new Error('Failed to create account'), passcode: null };
+      }
+
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ passcode: passcode })
+        .eq('id', signUpData.user.id);
+
+      if (updateError) {
+        console.error('[signUpParticipant] Failed to save passcode:', updateError);
+      }
+
+      const { error: requestError } = await supabase
+        .from('join_requests')
+        .insert({
+          family_id: familyData.id,
+          requester_profile_id: signUpData.user.id,
+          status: 'pending'
+        });
+
+      if (requestError) {
+        console.error('[signUpParticipant] Failed to create join request:', requestError);
+      }
+
+      setPendingJoinRequest({
+        id: '',
+        family_id: familyData.id,
+        requester_profile_id: signUpData.user.id,
+        status: 'pending',
+        reviewed_by_profile_id: null,
+        reviewed_at: null,
+        created_at: new Date().toISOString()
+      });
+      setRequestedFamily(familyData as Family);
+
+      console.log('[signUpParticipant] Success, passcode:', passcode);
+      return { error: null, passcode };
+    } catch (error: any) {
+      console.error('[signUpParticipant] Error:', error?.message);
+      return { error: error as Error, passcode: null };
+    }
+  }
+
+  async function signInWithPasscode(passcode: string): Promise<{ error: Error | null }> {
+    try {
+      console.log('[signInWithPasscode] Attempting login with passcode');
+
+      const { data: profileData, error: lookupError } = await supabase
+        .from('profiles')
+        .select('id, display_name')
+        .eq('passcode', passcode)
+        .single();
+
+      if (lookupError || !profileData) {
+        return { error: new Error('Invalid code. Please check and try again.') };
+      }
+
+      const email = `p-${passcode}@sukun.local`;
+      const authPassword = `sukun-${passcode}`;
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password: authPassword
+      });
+
+      if (signInError) {
+        return { error: new Error('Login failed. Please try again.') };
+      }
+
+      console.log('[signInWithPasscode] Success for:', profileData.display_name);
+      return { error: null };
+    } catch (error: any) {
+      console.error('[signInWithPasscode] Error:', error?.message);
+      return { error: error as Error };
+    }
+  }
+
   async function signOut() {
     await supabase.auth.signOut();
     setProfile(null);
@@ -747,7 +884,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isConfigured: isSupabaseConfigured(),
         pendingJoinRequest, requestedFamily,
         pendingRequestsCount, refreshPendingRequestsCount,
-        signUp, signIn, signOut, createFamily, joinFamily, refreshProfile, updateProfileName,
+        signUp, signIn, signUpParticipant, signInWithPasscode, signOut, 
+        createFamily, joinFamily, refreshProfile, updateProfileName,
         cancelJoinRequest, getPendingJoinRequests, approveJoinRequest, rejectJoinRequest,
       }}
     >

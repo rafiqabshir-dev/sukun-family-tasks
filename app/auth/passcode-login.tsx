@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -18,28 +18,66 @@ import { theme } from '../../lib/theme';
 
 const sukunLogo = require('../../assets/sukun-logo.png');
 
-export default function SignInScreen() {
-  const { signIn } = useAuth();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+export default function PasscodeLoginScreen() {
+  const { signInWithPasscode } = useAuth();
+  const [passcode, setPasscode] = useState(['', '', '', '']);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showPassword, setShowPassword] = useState(false);
+  
+  const inputRefs = [
+    useRef<TextInput>(null),
+    useRef<TextInput>(null),
+    useRef<TextInput>(null),
+    useRef<TextInput>(null),
+  ];
 
-  async function handleSignIn() {
-    if (!email.trim() || !password) {
-      setError('Please enter your email and password');
+  function handleDigitChange(index: number, value: string) {
+    if (value.length > 1) {
+      value = value.slice(-1);
+    }
+
+    if (!/^\d*$/.test(value)) {
+      return;
+    }
+
+    const newPasscode = [...passcode];
+    newPasscode[index] = value;
+    setPasscode(newPasscode);
+    setError(null);
+
+    if (value && index < 3) {
+      inputRefs[index + 1].current?.focus();
+    }
+
+    if (value && index === 3 && newPasscode.every(d => d)) {
+      handleLogin(newPasscode.join(''));
+    }
+  }
+
+  function handleKeyPress(index: number, key: string) {
+    if (key === 'Backspace' && !passcode[index] && index > 0) {
+      inputRefs[index - 1].current?.focus();
+    }
+  }
+
+  async function handleLogin(code?: string) {
+    const fullPasscode = code || passcode.join('');
+    
+    if (fullPasscode.length !== 4) {
+      setError('Please enter your 4-digit code');
       return;
     }
 
     setLoading(true);
     setError(null);
 
-    const { error: signInError } = await signIn(email.trim(), password);
+    const { error: loginError } = await signInWithPasscode(fullPasscode);
 
-    if (signInError) {
-      setError(signInError.message);
+    if (loginError) {
+      setError(loginError.message);
       setLoading(false);
+      setPasscode(['', '', '', '']);
+      inputRefs[0].current?.focus();
     } else {
       router.replace('/(tabs)/today');
     }
@@ -54,7 +92,7 @@ export default function SignInScreen() {
         <View style={styles.header}>
           <Image source={sukunLogo} style={styles.logo} resizeMode="contain" />
           <Text style={styles.title}>Welcome Back!</Text>
-          <Text style={styles.subtitle}>Sign in to your Sukun account</Text>
+          <Text style={styles.subtitle}>Enter your 4-digit code to log in</Text>
         </View>
 
         <View style={styles.form}>
@@ -65,84 +103,58 @@ export default function SignInScreen() {
             </View>
           )}
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Email</Text>
-            <View style={styles.inputContainer}>
-              <Ionicons name="mail-outline" size={20} color={theme.colors.textSecondary} style={styles.inputIcon} />
+          <View style={styles.passcodeContainer}>
+            {passcode.map((digit, index) => (
               <TextInput
-                style={styles.input}
-                value={email}
-                onChangeText={setEmail}
-                placeholder="your@email.com"
-                placeholderTextColor={theme.colors.textMuted}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoComplete="email"
-                testID="input-email"
+                key={index}
+                ref={inputRefs[index]}
+                style={[
+                  styles.passcodeInput,
+                  digit && styles.passcodeInputFilled,
+                  error && styles.passcodeInputError,
+                ]}
+                value={digit}
+                onChangeText={(value) => handleDigitChange(index, value)}
+                onKeyPress={({ nativeEvent }) => handleKeyPress(index, nativeEvent.key)}
+                keyboardType="number-pad"
+                maxLength={1}
+                selectTextOnFocus
+                testID={`input-passcode-${index}`}
               />
-            </View>
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Password</Text>
-            <View style={styles.inputContainer}>
-              <Ionicons name="lock-closed-outline" size={20} color={theme.colors.textSecondary} style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                value={password}
-                onChangeText={setPassword}
-                placeholder="Enter your password"
-                placeholderTextColor={theme.colors.textMuted}
-                secureTextEntry={!showPassword}
-                autoComplete="password"
-                testID="input-password"
-              />
-              <TouchableOpacity
-                onPress={() => setShowPassword(!showPassword)}
-                style={styles.eyeButton}
-                testID="button-toggle-password"
-              >
-                <Ionicons
-                  name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                  size={20}
-                  color={theme.colors.textSecondary}
-                />
-              </TouchableOpacity>
-            </View>
+            ))}
           </View>
 
           <TouchableOpacity
             style={[styles.button, loading && styles.buttonDisabled]}
-            onPress={handleSignIn}
-            disabled={loading}
-            testID="button-sign-in"
+            onPress={() => handleLogin()}
+            disabled={loading || passcode.some(d => !d)}
+            testID="button-login"
           >
             {loading ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.buttonText}>Sign In</Text>
+              <Text style={styles.buttonText}>Log In</Text>
             )}
           </TouchableOpacity>
 
           <View style={styles.footer}>
-            <Text style={styles.footerText}>Don't have an account? </Text>
-            <Link href="/auth/sign-up" asChild>
-              <TouchableOpacity testID="link-sign-up">
-                <Text style={styles.linkText}>Sign Up</Text>
+            <Text style={styles.footerText}>Don't have a code? </Text>
+            <Link href="/auth/participant-join" asChild>
+              <TouchableOpacity testID="link-join">
+                <Text style={styles.linkText}>Join Family</Text>
               </TouchableOpacity>
             </Link>
           </View>
 
           <View style={styles.divider}>
             <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>for kids</Text>
+            <Text style={styles.dividerText}>or</Text>
             <View style={styles.dividerLine} />
           </View>
 
-          <Link href="/auth/passcode-login" asChild>
-            <TouchableOpacity style={styles.participantButton} testID="link-participant-login">
-              <Ionicons name="keypad-outline" size={20} color={theme.colors.primary} />
-              <Text style={styles.participantButtonText}>Login with Code</Text>
+          <Link href="/auth/sign-in" asChild>
+            <TouchableOpacity style={styles.secondaryButton} testID="link-sign-in">
+              <Text style={styles.secondaryButtonText}>Sign in with Email</Text>
             </TouchableOpacity>
           </Link>
         </View>
@@ -179,6 +191,7 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     color: theme.colors.textSecondary,
+    textAlign: 'center',
   },
   form: {
     width: '100%',
@@ -197,41 +210,36 @@ const styles = StyleSheet.create({
     fontSize: 14,
     flex: 1,
   },
-  inputGroup: {
-    marginBottom: theme.spacing.md,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: theme.colors.text,
-    marginBottom: theme.spacing.xs,
-  },
-  inputContainer: {
+  passcodeContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: theme.colors.surface,
+    justifyContent: 'center',
+    gap: theme.spacing.md,
+    marginBottom: theme.spacing.xl,
+  },
+  passcodeInput: {
+    width: 60,
+    height: 70,
     borderRadius: theme.radius.md,
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: theme.colors.border,
-  },
-  inputIcon: {
-    paddingLeft: theme.spacing.sm,
-  },
-  input: {
-    flex: 1,
-    padding: theme.spacing.sm,
-    fontSize: 16,
+    backgroundColor: theme.colors.surface,
+    fontSize: 32,
+    fontWeight: 'bold',
+    textAlign: 'center',
     color: theme.colors.text,
   },
-  eyeButton: {
-    padding: theme.spacing.sm,
+  passcodeInputFilled: {
+    borderColor: theme.colors.primary,
+    backgroundColor: theme.colors.primaryLight,
+  },
+  passcodeInputError: {
+    borderColor: theme.colors.danger,
   },
   button: {
     backgroundColor: theme.colors.primary,
     padding: theme.spacing.md,
     borderRadius: theme.radius.md,
     alignItems: 'center',
-    marginTop: theme.spacing.sm,
   },
   buttonDisabled: {
     opacity: 0.7,
@@ -270,19 +278,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.md,
     fontSize: 14,
   },
-  participantButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: theme.spacing.sm,
+  secondaryButton: {
     padding: theme.spacing.md,
     borderRadius: theme.radius.md,
-    borderWidth: 2,
-    borderColor: theme.colors.primary,
-    backgroundColor: theme.colors.primaryLight,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: theme.colors.border,
   },
-  participantButtonText: {
-    color: theme.colors.primary,
+  secondaryButtonText: {
+    color: theme.colors.textSecondary,
     fontSize: 16,
     fontWeight: '600',
   },

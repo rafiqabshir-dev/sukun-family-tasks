@@ -33,10 +33,18 @@ Preferred communication style: Simple, everyday language.
 
 ### Cloud Integration (Supabase)
 - **Cloud-Only Mode**: When Supabase is configured, members are loaded directly from the cloud (no local storage merging). This prevents data duplication and ensures cloud is the single source of truth.
-- **Auth Flow**: Standard email/password sign-up, with options to create or join a family using invite codes.
+- **Auth Flow**: Two authentication methods available:
+  1. **Email/password** (for guardians): Standard sign-up with email confirmation
+  2. **Passcode** (for participants/kids): Simplified 4-digit code login
+- **Participant Passcode System**:
+  - Kids join using family invite code + their name (no email required)
+  - System generates a unique 4-digit passcode for login
+  - Passcode stored in `profiles.passcode` column (unique)
+  - Auto-generated email format: `p-{passcode}@sukun.local`
+  - Sign-in screen has "Login with Code" option for kids
 - **Offline Mode**: Operates locally using AsyncStorage only if Supabase is not configured.
 - **Security**: Utilizes Row Level Security (RLS) for data access control and an immutable `stars_ledger` for audit trails.
-- **Member Management**: In cloud mode, all family members (including kids/participants) must have their own Supabase accounts and join via invite code. The "Add Member" button shows invite instructions instead of local member creation.
+- **Member Management**: In cloud mode, all family members (including kids/participants) must have their own Supabase accounts. Guardians use email, kids use passcode.
 - **Data Flow**: `setMembersFromCloud()` replaces members entirely from Supabase without merging. Session data is managed by Supabase auth with SecureStore for token persistence.
 
 ### Profile Name Editing
