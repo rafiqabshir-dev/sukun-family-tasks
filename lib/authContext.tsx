@@ -477,10 +477,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { error: new Error('Failed to create account'), passcode: null };
       }
 
+      const userId = signUpData.user.id;
+
+      // Sign in immediately to establish session for RLS policies
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: generatedEmail,
+        password: authPassword
+      });
+
+      if (signInError) {
+        console.error('[signUpParticipant] Auto sign-in failed:', signInError);
+      }
+
       const { error: updateError } = await supabase
         .from('profiles')
         .update({ passcode: passcode })
-        .eq('id', signUpData.user.id);
+        .eq('id', userId);
 
       if (updateError) {
         console.error('[signUpParticipant] Failed to save passcode:', updateError);
@@ -490,7 +502,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .from('join_requests')
         .insert({
           family_id: familyData.id,
-          requester_profile_id: signUpData.user.id,
+          requester_profile_id: userId,
           status: 'pending'
         });
 
