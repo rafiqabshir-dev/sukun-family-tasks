@@ -22,8 +22,14 @@ export default function PendingApprovalScreen() {
 
   // Refresh profile immediately on mount to get latest data (including passcode)
   useEffect(() => {
+    console.log('[PendingApproval] Mount - profile:', profile?.display_name, 'passcode:', profile?.passcode, 'role:', profile?.role);
     refreshProfile();
   }, []);
+
+  // Log profile changes
+  useEffect(() => {
+    console.log('[PendingApproval] Profile updated - passcode:', profile?.passcode, 'role:', profile?.role, 'family_id:', profile?.family_id);
+  }, [profile]);
 
   useEffect(() => {
     const interval = setInterval(async () => {
@@ -159,6 +165,16 @@ export default function PendingApprovalScreen() {
             </Text>
           </View>
         </View>
+
+        {profile?.passcode && profile?.role === 'kid' && (
+          <View style={styles.passcodeReminder}>
+            <Text style={styles.passcodeLabel}>Your Login Code</Text>
+            <View style={styles.passcodeBox}>
+              <Text style={styles.passcodeText}>{profile.passcode}</Text>
+            </View>
+            <Text style={styles.passcodeHint}>Remember this code to log in!</Text>
+          </View>
+        )}
 
         <TouchableOpacity
           style={styles.checkButton}
