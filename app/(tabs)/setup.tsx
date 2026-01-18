@@ -652,6 +652,33 @@ export default function SetupScreen() {
             </View>
           </View>
           <Text style={styles.storageKey} data-testid="text-storage-key">{STORAGE_KEY}</Text>
+          <View style={styles.divider} />
+          <TouchableOpacity
+            style={styles.settingRow}
+            onPress={() => {
+              Alert.alert(
+                "Clear Local Data",
+                "This will clear all cached data on this device. You'll need to sign in again. Use this to test with a fresh state.",
+                [
+                  { text: "Cancel", style: "cancel" },
+                  {
+                    text: "Clear & Sign Out",
+                    style: "destructive",
+                    onPress: async () => {
+                      await AsyncStorage.removeItem(STORAGE_KEY);
+                      await signOut();
+                      router.replace("/auth/sign-in");
+                    }
+                  }
+                ]
+              );
+            }}
+            data-testid="button-clear-local-data"
+          >
+            <Ionicons name="trash-outline" size={24} color={colors.error} />
+            <Text style={[styles.settingLabel, { color: colors.error }]}>Clear Local Data</Text>
+            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+          </TouchableOpacity>
         </View>
       </View>
 
