@@ -40,7 +40,7 @@ Preferred communication style: Simple, everyday language.
   - Kids join using family invite code + their name (no email required)
   - System generates a unique 4-digit passcode for login
   - Passcode stored in `profiles.passcode` column (unique)
-  - Auto-generated email format: `p-{passcode}@sukun.local`
+  - Auto-generated email format: `participant{passcode}@sukun.app`
   - Sign-in screen has "Login with Code" option for kids
 - **Offline Mode**: Operates locally using AsyncStorage only if Supabase is not configured.
 - **Security**: Utilizes Row Level Security (RLS) for data access control and an immutable `stars_ledger` for audit trails.

@@ -458,7 +458,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { error: new Error('Could not generate unique code. Please try again.'), passcode: null };
       }
 
-      const generatedEmail = `p-${passcode}@sukun.local`;
+      const generatedEmail = `participant${passcode}@sukun.app`;
       const authPassword = `sukun-${passcode}`;
 
       const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
@@ -531,7 +531,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { error: new Error('Invalid code. Please check and try again.') };
       }
 
-      const email = `p-${passcode}@sukun.local`;
+      const email = `participant${passcode}@sukun.app`;
       const authPassword = `sukun-${passcode}`;
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email,
