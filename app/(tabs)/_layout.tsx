@@ -11,6 +11,8 @@ type IconName = "today" | "today-outline" | "list" | "list-outline" | "sync" | "
 function HeaderMenuButton({ onPress }: { onPress: () => void }) {
   const { pendingRequestsCount } = useAuth();
   
+  console.log('[HeaderMenuButton] pendingRequestsCount:', pendingRequestsCount);
+  
   return (
     <TouchableOpacity 
       style={{ marginRight: spacing.md }}
