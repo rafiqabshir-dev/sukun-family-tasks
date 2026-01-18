@@ -11,39 +11,33 @@ type IconName = "today" | "today-outline" | "list" | "list-outline" | "sync" | "
 function HeaderMenuButton({ onPress }: { onPress: () => void }) {
   const { pendingRequestsCount } = useAuth();
   
-  console.log('[HeaderMenuButton] pendingRequestsCount:', pendingRequestsCount);
-  
   return (
     <TouchableOpacity 
-      style={{ marginRight: spacing.md }}
+      style={{ marginRight: spacing.md, flexDirection: 'row', alignItems: 'center' }}
       onPress={onPress}
       data-testid="button-more-menu"
     >
-      <View style={{ overflow: 'visible' }}>
-        <Ionicons name="menu" size={24} color="#FFFFFF" />
-        {pendingRequestsCount > 0 && (
-          <View style={{
-            position: 'absolute',
-            top: -6,
-            right: -6,
-            backgroundColor: colors.danger,
-            borderRadius: 10,
-            minWidth: 18,
-            height: 18,
-            justifyContent: 'center',
-            alignItems: 'center',
-            paddingHorizontal: 4,
+      <Ionicons name="menu" size={24} color="#FFFFFF" />
+      {pendingRequestsCount > 0 && (
+        <View style={{
+          marginLeft: 4,
+          backgroundColor: colors.danger,
+          borderRadius: 10,
+          minWidth: 20,
+          height: 20,
+          justifyContent: 'center',
+          alignItems: 'center',
+          paddingHorizontal: 6,
+        }}>
+          <Text style={{
+            color: '#FFFFFF',
+            fontSize: 12,
+            fontWeight: '700',
           }}>
-            <Text style={{
-              color: '#FFFFFF',
-              fontSize: 10,
-              fontWeight: '700',
-            }}>
-              {pendingRequestsCount > 9 ? '9+' : pendingRequestsCount}
-            </Text>
-          </View>
-        )}
-      </View>
+            {pendingRequestsCount > 9 ? '9+' : pendingRequestsCount}
+          </Text>
+        </View>
+      )}
     </TouchableOpacity>
   );
 }
