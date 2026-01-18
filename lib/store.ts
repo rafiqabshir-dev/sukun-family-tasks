@@ -95,7 +95,11 @@ export const useStore = create<AppState & StoreActions & { isReady: boolean }>((
   isReady: false,
 
   initialize: async () => {
-    if (isInitialized) return;
+    if (isInitialized) {
+      // Already initialized - just ensure isReady is true for remounted components
+      set({ isReady: true });
+      return;
+    }
     isInitialized = true;
     
     const starterTasks = generateStarterTasks();

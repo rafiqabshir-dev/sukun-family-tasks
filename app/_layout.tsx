@@ -89,6 +89,8 @@ function RootLayoutContent() {
   }, []);
 
   const showLoading = !isReady || authLoading || !authReady;
+  
+  console.log('[Layout] showLoading:', showLoading, 'isReady:', isReady, 'authLoading:', authLoading, 'authReady:', authReady);
 
   if (showLoading) {
     return (

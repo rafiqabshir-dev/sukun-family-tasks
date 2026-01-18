@@ -40,15 +40,11 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const AUTH_TIMEOUT_MS = 8000;
 
-// Module-level flags to prevent auth issues across component remounts
-// authInitStarted: prevents multiple initializations
-// authInitInProgress: prevents SIGNED_IN handler from running during init
-let authInitStarted = false;
+// Module-level flag to prevent SIGNED_IN handler race during init
 let authInitInProgress = false;
 
 // Test helper to reset the module-level flag - only exported for testing
 export function __resetAuthInitForTesting() {
-  authInitStarted = false;
   authInitInProgress = false;
 }
 
@@ -233,7 +229,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } catch (e: any) {
           console.log('[Auth] getSession failed:', e?.message);
           // On timeout, try getSession one more time (network might have recovered)
-          // This is safer than relying on cached SIGNED_IN events
           try {
             const retryResult = await Promise.race([
               supabase.auth.getSession(),
@@ -242,7 +237,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (retryResult.data.session) {
               console.log('[Auth] Session recovered on retry');
               sessionResult = retryResult;
-              // Continue to process session below
             } else {
               await clearAuthState('getSession timeout', false);
               authInitInProgress = false;
@@ -285,6 +279,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (!isValid) {
           await clearAuthState('validation failed');
+          authInitInProgress = false;
           return;
         }
 
@@ -299,26 +294,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    // Use module-level flag to prevent multiple initializations across remounts
-    if (!authInitStarted) {
-      authInitStarted = true;
+    // Always run init on mount - getSession is idempotent
+    // Skip only if another init is currently in progress
+    console.log('[Auth] Mount check - inProgress:', authInitInProgress);
+    if (!authInitInProgress) {
       initializeAuth();
     } else {
-      console.log('[Auth] Already started, skipping init');
-      // Still need to set loading to false and familyCheckComplete to true if we're not initializing
-      // This ensures authReady becomes true even when init is skipped
-      setLoading(false);
-      setFamilyCheckComplete(true);
+      console.log('[Auth] Init already in progress, waiting...');
     }
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       console.log('[Auth] Event:', event);
 
-      if (event === 'INITIAL_SESSION') return;
+      // INITIAL_SESSION fires when subscription is created
+      // Since we always run initializeAuth on mount, INITIAL_SESSION is redundant
+      // initializeAuth handles session restoration via getSession()
+      if (event === 'INITIAL_SESSION') {
+        console.log('[Auth] INITIAL_SESSION (handled by init)');
+        return;
+      }
 
       if (event === 'SIGNED_OUT' || !newSession) {
-        // Allow re-initialization after sign out
-        authInitStarted = false;
         if (mounted.current) {
           setSession(null);
           setUser(null);
