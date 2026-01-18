@@ -131,7 +131,6 @@ export default function PendingApprovalScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Text style={styles.headerTitle}>Request Pending</Text>
       <View style={styles.content}>
         <View style={styles.iconContainer}>
           <Ionicons name="hourglass-outline" size={64} color={colors.primary} />
@@ -241,8 +240,8 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: spacing.xl,
+    paddingTop: spacing.xxl,
     alignItems: "center",
-    justifyContent: "center",
     maxWidth: 400,
     alignSelf: "center",
     width: "100%",
