@@ -20,8 +20,23 @@ function HeaderMenuButton({ onPress }: { onPress: () => void }) {
       <View style={{ overflow: 'visible' }}>
         <Ionicons name="menu" size={24} color="#FFFFFF" />
         {pendingRequestsCount > 0 && (
-          <View style={styles.menuBadge}>
-            <Text style={styles.menuBadgeText}>
+          <View style={{
+            position: 'absolute',
+            top: -6,
+            right: -6,
+            backgroundColor: colors.danger,
+            borderRadius: 10,
+            minWidth: 18,
+            height: 18,
+            justifyContent: 'center',
+            alignItems: 'center',
+            paddingHorizontal: 4,
+          }}>
+            <Text style={{
+              color: '#FFFFFF',
+              fontSize: 10,
+              fontWeight: '700',
+            }}>
               {pendingRequestsCount > 9 ? '9+' : pendingRequestsCount}
             </Text>
           </View>
