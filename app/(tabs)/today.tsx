@@ -100,12 +100,8 @@ export default function TodayScreen() {
   const [deductAmount, setDeductAmount] = useState<number>(1);
   const [deductReason, setDeductReason] = useState<string>("");
 
-  // Current user is the authenticated user, with fallback for offline mode
-  const currentUserId = profile?.id;
-  const authenticatedMember = members.find((m) => m.id === currentUserId || m.profileId === currentUserId);
-  // Fallback to first guardian for offline/local mode when no authenticated profile
-  const fallbackMember = members.find((m) => m.role === "guardian") || members[0];
-  const currentMember = authenticatedMember || fallbackMember;
+  // Current user is strictly the authenticated user - no fallback to cached data
+  const currentMember = profile ? members.find((m) => m.id === profile.id || m.profileId === profile.id) : null;
   const isCurrentUserGuardian = currentMember?.role === "guardian";
   
   // Count guardians for approval logic

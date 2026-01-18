@@ -24,12 +24,8 @@ export default function RewardsScreen() {
   const [newDescription, setNewDescription] = useState("");
   const [newStarsCost, setNewStarsCost] = useState("10");
 
-  // Current user is the authenticated user, with fallback for offline mode
-  const currentUserId = profile?.id;
-  const authenticatedMember = members.find((m) => m.id === currentUserId || m.profileId === currentUserId);
-  // Fallback to first guardian for offline/local mode when no authenticated profile
-  const fallbackMember = members.find((m) => m.role === "guardian") || members[0];
-  const currentMember = authenticatedMember || fallbackMember;
+  // Current user is strictly the authenticated user - no fallback to cached data
+  const currentMember = profile ? members.find((m) => m.id === profile.id || m.profileId === profile.id) : null;
   const isGuardian = currentMember?.role === "guardian";
   const kids = members.filter((m) => m.role === "kid");
   const activeRewards = rewards.filter((r) => r.status === "active");

@@ -36,7 +36,7 @@ Preferred communication style: Simple, everyday language.
 - **Auth Flow**: Standard email/password sign-up, with options to create or join a family using invite codes.
 - **Offline Mode**: Operates locally using AsyncStorage if Supabase is not configured.
 - **Security**: Utilizes Row Level Security (RLS) for data access control and an immutable `stars_ledger` for audit trails.
-- **ID Matching**: Local store uses `member-*` IDs while Supabase uses UUIDs. Members now have an optional `profileId` field that stores the Supabase UUID for reliable matching. The `findCurrentUserMember()` helper in Setup uses a priority chain: profileId → id → name+role → first guardian (offline mode).
+- **ID Matching**: Local store uses `member-*` IDs while Supabase uses UUIDs. Members now have an optional `profileId` field that stores the Supabase UUID for reliable matching. When Supabase is configured, user identity is strictly derived from the authenticated session - no fallback to cached data.
 
 ### Profile Name Editing
 - Users can edit their display name from the Setup screen by tapping the pencil icon next to their entry.
