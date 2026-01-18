@@ -49,7 +49,14 @@ function NavigationController() {
       return;
     }
 
-    if (UNPROTECTED_ROUTES.some(route => pathname.startsWith(route))) {
+    // Only skip navigation if:
+    // 1. We're on an unprotected route AND
+    // 2. The resolved route is the same unprotected route (or another unprotected route)
+    // This allows logged-in users to be navigated FROM sign-in TO the main app
+    const onUnprotectedRoute = UNPROTECTED_ROUTES.some(route => pathname.startsWith(route));
+    const resultIsUnprotected = UNPROTECTED_ROUTES.some(route => result.path.startsWith(route));
+    
+    if (onUnprotectedRoute && resultIsUnprotected) {
       return;
     }
 
