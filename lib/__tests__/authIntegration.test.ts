@@ -55,7 +55,7 @@ function wrapper({ children }: { children: React.ReactNode }) {
 }
 
 function createMockFromChain(data: any = null, error: any = null) {
-  return {
+  const chain: any = {
     select: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
     single: vi.fn().mockResolvedValue({ data, error }),
@@ -63,6 +63,8 @@ function createMockFromChain(data: any = null, error: any = null) {
     insert: vi.fn().mockReturnThis(),
     update: vi.fn().mockReturnThis(),
   };
+  chain.eq = vi.fn().mockReturnValue(chain);
+  return chain;
 }
 
 describe('Complete App Lifecycle: Sign-In → Sign-Out → Re-Sign-In', () => {
