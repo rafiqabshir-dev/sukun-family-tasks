@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, borderRadius, fontSize } from "@/lib/theme";
 import { useStore } from "@/lib/store";
+import { useAuth } from "@/lib/authContext";
 import { TaskTemplate, TaskCategory, TaskScheduleType } from "@/lib/types";
 
 const CATEGORY_ICONS: Record<TaskCategory, string> = {
@@ -24,6 +25,9 @@ const SCHEDULE_TYPE_INFO: Record<TaskScheduleType, { label: string; icon: string
 const TIME_WINDOW_OPTIONS = [5, 10, 15, 30, 60];
 
 export default function TasksScreen() {
+  const { profile } = useAuth();
+  const isGuardian = profile?.role === 'guardian';
+  
   const taskTemplates = useStore((s) => s.taskTemplates);
   const addTaskTemplate = useStore((s) => s.addTaskTemplate);
   const updateTaskTemplate = useStore((s) => s.updateTaskTemplate);
@@ -114,16 +118,26 @@ export default function TasksScreen() {
 
   const renderTaskItem = (task: TaskTemplate, showActions = true) => (
     <View key={task.id} style={styles.taskItem} data-testid={`task-item-${task.id}`}>
-      <TouchableOpacity 
-        style={styles.taskToggle}
-        onPress={() => toggleTaskTemplate(task.id)}
-      >
-        <Ionicons 
-          name={task.enabled ? "checkbox" : "square-outline"} 
-          size={24} 
-          color={task.enabled ? colors.primary : colors.textMuted} 
-        />
-      </TouchableOpacity>
+      {isGuardian ? (
+        <TouchableOpacity 
+          style={styles.taskToggle}
+          onPress={() => toggleTaskTemplate(task.id)}
+        >
+          <Ionicons 
+            name={task.enabled ? "checkbox" : "square-outline"} 
+            size={24} 
+            color={task.enabled ? colors.primary : colors.textMuted} 
+          />
+        </TouchableOpacity>
+      ) : (
+        <View style={styles.taskToggle}>
+          <Ionicons 
+            name={task.enabled ? "checkbox" : "square-outline"} 
+            size={24} 
+            color={task.enabled ? colors.primary : colors.textMuted} 
+          />
+        </View>
+      )}
       
       <View style={styles.taskInfo}>
         <Text style={styles.taskTitle}>{task.title}</Text>
@@ -137,7 +151,7 @@ export default function TasksScreen() {
         </View>
       </View>
 
-      {showActions && (
+      {showActions && isGuardian && (
         <View style={styles.taskActions}>
           <TouchableOpacity 
             style={styles.actionButton}
@@ -168,27 +182,29 @@ export default function TasksScreen() {
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.headerActions}>
-          <TouchableOpacity 
-            style={styles.addButton}
-            onPress={() => setShowAddModal(true)}
-            data-testid="button-add-task"
-          >
-            <Ionicons name="add-circle" size={20} color="#FFFFFF" />
-            <Text style={styles.addButtonText}>New Task</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={styles.templatesButton}
-            onPress={() => setShowTemplates(!showTemplates)}
-            data-testid="button-toggle-templates"
-          >
-            <Ionicons name="library-outline" size={20} color={colors.primary} />
-            <Text style={styles.templatesButtonText}>
-              {showTemplates ? "Hide Disabled" : "Show All Templates"}
-            </Text>
-          </TouchableOpacity>
-        </View>
+        {isGuardian && (
+          <View style={styles.headerActions}>
+            <TouchableOpacity 
+              style={styles.addButton}
+              onPress={() => setShowAddModal(true)}
+              data-testid="button-add-task"
+            >
+              <Ionicons name="add-circle" size={20} color="#FFFFFF" />
+              <Text style={styles.addButtonText}>New Task</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.templatesButton}
+              onPress={() => setShowTemplates(!showTemplates)}
+              data-testid="button-toggle-templates"
+            >
+              <Ionicons name="library-outline" size={20} color={colors.primary} />
+              <Text style={styles.templatesButtonText}>
+                {showTemplates ? "Hide Disabled" : "Show All Templates"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Active Tasks ({enabledTasks.length})</Text>

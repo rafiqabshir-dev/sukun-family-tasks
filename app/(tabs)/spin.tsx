@@ -4,6 +4,7 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, borderRadius, fontSize } from "@/lib/theme";
 import { useStore } from "@/lib/store";
+import { useAuth } from "@/lib/authContext";
 import { StagedTask, TaskTemplate, Member } from "@/lib/types";
 import { format } from "date-fns";
 
@@ -16,6 +17,9 @@ interface SpinProposal {
 
 export default function SpinScreen() {
   const router = useRouter();
+  const { profile } = useAuth();
+  const isGuardian = profile?.role === 'guardian';
+  
   const spinQueue = useStore((s) => s.spinQueue);
   const members = useStore((s) => s.members);
   const taskTemplates = useStore((s) => s.taskTemplates);
@@ -34,6 +38,29 @@ export default function SpinScreen() {
   const rotateAnim = useRef(new Animated.Value(0)).current;
   const kids = members.filter((m) => m.role === "kid");
   const enabledTemplates = taskTemplates.filter((t) => t.enabled && !t.isArchived);
+
+  // Restrict Spin page to guardians only
+  if (!isGuardian) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.restrictedContainer}>
+          <Ionicons name="lock-closed" size={64} color={colors.textMuted} />
+          <Text style={styles.restrictedTitle}>Guardians Only</Text>
+          <Text style={styles.restrictedText}>
+            The Spin Game is only available to guardians.
+          </Text>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.replace("/(tabs)/today")}
+            data-testid="button-back-to-today"
+          >
+            <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
+            <Text style={styles.backButtonText}>Go to Today</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
 
   const selectRandomKid = (): Member | null => {
     if (kids.length === 0) return null;
@@ -759,5 +786,38 @@ const styles = StyleSheet.create({
     fontSize: fontSize.md,
     color: colors.textMuted,
     textAlign: "center",
+  },
+  restrictedContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: spacing.xl,
+    gap: spacing.md,
+  },
+  restrictedTitle: {
+    fontSize: fontSize.xl,
+    fontWeight: "600",
+    color: colors.text,
+    marginTop: spacing.md,
+  },
+  restrictedText: {
+    fontSize: fontSize.md,
+    color: colors.textSecondary,
+    textAlign: "center",
+    marginBottom: spacing.lg,
+  },
+  backButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.lg,
+    gap: spacing.sm,
+  },
+  backButtonText: {
+    color: "#FFFFFF",
+    fontSize: fontSize.md,
+    fontWeight: "600",
   },
 });

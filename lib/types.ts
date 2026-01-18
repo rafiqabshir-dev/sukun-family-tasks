@@ -20,6 +20,7 @@ export interface Member {
   starsTotal: number;
   powers: Power[];
   profileId?: string; // Supabase profile UUID - used to link local member to cloud profile
+  passcode?: string; // 4-digit passcode for participants (kids)
 }
 
 export type TaskCategory = 

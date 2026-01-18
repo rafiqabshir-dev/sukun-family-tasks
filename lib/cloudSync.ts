@@ -57,7 +57,9 @@ export function profileToMember(profile: Profile, starsTotal: number): Member {
     role: profile.role,
     age: profile.age || 0,
     starsTotal,
-    powers
+    powers,
+    profileId: profile.id,
+    passcode: profile.passcode || undefined
   };
 }
 

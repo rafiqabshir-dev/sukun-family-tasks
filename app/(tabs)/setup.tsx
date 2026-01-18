@@ -24,6 +24,8 @@ export default function SetupScreen() {
   const addMember = useStore((s) => s.addMember);
   const updateMember = useStore((s) => s.updateMember);
   const setMembersFromCloud = useStore((s) => s.setMembersFromCloud);
+  const removeMember = useStore((s) => s.removeMember);
+  const [removingMember, setRemovingMember] = useState<string | null>(null);
   
   const [storageKeyExists, setStorageKeyExists] = useState<boolean | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -279,6 +281,72 @@ export default function SetupScreen() {
     }
   };
 
+  const handleRemoveParticipant = async (memberId: string, memberName: string, profileId?: string) => {
+    const doRemove = async () => {
+      setRemovingMember(memberId);
+      
+      // Remove from Supabase if configured
+      if (isConfigured && profileId) {
+        try {
+          const supabaseModule = await import("@/lib/supabase");
+          const client = supabaseModule.getSupabaseClient();
+          if (!client) {
+            throw new Error("Supabase not configured");
+          }
+          // Remove family association (nullify family_id)
+          const { error } = await client
+            .from("profiles")
+            .update({ family_id: null })
+            .eq("id", profileId);
+          
+          if (error) {
+            console.error("Error removing participant from cloud:", error);
+            if (Platform.OS === 'web') {
+              window.alert("Error removing participant: " + error.message);
+            } else {
+              Alert.alert("Error", "Failed to remove participant: " + error.message);
+            }
+            setRemovingMember(null);
+            return;
+          }
+        } catch (err: any) {
+          console.error("Error removing participant:", err);
+          if (Platform.OS === 'web') {
+            window.alert("Error removing participant: " + (err?.message || "Unknown error"));
+          } else {
+            Alert.alert("Error", "Failed to remove participant");
+          }
+          setRemovingMember(null);
+          return;
+        }
+      }
+      
+      // Remove from local store
+      removeMember(memberId);
+      setRemovingMember(null);
+    };
+
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm(`Are you sure you want to remove ${memberName} from the family?`);
+      if (confirmed) {
+        await doRemove();
+      }
+    } else {
+      Alert.alert(
+        "Remove Participant",
+        `Are you sure you want to remove ${memberName} from the family?`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Remove",
+            style: "destructive",
+            onPress: doRemove,
+          },
+        ]
+      );
+    }
+  };
+
   // Find current user member using profileId (reliable link between local member and Supabase profile)
   const findCurrentUserMember = () => {
     // When Supabase is configured and we have a profile ID
@@ -398,37 +466,55 @@ export default function SetupScreen() {
         {kids.length > 0 && (
           <View style={styles.membersList}>
             {kids.map((kid) => (
-              <TouchableOpacity 
-                key={kid.id} 
-                style={styles.memberItem}
-                onPress={() => router.push(`/member/${kid.id}`)}
-                data-testid={`button-member-${kid.id}`}
-              >
-                <View style={styles.memberAvatar}>
-                  <Text style={styles.memberInitial}>
-                    {kid.name.charAt(0).toUpperCase()}
-                  </Text>
-                </View>
-                <View style={styles.memberInfo}>
-                  <Text style={styles.memberName}>{kid.name}</Text>
-                  <Text style={styles.memberAge}>Age {kid.age}</Text>
-                  {kid.powers.length > 0 && (
-                    <View style={styles.powerTags}>
-                      {kid.powers.map((p) => (
-                        <View key={p.powerKey} style={styles.powerTag}>
-                          <Text style={styles.powerTagText}>
-                            {POWER_INFO[p.powerKey].name}
-                          </Text>
+              <View key={kid.id} style={styles.memberItem}>
+                <TouchableOpacity 
+                  style={styles.memberItemContent}
+                  onPress={() => router.push(`/member/${kid.id}`)}
+                  data-testid={`button-member-${kid.id}`}
+                >
+                  <View style={styles.memberAvatar}>
+                    <Text style={styles.memberInitial}>
+                      {kid.name.charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                  <View style={styles.memberInfo}>
+                    <Text style={styles.memberName}>{kid.name}</Text>
+                    <View style={styles.memberMetaRow}>
+                      <Text style={styles.memberAge}>Age {kid.age}</Text>
+                      {isOwner && kid.passcode && (
+                        <View style={styles.passcodeTag}>
+                          <Ionicons name="key-outline" size={10} color={colors.textSecondary} />
+                          <Text style={styles.passcodeTagText}>{kid.passcode}</Text>
                         </View>
-                      ))}
+                      )}
                     </View>
-                  )}
-                </View>
-                <View style={styles.memberStars}>
-                  <Ionicons name="star" size={14} color={colors.secondary} />
-                  <Text style={styles.memberStarsText}>{kid.starsTotal}</Text>
-                </View>
-              </TouchableOpacity>
+                    {kid.powers.length > 0 && (
+                      <View style={styles.powerTags}>
+                        {kid.powers.map((p) => (
+                          <View key={p.powerKey} style={styles.powerTag}>
+                            <Text style={styles.powerTagText}>
+                              {POWER_INFO[p.powerKey].name}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                  <View style={styles.memberStars}>
+                    <Ionicons name="star" size={14} color={colors.secondary} />
+                    <Text style={styles.memberStarsText}>{kid.starsTotal}</Text>
+                  </View>
+                </TouchableOpacity>
+                {isOwner && (
+                  <TouchableOpacity
+                    style={styles.removeButton}
+                    onPress={() => handleRemoveParticipant(kid.id, kid.name, kid.profileId)}
+                    data-testid={`button-remove-${kid.id}`}
+                  >
+                    <Ionicons name="close-circle" size={20} color={colors.error} />
+                  </TouchableOpacity>
+                )}
+              </View>
             ))}
           </View>
         )}
@@ -1364,5 +1450,29 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontSize: fontSize.md,
     fontWeight: "600",
+  },
+  memberMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  passcodeTag: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.surfaceSecondary,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: borderRadius.sm,
+    gap: 4,
+  },
+  passcodeTagText: {
+    fontSize: fontSize.xs,
+    fontWeight: "600",
+    color: colors.textSecondary,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  removeButton: {
+    padding: spacing.sm,
+    marginLeft: spacing.sm,
   },
 });
