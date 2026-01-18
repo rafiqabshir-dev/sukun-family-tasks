@@ -12,6 +12,8 @@ export default function TabLayout() {
   const { pendingRequestsCount, refreshPendingRequestsCount } = useAuth();
   const [showMenu, setShowMenu] = useState(false);
 
+  console.log('[TabLayout] Rendering with pendingRequestsCount:', pendingRequestsCount);
+
   // Refresh pending requests count when tabs get focus
   useFocusEffect(
     useCallback(() => {
