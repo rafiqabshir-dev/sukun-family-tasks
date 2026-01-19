@@ -14,7 +14,12 @@ export default {
       backgroundColor: "#FFFFFF"
     },
     ios: {
-      supportsTablet: true
+      supportsTablet: true,
+      bundleIdentifier: "com.sukun.familytasks",
+      buildNumber: "1",
+      config: {
+        usesNonExemptEncryption: false
+      }
     },
     android: {
       adaptiveIcon: {
