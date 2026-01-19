@@ -6,6 +6,8 @@ import { useStore } from "@/lib/store";
 import { TaskInstance, TaskTemplate } from "@/lib/types";
 import { useAuth } from "@/lib/authContext";
 import { format, isToday, isBefore, startOfDay, differenceInMinutes, differenceInSeconds, parseISO, isAfter } from "date-fns";
+import { isSupabaseConfigured } from "@/lib/supabase";
+import { approveTaskCompletion, addStarsLedgerEntry } from "@/lib/cloudSync";
 
 function getTaskStatus(task: TaskInstance): "open" | "pending_approval" | "done" | "overdue" | "expired" {
   if (task.status === "done") return "done";
@@ -171,13 +173,110 @@ export default function TodayScreen() {
     setShowDeductModal(true);
   };
 
-  const handleDeductStars = () => {
+  const handleDeductStars = async () => {
     if (!deductKid || !deductReason.trim() || deductAmount < 1 || !currentMember?.id) return;
+    
+    // Update local store first
     deductStars(deductKid, deductAmount, deductReason.trim(), currentMember.id);
+    
+    // Sync to cloud if configured
+    if (isSupabaseConfigured() && profile?.family_id) {
+      try {
+        const { error } = await addStarsLedgerEntry(
+          profile.family_id,
+          deductKid,
+          -deductAmount, // Negative for deduction
+          deductReason.trim(),
+          currentMember.id
+        );
+        
+        if (error) {
+          console.error('[Today] Error syncing star deduction to cloud:', error.message);
+        } else {
+          console.log('[Today] Star deduction synced to cloud:', -deductAmount);
+        }
+      } catch (err) {
+        console.error('[Today] Cloud sync error for deduction:', err);
+      }
+    }
+    
     setShowDeductModal(false);
     setDeductKid("");
     setDeductAmount(1);
     setDeductReason("");
+  };
+
+  // Complete task with cloud sync (for single guardian direct completion)
+  const handleCompleteTask = async (taskId: string, requestedBy: string) => {
+    const task = taskInstances.find((t) => t.id === taskId);
+    if (!task) return;
+    
+    const template = taskTemplates.find((t) => t.id === task.templateId);
+    const stars = template?.defaultStars || 1;
+    const assigneeId = task.assignedToMemberId;
+    
+    // Check if this is a single guardian case (direct completion)
+    const isSingleGuardian = guardianCount === 1 && currentMember?.role === "guardian";
+    
+    // Update local store first
+    completeTask(taskId, requestedBy);
+    
+    // If single guardian, stars are awarded immediately - sync to cloud
+    if (isSingleGuardian && isSupabaseConfigured() && profile?.family_id) {
+      try {
+        const { error } = await addStarsLedgerEntry(
+          profile.family_id,
+          assigneeId,
+          stars,
+          'Task completion',
+          requestedBy,
+          taskId
+        );
+        
+        if (error) {
+          console.error('[Today] Error syncing task completion to cloud:', error.message);
+        } else {
+          console.log('[Today] Task completion synced to cloud, stars:', stars);
+        }
+      } catch (err) {
+        console.error('[Today] Cloud sync error:', err);
+      }
+    }
+  };
+
+  // Approve task with cloud sync
+  const handleApproveTask = async (taskId: string, approverId: string) => {
+    const task = taskInstances.find((t) => t.id === taskId);
+    if (!task) return;
+    
+    const template = taskTemplates.find((t) => t.id === task.templateId);
+    const stars = template?.defaultStars || 1;
+    const assigneeId = task.assignedToMemberId;
+    
+    // Update local store first for immediate UI feedback
+    approveTask(taskId, approverId);
+    
+    // Sync to cloud if configured
+    if (isSupabaseConfigured() && profile?.family_id) {
+      try {
+        // Use the cloud sync function to persist stars
+        const { error } = await approveTaskCompletion(
+          taskId,
+          approverId,
+          assigneeId,
+          profile.family_id,
+          stars
+        );
+        
+        if (error) {
+          console.error('[Today] Error syncing task approval to cloud:', error.message);
+        } else {
+          console.log('[Today] Task approval synced to cloud, stars:', stars);
+        }
+      } catch (err) {
+        console.error('[Today] Cloud sync error:', err);
+      }
+    }
   };
 
   const renderApprovalCard = (task: TaskInstance & { computedStatus: string }) => {
@@ -210,7 +309,7 @@ export default function TodayScreen() {
           <View style={styles.approvalButtons}>
             <TouchableOpacity
               style={styles.approveButton}
-              onPress={() => currentMember?.id && approveTask(task.id, currentMember.id)}
+              onPress={() => currentMember?.id && handleApproveTask(task.id, currentMember.id)}
               data-testid={`button-approve-${task.id}`}
             >
               <Ionicons name="checkmark" size={24} color="#FFFFFF" />
@@ -307,7 +406,7 @@ export default function TodayScreen() {
         {canComplete && task.status === "open" && (
           <TouchableOpacity
             style={styles.completeButton}
-            onPress={() => currentMember?.id && completeTask(task.id, currentMember.id)}
+            onPress={() => currentMember?.id && handleCompleteTask(task.id, currentMember.id)}
             data-testid={`button-complete-${task.id}`}
           >
             <Ionicons name="checkmark-circle" size={40} color={colors.secondary} />
