@@ -37,9 +37,10 @@ Preferred communication style: Simple, everyday language.
   - Task templates stored in `tasks` table with schedule_type, time_window_minutes
   - Task instances stored in `task_instances` table with expires_at, schedule_type
   - On login, authContext loads tasks/instances from Supabase alongside members
-  - Task assignment creates cloud record first, then syncs to local store using cloud-generated ID
-  - Task completion, approval, and rejection all sync to cloud in real-time
+  - Task assignment (including Spin wheel) creates cloud record first via `createCloudTaskInstance()`, then syncs to local store using cloud-generated UUID
+  - Task completion, approval, and rejection all sync to cloud in real-time via `updateCloudTaskInstance()`
   - Stars are persisted to `stars_ledger` table for all task-related star awards
+  - Important: Never use locally-generated task IDs (like "task-{timestamp}") for cloud operations - always use Supabase UUIDs
 - **Auth Flow**: Two authentication methods available:
   1. **Email/password** (for guardians): Standard sign-up with email confirmation
   2. **Passcode** (for participants/kids): Simplified 4-digit code login

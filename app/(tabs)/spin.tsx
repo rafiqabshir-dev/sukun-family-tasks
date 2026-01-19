@@ -1,12 +1,13 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, KeyboardAvoidingView, Platform, Animated } from "react-native";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, KeyboardAvoidingView, Platform, Animated, Alert } from "react-native";
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, borderRadius, fontSize } from "@/lib/theme";
 import { useStore } from "@/lib/store";
 import { useAuth } from "@/lib/authContext";
-import { StagedTask, TaskTemplate, Member } from "@/lib/types";
-import { format } from "date-fns";
+import { StagedTask, TaskTemplate, Member, TaskInstance } from "@/lib/types";
+import { format, addMinutes, endOfDay } from "date-fns";
+import { createCloudTaskInstance } from "@/lib/cloudSync";
 
 type SpinState = "idle" | "spinning" | "proposal";
 
@@ -113,8 +114,11 @@ export default function SpinScreen() {
     setTimeout(() => handleSpin(), 100);
   };
 
-  const handleAccept = () => {
-    if (!proposal) return;
+  const handleAccept = async () => {
+    if (!proposal || !profile?.family_id) {
+      console.log('[Spin] handleAccept - early return:', { hasProposal: !!proposal, familyId: profile?.family_id });
+      return;
+    }
 
     let templateId = proposal.task.templateId;
     const existingTemplate = taskTemplates.find((t) => t.id === templateId);
@@ -133,13 +137,57 @@ export default function SpinScreen() {
       templateId = newTemplate.id;
     }
 
-    const today = format(new Date(), "yyyy-MM-dd");
-    addTaskInstance({
+    const template = taskTemplates.find((t) => t.id === templateId);
+    const now = new Date();
+    const today = format(now, "yyyy-MM-dd");
+    const dueAt = `${today}T12:00:00`;
+    
+    // Calculate expiration for time-sensitive or recurring tasks
+    let expiresAt: string | undefined;
+    if (template?.scheduleType === "time_sensitive" && template.timeWindowMinutes) {
+      expiresAt = addMinutes(now, template.timeWindowMinutes).toISOString();
+    } else if (template?.scheduleType === "recurring_daily") {
+      expiresAt = endOfDay(now).toISOString();
+    }
+
+    console.log('[Spin] Creating cloud task instance:', { 
+      familyId: profile.family_id, 
+      taskId: templateId, 
+      assignee: proposal.kid.profileId || proposal.kid.id 
+    });
+
+    // Cloud-first: Create task instance in Supabase first
+    const { data: cloudInstance, error } = await createCloudTaskInstance(
+      profile.family_id,
+      templateId!,
+      proposal.kid.profileId || proposal.kid.id, // Use profileId for cloud
+      profile.id, // createdBy is current user
+      dueAt,
+      expiresAt,
+      template?.scheduleType
+    );
+
+    if (error || !cloudInstance) {
+      console.error('[Spin] Failed to create cloud task instance:', error?.message);
+      Alert.alert('Error', 'Failed to assign task. Please try again.');
+      return;
+    }
+
+    console.log('[Spin] Cloud task instance created:', cloudInstance.id);
+
+    // Now sync to local store with cloud-generated ID
+    const localInstance: TaskInstance = {
+      id: cloudInstance.id,
       templateId: templateId!,
       assignedToMemberId: proposal.kid.id,
-      dueAt: `${today}T12:00:00`,
-      status: "open",
-    });
+      dueAt,
+      status: 'open',
+      createdAt: cloudInstance.created_at,
+      expiresAt,
+      scheduleType: template?.scheduleType,
+    };
+
+    useStore.getState().addTaskInstanceFromCloud(localInstance);
 
     recordWinner(proposal.kid.id);
     removeFromSpinQueue(proposal.task.id);
