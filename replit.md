@@ -42,7 +42,7 @@ Preferred communication style: Simple, everyday language.
   - Stars are persisted to `stars_ledger` table for all task-related star awards
   - Important: Never use locally-generated task IDs (like "task-{timestamp}") for cloud operations - always use Supabase UUIDs
 - **Auth Flow**: Two authentication methods available:
-  1. **Email/password** (for guardians): Standard sign-up with email confirmation
+  1. **Email/password** (for guardians): Standard sign-up with email confirmation, includes "Remember my email" option that saves email to AsyncStorage for convenience
   2. **Passcode** (for participants/kids): Simplified 4-digit code login
 - **Participant Passcode System**:
   - Kids join using family invite code + their name (no email required)

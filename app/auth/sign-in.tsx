@@ -13,10 +13,13 @@ import {
 } from 'react-native';
 import { Link, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../../lib/authContext';
 import { theme } from '../../lib/theme';
 import { resolveRoute, AuthState } from '../../lib/navigation';
 import { useStore } from '../../lib/store';
+
+const REMEMBERED_EMAIL_KEY = 'sukun_remembered_email';
 
 const sukunLogo = require('../../assets/sukun-logo.png');
 
@@ -29,6 +32,23 @@ export default function SignInScreen() {
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [signInComplete, setSignInComplete] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
+
+  // Load remembered email on mount
+  useEffect(() => {
+    async function loadRememberedEmail() {
+      try {
+        const savedEmail = await AsyncStorage.getItem(REMEMBERED_EMAIL_KEY);
+        if (savedEmail) {
+          setEmail(savedEmail);
+          setRememberMe(true);
+        }
+      } catch (e) {
+        console.log('[SignIn] Error loading remembered email:', e);
+      }
+    }
+    loadRememberedEmail();
+  }, []);
 
   // Navigate after sign-in when auth state is ready
   useEffect(() => {
@@ -71,6 +91,16 @@ export default function SignInScreen() {
       setError(signInError.message);
       setLoading(false);
     } else {
+      // Save or clear remembered email
+      try {
+        if (rememberMe) {
+          await AsyncStorage.setItem(REMEMBERED_EMAIL_KEY, email.trim());
+        } else {
+          await AsyncStorage.removeItem(REMEMBERED_EMAIL_KEY);
+        }
+      } catch (e) {
+        console.log('[SignIn] Error saving remembered email:', e);
+      }
       // Mark sign-in complete to trigger navigation via useEffect
       setSignInComplete(true);
     }
@@ -141,6 +171,19 @@ export default function SignInScreen() {
               </TouchableOpacity>
             </View>
           </View>
+
+          <TouchableOpacity
+            style={styles.rememberMeContainer}
+            onPress={() => setRememberMe(!rememberMe)}
+            testID="checkbox-remember-me"
+          >
+            <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
+              {rememberMe && (
+                <Ionicons name="checkmark" size={14} color="#FFFFFF" />
+              )}
+            </View>
+            <Text style={styles.rememberMeText}>Remember my email</Text>
+          </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.button, loading && styles.buttonDisabled]}
@@ -256,6 +299,31 @@ const styles = StyleSheet.create({
   },
   eyeButton: {
     padding: theme.spacing.sm,
+  },
+  rememberMeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: theme.spacing.sm,
+    marginBottom: theme.spacing.sm,
+    gap: theme.spacing.sm,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxChecked: {
+    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primary,
+  },
+  rememberMeText: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
   },
   button: {
     backgroundColor: theme.colors.primary,
