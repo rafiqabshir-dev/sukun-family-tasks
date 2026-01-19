@@ -121,6 +121,8 @@ export type Task = {
   max_age: number | null;
   is_archived: boolean;
   enabled: boolean;
+  schedule_type: 'one_time' | 'recurring_daily' | 'time_sensitive' | null;
+  time_window_minutes: number | null;
   created_at: string;
 };
 
@@ -130,8 +132,10 @@ export type TaskInstance = {
   task_id: string;
   assignee_profile_id: string;
   created_by_profile_id: string;
-  status: 'open' | 'pending_approval' | 'approved' | 'rejected';
+  status: 'open' | 'pending_approval' | 'approved' | 'rejected' | 'expired';
   due_at: string | null;
+  expires_at: string | null;
+  schedule_type: 'one_time' | 'recurring_daily' | 'time_sensitive' | null;
   created_at: string;
   completed_at: string | null;
   completion_requested_by: string | null;

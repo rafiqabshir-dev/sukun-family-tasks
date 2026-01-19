@@ -78,16 +78,38 @@ export function taskToTemplate(task: Task): TaskTemplate {
     minAge: task.min_age || undefined,
     maxAge: task.max_age || undefined,
     enabled: task.enabled,
-    isArchived: task.is_archived
+    isArchived: task.is_archived,
+    scheduleType: task.schedule_type || undefined,
+    timeWindowMinutes: task.time_window_minutes || undefined
+  };
+}
+
+export function templateToTask(template: TaskTemplate, familyId: string): Partial<Task> {
+  return {
+    id: template.id,
+    family_id: familyId,
+    title: template.title,
+    category: template.category,
+    icon_key: template.iconKey,
+    default_stars: template.defaultStars,
+    difficulty: template.difficulty,
+    preferred_powers: template.preferredPowers,
+    min_age: template.minAge || null,
+    max_age: template.maxAge || null,
+    is_archived: template.isArchived || false,
+    enabled: template.enabled,
+    schedule_type: template.scheduleType || null,
+    time_window_minutes: template.timeWindowMinutes || null
   };
 }
 
 export function cloudInstanceToLocal(instance: CloudTaskInstance): TaskInstance {
-  const statusMap: Record<string, 'open' | 'pending_approval' | 'done'> = {
+  const statusMap: Record<string, 'open' | 'pending_approval' | 'done' | 'expired'> = {
     'open': 'open',
     'pending_approval': 'pending_approval',
     'approved': 'done',
-    'rejected': 'open'
+    'rejected': 'open',
+    'expired': 'expired'
   };
 
   return {
@@ -98,8 +120,34 @@ export function cloudInstanceToLocal(instance: CloudTaskInstance): TaskInstance 
     status: statusMap[instance.status] || 'open',
     createdAt: instance.created_at,
     completedAt: instance.completed_at || undefined,
+    expiresAt: instance.expires_at || undefined,
+    scheduleType: instance.schedule_type || undefined,
     completionRequestedAt: instance.completion_requested_at || undefined,
     completionRequestedBy: instance.completion_requested_by || undefined
+  };
+}
+
+export function localInstanceToCloud(instance: TaskInstance, familyId: string, createdById: string): Partial<CloudTaskInstance> {
+  const statusMap: Record<string, 'open' | 'pending_approval' | 'approved' | 'rejected' | 'expired'> = {
+    'open': 'open',
+    'pending_approval': 'pending_approval',
+    'done': 'approved',
+    'expired': 'expired'
+  };
+
+  return {
+    id: instance.id,
+    family_id: familyId,
+    task_id: instance.templateId,
+    assignee_profile_id: instance.assignedToMemberId,
+    created_by_profile_id: createdById,
+    status: statusMap[instance.status] || 'open',
+    due_at: instance.dueAt,
+    expires_at: instance.expiresAt || null,
+    schedule_type: instance.scheduleType || null,
+    completed_at: instance.completedAt || null,
+    completion_requested_by: instance.completionRequestedBy || null,
+    completion_requested_at: instance.completionRequestedAt || null
   };
 }
 
@@ -330,5 +378,173 @@ export async function addStarsLedgerEntry(
     return { error: error ? new Error(error.message) : null };
   } catch (error) {
     return { error: error as Error };
+  }
+}
+
+// ============ CLOUD-FIRST TASK CRUD OPERATIONS ============
+
+export async function createCloudTask(
+  familyId: string,
+  template: Omit<TaskTemplate, 'id'>
+): Promise<{ data: Task | null; error: Error | null }> {
+  try {
+    const { data, error } = await supabase
+      .from('tasks')
+      .insert({
+        family_id: familyId,
+        title: template.title,
+        category: template.category,
+        icon_key: template.iconKey,
+        default_stars: template.defaultStars,
+        difficulty: template.difficulty,
+        preferred_powers: template.preferredPowers,
+        min_age: template.minAge || null,
+        max_age: template.maxAge || null,
+        is_archived: template.isArchived || false,
+        enabled: template.enabled,
+        schedule_type: template.scheduleType || null,
+        time_window_minutes: template.timeWindowMinutes || null
+      })
+      .select()
+      .single();
+
+    return { 
+      data: data as Task | null, 
+      error: error ? new Error(error.message) : null 
+    };
+  } catch (error) {
+    return { data: null, error: error as Error };
+  }
+}
+
+export async function updateCloudTask(
+  taskId: string,
+  updates: Partial<TaskTemplate>
+): Promise<{ error: Error | null }> {
+  try {
+    const cloudUpdates: Record<string, any> = {};
+    if (updates.title !== undefined) cloudUpdates.title = updates.title;
+    if (updates.category !== undefined) cloudUpdates.category = updates.category;
+    if (updates.iconKey !== undefined) cloudUpdates.icon_key = updates.iconKey;
+    if (updates.defaultStars !== undefined) cloudUpdates.default_stars = updates.defaultStars;
+    if (updates.difficulty !== undefined) cloudUpdates.difficulty = updates.difficulty;
+    if (updates.preferredPowers !== undefined) cloudUpdates.preferred_powers = updates.preferredPowers;
+    if (updates.minAge !== undefined) cloudUpdates.min_age = updates.minAge;
+    if (updates.maxAge !== undefined) cloudUpdates.max_age = updates.maxAge;
+    if (updates.isArchived !== undefined) cloudUpdates.is_archived = updates.isArchived;
+    if (updates.enabled !== undefined) cloudUpdates.enabled = updates.enabled;
+    if (updates.scheduleType !== undefined) cloudUpdates.schedule_type = updates.scheduleType;
+    if (updates.timeWindowMinutes !== undefined) cloudUpdates.time_window_minutes = updates.timeWindowMinutes;
+
+    const { error } = await supabase
+      .from('tasks')
+      .update(cloudUpdates)
+      .eq('id', taskId);
+
+    return { error: error ? new Error(error.message) : null };
+  } catch (error) {
+    return { error: error as Error };
+  }
+}
+
+export async function archiveCloudTask(taskId: string): Promise<{ error: Error | null }> {
+  try {
+    const { error } = await supabase
+      .from('tasks')
+      .update({ is_archived: true })
+      .eq('id', taskId);
+
+    return { error: error ? new Error(error.message) : null };
+  } catch (error) {
+    return { error: error as Error };
+  }
+}
+
+export async function createCloudTaskInstance(
+  familyId: string,
+  taskId: string,
+  assigneeId: string,
+  createdById: string,
+  dueAt?: string,
+  expiresAt?: string,
+  scheduleType?: string
+): Promise<{ data: CloudTaskInstance | null; error: Error | null }> {
+  try {
+    const { data, error } = await supabase
+      .from('task_instances')
+      .insert({
+        family_id: familyId,
+        task_id: taskId,
+        assignee_profile_id: assigneeId,
+        created_by_profile_id: createdById,
+        status: 'open',
+        due_at: dueAt || null,
+        expires_at: expiresAt || null,
+        schedule_type: scheduleType || null
+      })
+      .select()
+      .single();
+
+    return { 
+      data: data as CloudTaskInstance | null, 
+      error: error ? new Error(error.message) : null 
+    };
+  } catch (error) {
+    return { data: null, error: error as Error };
+  }
+}
+
+export async function updateCloudTaskInstance(
+  instanceId: string,
+  updates: {
+    status?: 'open' | 'pending_approval' | 'approved' | 'rejected' | 'expired';
+    completedAt?: string | null;
+    completionRequestedBy?: string | null;
+    completionRequestedAt?: string | null;
+  }
+): Promise<{ error: Error | null }> {
+  try {
+    const cloudUpdates: Record<string, any> = {};
+    if (updates.status !== undefined) cloudUpdates.status = updates.status;
+    if (updates.completedAt !== undefined) cloudUpdates.completed_at = updates.completedAt;
+    if (updates.completionRequestedBy !== undefined) cloudUpdates.completion_requested_by = updates.completionRequestedBy;
+    if (updates.completionRequestedAt !== undefined) cloudUpdates.completion_requested_at = updates.completionRequestedAt;
+
+    const { error } = await supabase
+      .from('task_instances')
+      .update(cloudUpdates)
+      .eq('id', instanceId);
+
+    return { error: error ? new Error(error.message) : null };
+  } catch (error) {
+    return { error: error as Error };
+  }
+}
+
+export async function fetchFamilyTasks(familyId: string): Promise<{ 
+  tasks: Task[]; 
+  taskInstances: CloudTaskInstance[]; 
+  error: Error | null 
+}> {
+  try {
+    const [tasksResult, instancesResult] = await Promise.all([
+      supabase.from('tasks').select('*').eq('family_id', familyId),
+      supabase.from('task_instances').select('*').eq('family_id', familyId)
+    ]);
+
+    if (tasksResult.error) {
+      return { tasks: [], taskInstances: [], error: new Error(tasksResult.error.message) };
+    }
+    if (instancesResult.error) {
+      return { tasks: [], taskInstances: [], error: new Error(instancesResult.error.message) };
+    }
+
+    return {
+      tasks: (tasksResult.data || []) as Task[],
+      taskInstances: (instancesResult.data || []) as CloudTaskInstance[],
+      error: null
+    };
+  } catch (error) {
+    return { tasks: [], taskInstances: [], error: error as Error };
   }
 }
