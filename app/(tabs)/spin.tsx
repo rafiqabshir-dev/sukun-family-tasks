@@ -7,7 +7,7 @@ import { useStore } from "@/lib/store";
 import { useAuth } from "@/lib/authContext";
 import { StagedTask, TaskTemplate, Member, TaskInstance } from "@/lib/types";
 import { format, addMinutes, endOfDay } from "date-fns";
-import { createCloudTaskInstance } from "@/lib/cloudSync";
+import { createCloudTaskInstance, createCloudTask, taskToTemplate } from "@/lib/cloudSync";
 
 type SpinState = "idle" | "spinning" | "proposal";
 
@@ -121,23 +121,46 @@ export default function SpinScreen() {
     }
 
     let templateId = proposal.task.templateId;
-    const existingTemplate = taskTemplates.find((t) => t.id === templateId);
+    let existingTemplate = taskTemplates.find((t) => t.id === templateId);
     
+    // If no existing template, create in cloud first to get UUID
     if (!existingTemplate) {
-      const newTemplate = useStore.getState().addTaskTemplate({
+      console.log('[Spin] Creating new template in cloud for quick task:', proposal.task.title);
+      
+      const newTemplateData = {
         title: proposal.task.title,
-        category: "personal",
+        category: "personal" as const,
         iconKey: "person",
         defaultStars: proposal.task.stars,
-        difficulty: "medium",
-        preferredPowers: [],
+        difficulty: "medium" as const,
+        preferredPowers: [] as string[],
         enabled: true,
         isArchived: false,
-      });
-      templateId = newTemplate.id;
+      };
+      
+      // Cloud-first: Create template in Supabase to get proper UUID
+      const { data: cloudTask, error: taskError } = await createCloudTask(
+        profile.family_id,
+        newTemplateData
+      );
+      
+      if (taskError || !cloudTask) {
+        console.error('[Spin] Failed to create cloud task template:', taskError?.message);
+        Alert.alert('Error', 'Failed to create task. Please try again.');
+        return;
+      }
+      
+      console.log('[Spin] Cloud task template created with UUID:', cloudTask.id);
+      
+      // Convert cloud task to local template and add to store
+      const localTemplate = taskToTemplate(cloudTask);
+      useStore.getState().setTaskTemplatesFromCloud([...taskTemplates, localTemplate]);
+      
+      templateId = cloudTask.id;
+      existingTemplate = localTemplate;
     }
 
-    const template = taskTemplates.find((t) => t.id === templateId);
+    const template = existingTemplate || taskTemplates.find((t) => t.id === templateId);
     const now = new Date();
     const today = format(now, "yyyy-MM-dd");
     const dueAt = `${today}T12:00:00`;
