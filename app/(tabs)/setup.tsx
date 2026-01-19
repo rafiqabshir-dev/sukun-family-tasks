@@ -317,53 +317,18 @@ export default function SetupScreen() {
           throw new Error("Supabase not configured");
         }
         
-        // Delete dependent data first (reverse cascading deletion)
-        // 1. Delete task instances assigned to this participant
-        const { error: taskError } = await client
-          .from("task_instances")
-          .delete()
-          .eq("assigned_to", removeTarget.profileId);
+        // Call the RPC function that runs with elevated privileges
+        const { data, error: rpcError } = await client
+          .rpc("remove_family_member", { target_profile_id: removeTarget.profileId });
         
-        if (taskError) {
-          console.warn("[Setup] Error deleting task instances:", taskError.message);
-          // Continue anyway - might not have any
-        }
-        
-        // 2. Delete stars ledger entries for this participant
-        const { error: starsError } = await client
-          .from("stars_ledger")
-          .delete()
-          .eq("profile_id", removeTarget.profileId);
-        
-        if (starsError) {
-          console.warn("[Setup] Error deleting stars ledger:", starsError.message);
-          // Continue anyway - might not have any
-        }
-        
-        // 3. Remove participant from family by setting family_id to null
-        // Note: Full deletion blocked by RLS, so we remove from family instead
-        const { data: updatedData, error: updateError } = await client
-          .from("profiles")
-          .update({ family_id: null })
-          .eq("id", removeTarget.profileId)
-          .select();
-        
-        if (updateError) {
-          console.error("Error removing participant from family:", updateError);
-          setRemoveError("Failed to remove participant: " + updateError.message);
+        if (rpcError) {
+          console.error("[Setup] Error calling remove_family_member:", rpcError);
+          setRemoveError("Failed to remove participant: " + rpcError.message);
           setRemovingMember(null);
           return;
         }
         
-        // Check if any rows were actually updated
-        if (!updatedData || updatedData.length === 0) {
-          console.error("[Setup] No profile was updated - RLS may be blocking the operation");
-          setRemoveError("Unable to remove participant. You may not have permission.");
-          setRemovingMember(null);
-          return;
-        }
-        
-        console.log("[Setup] Successfully removed participant from family:", removeTarget.profileId);
+        console.log("[Setup] Successfully removed participant from family:", removeTarget.profileId, "result:", data);
         
       } catch (err: any) {
         console.error("Error removing participant:", err);
