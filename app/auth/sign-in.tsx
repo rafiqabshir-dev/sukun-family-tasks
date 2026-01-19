@@ -172,7 +172,7 @@ export default function SignInScreen() {
 
           <Link href="/auth/passcode-login" asChild>
             <TouchableOpacity style={styles.participantButton} testID="link-participant-login">
-              <Ionicons name="keypad-outline" size={20} color={theme.colors.primary} />
+              <Ionicons name="keypad-outline" size={20} color="#FFFFFF" />
               <Text style={styles.participantButtonText}>Login with Code</Text>
             </TouchableOpacity>
           </Link>
@@ -310,10 +310,10 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.md,
     borderWidth: 2,
     borderColor: theme.colors.primary,
-    backgroundColor: theme.colors.primaryLight,
+    backgroundColor: theme.colors.primary,
   },
   participantButtonText: {
-    color: theme.colors.primary,
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
   },

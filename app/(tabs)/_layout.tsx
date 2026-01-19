@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { View, TouchableOpacity, Modal, Text, StyleSheet, ScrollView, Pressable } from "react-native";
+import { View, TouchableOpacity, Modal, Text, StyleSheet, ScrollView, Pressable, Platform, Alert } from "react-native";
 import { Tabs, useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, borderRadius, fontSize } from "@/lib/theme";
@@ -48,8 +48,26 @@ function HeaderMenuButton({ onPress }: { onPress: () => void }) {
 
 export default function TabLayout() {
   const router = useRouter();
-  const { pendingRequestsCount, refreshPendingRequestsCount } = useAuth();
+  const { pendingRequestsCount, refreshPendingRequestsCount, signOut } = useAuth();
   const [showMenu, setShowMenu] = useState(false);
+
+  const handleSignOut = () => {
+    setShowMenu(false);
+    if (Platform.OS === 'web') {
+      if (window.confirm('Are you sure you want to sign out?')) {
+        signOut();
+      }
+    } else {
+      Alert.alert(
+        'Sign Out',
+        'Are you sure you want to sign out?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Sign Out', style: 'destructive', onPress: () => signOut() }
+        ]
+      );
+    }
+  };
 
   // Refresh pending requests count when tabs get focus
   useFocusEffect(
@@ -209,6 +227,17 @@ export default function TabLayout() {
                   <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
                 </TouchableOpacity>
               ))}
+              
+              <View style={styles.menuDivider} />
+              
+              <TouchableOpacity
+                style={styles.signOutItem}
+                onPress={handleSignOut}
+                data-testid="button-menu-sign-out"
+              >
+                <Ionicons name="log-out-outline" size={24} color={colors.error} />
+                <Text style={styles.signOutText}>Sign Out</Text>
+              </TouchableOpacity>
             </ScrollView>
           </View>
         </View>
@@ -270,7 +299,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: -6,
     right: -6,
-    backgroundColor: colors.danger,
+    backgroundColor: colors.error,
     borderRadius: 10,
     minWidth: 18,
     height: 18,
@@ -293,5 +322,23 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '700',
+  },
+  menuDivider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginVertical: spacing.md,
+  },
+  signOutItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: spacing.md,
+    backgroundColor: colors.background,
+    borderRadius: borderRadius.md,
+    gap: spacing.md,
+  },
+  signOutText: {
+    fontSize: fontSize.md,
+    color: colors.error,
+    fontWeight: "500",
   },
 });
