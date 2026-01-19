@@ -1,5 +1,15 @@
 import { supabase, Profile, Family, Task, TaskInstance as CloudTaskInstance, StarsLedgerEntry, Reward as CloudReward } from './supabase';
 import { Member, TaskTemplate, TaskInstance, Reward, StarDeduction, PowerKey, Power, TaskCategory } from './types';
+import { generateStarterTasks } from './starterTasks';
+
+// Generate a UUID v4
+function generateUUID(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
 
 export type SyncStatus = 'idle' | 'syncing' | 'success' | 'error';
 
@@ -205,6 +215,50 @@ export async function syncTaskToCloud(
     return { error: error ? new Error(error.message) : null };
   } catch (error) {
     return { error: error as Error };
+  }
+}
+
+// Seed starter tasks to Supabase with proper UUIDs for a new family
+export async function seedStarterTasksToCloud(
+  familyId: string
+): Promise<{ tasks: Task[]; error: Error | null }> {
+  try {
+    console.log('[CloudSync] Seeding starter tasks for family:', familyId);
+    const starterTemplates = generateStarterTasks();
+    
+    // Create cloud task records with proper UUIDs
+    const tasksToInsert = starterTemplates.map(template => ({
+      id: generateUUID(),
+      family_id: familyId,
+      title: template.title,
+      category: template.category,
+      icon_key: template.iconKey,
+      default_stars: template.defaultStars,
+      difficulty: template.difficulty,
+      preferred_powers: template.preferredPowers,
+      min_age: template.minAge || null,
+      max_age: template.maxAge || null,
+      is_archived: false,
+      enabled: template.enabled,
+      schedule_type: template.scheduleType || null,
+      time_window_minutes: template.timeWindowMinutes || null
+    }));
+    
+    const { data, error } = await supabase
+      .from('tasks')
+      .insert(tasksToInsert)
+      .select();
+    
+    if (error) {
+      console.error('[CloudSync] Error seeding starter tasks:', error.message);
+      return { tasks: [], error: new Error(error.message) };
+    }
+    
+    console.log('[CloudSync] Seeded', data?.length || 0, 'starter tasks to cloud');
+    return { tasks: (data || []) as Task[], error: null };
+  } catch (error) {
+    console.error('[CloudSync] Error seeding starter tasks:', error);
+    return { tasks: [], error: error as Error };
   }
 }
 

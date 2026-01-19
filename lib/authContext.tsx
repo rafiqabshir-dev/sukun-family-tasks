@@ -3,7 +3,7 @@ import { Session, User } from '@supabase/supabase-js';
 import { supabase, Profile, Family, JoinRequest, isSupabaseConfigured, TaskInstance as CloudTaskInstance } from './supabase';
 import { useStore } from './store';
 import { Persona, derivePersona as derivePersonaFromState, AuthState } from './navigation';
-import { cloudInstanceToLocal } from './cloudSync';
+import { cloudInstanceToLocal, seedStarterTasksToCloud, taskToTemplate } from './cloudSync';
 
 export type JoinRequestWithProfile = JoinRequest & {
   requester_profile?: Profile;
@@ -197,25 +197,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                   console.log('[Auth] Loaded', members.length, 'members from cloud for user', currentUser.id);
                 }
                 
-                // Load task templates from cloud
+                // Load task templates from cloud, or seed starter tasks if none exist
                 if (tasks && tasks.length > 0) {
-                  const templates = tasks.map((t: any) => ({
-                    id: t.id,
-                    title: t.title,
-                    category: t.category,
-                    iconKey: t.icon_key,
-                    defaultStars: t.default_stars,
-                    difficulty: t.difficulty,
-                    preferredPowers: t.preferred_powers || [],
-                    minAge: t.min_age || undefined,
-                    maxAge: t.max_age || undefined,
-                    enabled: t.enabled,
-                    isArchived: t.is_archived,
-                    scheduleType: t.schedule_type || undefined,
-                    timeWindowMinutes: t.time_window_minutes || undefined
-                  }));
+                  const templates = tasks.map((t: any) => taskToTemplate(t));
                   useStore.getState().setTaskTemplatesFromCloud(templates);
                   console.log('[Auth] Loaded', templates.length, 'task templates from cloud');
+                } else {
+                  // No tasks in cloud - seed starter tasks with proper UUIDs
+                  console.log('[Auth] No tasks in cloud, seeding starter tasks...');
+                  const { tasks: seededTasks, error: seedError } = await seedStarterTasksToCloud(profileData.family_id);
+                  if (!seedError && seededTasks.length > 0) {
+                    const templates = seededTasks.map((t: any) => taskToTemplate(t));
+                    useStore.getState().setTaskTemplatesFromCloud(templates);
+                    console.log('[Auth] Seeded and loaded', templates.length, 'starter tasks');
+                  } else if (seedError) {
+                    console.log('[Auth] Failed to seed starter tasks:', seedError.message);
+                  }
                 }
                 
                 // Load task instances from cloud using cloudInstanceToLocal helper
