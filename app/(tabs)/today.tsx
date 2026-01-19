@@ -7,7 +7,7 @@ import { TaskInstance, TaskTemplate } from "@/lib/types";
 import { useAuth } from "@/lib/authContext";
 import { format, isToday, isBefore, startOfDay, differenceInMinutes, differenceInSeconds, parseISO, isAfter } from "date-fns";
 import { isSupabaseConfigured } from "@/lib/supabase";
-import { approveTaskCompletion, addStarsLedgerEntry } from "@/lib/cloudSync";
+import { addStarsLedgerEntry } from "@/lib/cloudSync";
 
 function getTaskStatus(task: TaskInstance): "open" | "pending_approval" | "done" | "overdue" | "expired" {
   if (task.status === "done") return "done";
@@ -256,22 +256,22 @@ export default function TodayScreen() {
     // Update local store first for immediate UI feedback
     approveTask(taskId, approverId);
     
-    // Sync to cloud if configured
+    // Sync stars to cloud (tasks are local, but stars persist in cloud)
     if (isSupabaseConfigured() && profile?.family_id) {
       try {
-        // Use the cloud sync function to persist stars
-        const { error } = await approveTaskCompletion(
-          taskId,
-          approverId,
-          assigneeId,
+        const { error } = await addStarsLedgerEntry(
           profile.family_id,
-          stars
+          assigneeId,
+          stars,
+          'Task approval',
+          approverId,
+          taskId
         );
         
         if (error) {
-          console.error('[Today] Error syncing task approval to cloud:', error.message);
+          console.error('[Today] Error syncing task approval stars to cloud:', error.message);
         } else {
-          console.log('[Today] Task approval synced to cloud, stars:', stars);
+          console.log('[Today] Task approval stars synced to cloud:', stars);
         }
       } catch (err) {
         console.error('[Today] Cloud sync error:', err);
