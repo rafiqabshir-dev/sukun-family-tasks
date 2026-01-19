@@ -450,6 +450,15 @@ export const useStore = create<AppState & StoreActions & { isReady: boolean; aut
     const guardians = state.members.filter((m) => m.role === "guardian");
     const guardianCount = guardians.length;
     const isRequesterGuardian = requester?.role === "guardian";
+    
+    console.log('[Store] completeTask:', {
+      instanceId,
+      requestedBy,
+      requesterFound: requester?.name,
+      requesterRole: requester?.role,
+      guardianCount,
+      canCompleteDirectly: isRequesterGuardian && guardianCount === 1
+    });
 
     // Approval logic:
     // - Single guardian can complete any task directly (no approval needed)

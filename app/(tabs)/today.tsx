@@ -267,6 +267,16 @@ export default function TodayScreen() {
     // Check if this is a single guardian case (direct completion)
     const isSingleGuardian = guardianCount === 1 && currentMember?.role === "guardian";
     
+    console.log('[Today] handleCompleteTask called:', {
+      taskId,
+      requestedBy,
+      currentMemberId: currentMember?.id,
+      currentMemberName: currentMember?.name,
+      currentMemberRole: currentMember?.role,
+      profileId: profile?.id,
+      isSingleGuardian
+    });
+    
     // Update local store first
     completeTask(taskId, requestedBy);
     
