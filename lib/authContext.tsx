@@ -1,8 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo, ReactNode } from 'react';
 import { Session, User } from '@supabase/supabase-js';
-import { supabase, Profile, Family, JoinRequest, isSupabaseConfigured } from './supabase';
+import { supabase, Profile, Family, JoinRequest, isSupabaseConfigured, TaskInstance as CloudTaskInstance } from './supabase';
 import { useStore } from './store';
 import { Persona, derivePersona as derivePersonaFromState, AuthState } from './navigation';
+import { cloudInstanceToLocal } from './cloudSync';
 
 export type JoinRequestWithProfile = JoinRequest & {
   requester_profile?: Profile;
@@ -158,17 +159,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (familyData && mounted.current) {
               setFamily(familyData as Family);
               
-              // Load family members directly from cloud (no local merging)
+              // Load family data directly from cloud (no local merging)
               try {
-                const { data: profiles } = await supabase
-                  .from('profiles')
-                  .select('*')
-                  .eq('family_id', profileData.family_id);
-                
-                const { data: starsLedger } = await supabase
-                  .from('stars_ledger')
-                  .select('*')
-                  .eq('family_id', profileData.family_id);
+                const [
+                  { data: profiles },
+                  { data: starsLedger },
+                  { data: tasks },
+                  { data: taskInstances }
+                ] = await Promise.all([
+                  supabase.from('profiles').select('*').eq('family_id', profileData.family_id),
+                  supabase.from('stars_ledger').select('*').eq('family_id', profileData.family_id),
+                  supabase.from('tasks').select('*').eq('family_id', profileData.family_id),
+                  supabase.from('task_instances').select('*').eq('family_id', profileData.family_id)
+                ]);
                 
                 if (profiles && profiles.length > 0) {
                   // Convert profiles to members - cloud is the only source of truth
@@ -193,8 +196,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                   useStore.getState().setMembersFromCloud(members);
                   console.log('[Auth] Loaded', members.length, 'members from cloud for user', currentUser.id);
                 }
+                
+                // Load task templates from cloud
+                if (tasks && tasks.length > 0) {
+                  const templates = tasks.map((t: any) => ({
+                    id: t.id,
+                    title: t.title,
+                    category: t.category,
+                    iconKey: t.icon_key,
+                    defaultStars: t.default_stars,
+                    difficulty: t.difficulty,
+                    preferredPowers: t.preferred_powers || [],
+                    minAge: t.min_age || undefined,
+                    maxAge: t.max_age || undefined,
+                    enabled: t.enabled,
+                    isArchived: t.is_archived,
+                    scheduleType: t.schedule_type || undefined,
+                    timeWindowMinutes: t.time_window_minutes || undefined
+                  }));
+                  useStore.getState().setTaskTemplatesFromCloud(templates);
+                  console.log('[Auth] Loaded', templates.length, 'task templates from cloud');
+                }
+                
+                // Load task instances from cloud using cloudInstanceToLocal helper
+                if (taskInstances && taskInstances.length > 0) {
+                  const instances = taskInstances.map((i: CloudTaskInstance) => cloudInstanceToLocal(i));
+                  useStore.getState().setTaskInstancesFromCloud(instances);
+                  console.log('[Auth] Loaded', instances.length, 'task instances from cloud');
+                }
               } catch (syncError: any) {
-                console.log('[Auth] Member load error:', syncError?.message);
+                console.log('[Auth] Cloud data load error:', syncError?.message);
               }
             }
             // Clear any pending request since user is already in a family

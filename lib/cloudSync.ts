@@ -119,6 +119,7 @@ export function cloudInstanceToLocal(instance: CloudTaskInstance): TaskInstance 
     dueAt: instance.due_at || new Date().toISOString(),
     status: statusMap[instance.status] || 'open',
     createdAt: instance.created_at,
+    createdById: instance.created_by_profile_id || undefined,
     completedAt: instance.completed_at || undefined,
     expiresAt: instance.expires_at || undefined,
     scheduleType: instance.schedule_type || undefined,

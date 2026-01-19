@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Pressable } from "react-native";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Pressable, Alert, Platform } from "react-native";
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, borderRadius, fontSize } from "@/lib/theme";
@@ -7,7 +7,7 @@ import { TaskInstance, TaskTemplate } from "@/lib/types";
 import { useAuth } from "@/lib/authContext";
 import { format, isToday, isBefore, startOfDay, differenceInMinutes, differenceInSeconds, parseISO, isAfter } from "date-fns";
 import { isSupabaseConfigured } from "@/lib/supabase";
-import { addStarsLedgerEntry } from "@/lib/cloudSync";
+import { addStarsLedgerEntry, createCloudTaskInstance, updateCloudTaskInstance, cloudInstanceToLocal } from "@/lib/cloudSync";
 
 function getTaskStatus(task: TaskInstance): "open" | "pending_approval" | "done" | "overdue" | "expired" {
   if (task.status === "done") return "done";
@@ -61,6 +61,7 @@ export default function TodayScreen() {
   const taskTemplates = useStore((s) => s.taskTemplates);
   const taskInstances = useStore((s) => s.taskInstances);
   const addTaskInstance = useStore((s) => s.addTaskInstance);
+  const addTaskInstanceFromCloud = useStore((s) => s.addTaskInstanceFromCloud);
   const completeTask = useStore((s) => s.completeTask);
   const approveTask = useStore((s) => s.approveTask);
   const rejectTask = useStore((s) => s.rejectTask);
@@ -147,20 +148,68 @@ export default function TodayScreen() {
   const getMember = (memberId: string) =>
     members.find((m) => m.id === memberId);
 
-  const handleAssignTask = () => {
-    if (!selectedTemplate || !selectedKid || !dueDate) return;
+  const handleAssignTask = async () => {
+    if (!selectedTemplate || !selectedKid || !dueDate || !currentMember?.id) return;
     
-    addTaskInstance({
-      templateId: selectedTemplate.id,
-      assignedToMemberId: selectedKid,
-      dueAt: `${dueDate}T12:00:00`,
-      status: "open",
-    });
+    const dueAt = `${dueDate}T12:00:00`;
+    let success = false;
     
-    setShowAssignModal(false);
-    setSelectedTemplate(null);
-    setSelectedKid("");
-    setDueDate(format(new Date(), "yyyy-MM-dd"));
+    // Sync to cloud first if configured - cloud is the source of truth
+    if (isSupabaseConfigured() && profile?.family_id) {
+      try {
+        const { data, error } = await createCloudTaskInstance(
+          profile.family_id,
+          selectedTemplate.id,
+          selectedKid,
+          currentMember.id,
+          dueAt
+        );
+        
+        if (error) {
+          console.error('[Today] Error creating task instance in cloud:', error.message);
+          // Show error to user - don't create locally without cloud
+          if (Platform.OS === 'web') {
+            window.alert('Unable to assign task. Please check your connection and try again.');
+          } else {
+            Alert.alert('Error', 'Unable to assign task. Please check your connection and try again.');
+          }
+          return; // Modal stays open on error
+        }
+        
+        if (data) {
+          // Use cloudInstanceToLocal helper for proper field mapping
+          const localInstance = cloudInstanceToLocal(data);
+          addTaskInstanceFromCloud(localInstance);
+          console.log('[Today] Task instance created in cloud:', data.id);
+          success = true;
+        }
+      } catch (err) {
+        console.error('[Today] Cloud sync error:', err);
+        if (Platform.OS === 'web') {
+          window.alert('Unable to assign task. Please check your connection and try again.');
+        } else {
+          Alert.alert('Error', 'Unable to assign task. Please check your connection and try again.');
+        }
+        return; // Modal stays open on error
+      }
+    } else {
+      // No cloud configured - local-only mode (development/testing)
+      addTaskInstance({
+        templateId: selectedTemplate.id,
+        assignedToMemberId: selectedKid,
+        dueAt,
+        status: "open",
+      });
+      success = true;
+    }
+    
+    // Only dismiss modal and reset form on success
+    if (success) {
+      setShowAssignModal(false);
+      setSelectedTemplate(null);
+      setSelectedKid("");
+      setDueDate(format(new Date(), "yyyy-MM-dd"));
+    }
   };
 
   const openDeductModal = () => {
@@ -206,7 +255,7 @@ export default function TodayScreen() {
     setDeductReason("");
   };
 
-  // Complete task with cloud sync (for single guardian direct completion)
+  // Complete task with cloud sync
   const handleCompleteTask = async (taskId: string, requestedBy: string) => {
     const task = taskInstances.find((t) => t.id === taskId);
     if (!task) return;
@@ -221,22 +270,72 @@ export default function TodayScreen() {
     // Update local store first
     completeTask(taskId, requestedBy);
     
-    // If single guardian, stars are awarded immediately - sync to cloud
-    if (isSingleGuardian && isSupabaseConfigured() && profile?.family_id) {
+    // Sync to cloud if configured
+    if (isSupabaseConfigured() && profile?.family_id) {
       try {
-        const { error } = await addStarsLedgerEntry(
-          profile.family_id,
-          assigneeId,
-          stars,
-          'Task completion',
-          requestedBy,
-          taskId
-        );
+        if (isSingleGuardian) {
+          // Single guardian: task completes immediately - update status and add stars
+          const [statusResult, starsResult] = await Promise.all([
+            updateCloudTaskInstance(taskId, {
+              status: 'approved',
+              completedAt: new Date().toISOString()
+            }),
+            addStarsLedgerEntry(
+              profile.family_id,
+              assigneeId,
+              stars,
+              'Task completion',
+              requestedBy,
+              taskId
+            )
+          ]);
+          
+          if (statusResult.error) {
+            console.error('[Today] Error syncing task status to cloud:', statusResult.error.message);
+          }
+          if (starsResult.error) {
+            console.error('[Today] Error syncing stars to cloud:', starsResult.error.message);
+          } else {
+            console.log('[Today] Task completion synced to cloud, stars:', stars);
+          }
+        } else {
+          // Multi-guardian or participant: mark as pending approval
+          const { error } = await updateCloudTaskInstance(taskId, {
+            status: 'pending_approval',
+            completionRequestedBy: requestedBy,
+            completionRequestedAt: new Date().toISOString()
+          });
+          
+          if (error) {
+            console.error('[Today] Error syncing pending approval to cloud:', error.message);
+          } else {
+            console.log('[Today] Task pending approval synced to cloud');
+          }
+        }
+      } catch (err) {
+        console.error('[Today] Cloud sync error:', err);
+      }
+    }
+  };
+
+  // Reject task with cloud sync
+  const handleRejectTask = async (taskId: string) => {
+    // Update local store first
+    rejectTask(taskId);
+    
+    // Sync to cloud if configured
+    if (isSupabaseConfigured() && profile?.family_id) {
+      try {
+        const { error } = await updateCloudTaskInstance(taskId, {
+          status: 'rejected',
+          completionRequestedBy: null,
+          completionRequestedAt: null
+        });
         
         if (error) {
-          console.error('[Today] Error syncing task completion to cloud:', error.message);
+          console.error('[Today] Error syncing task rejection to cloud:', error.message);
         } else {
-          console.log('[Today] Task completion synced to cloud, stars:', stars);
+          console.log('[Today] Task rejection synced to cloud');
         }
       } catch (err) {
         console.error('[Today] Cloud sync error:', err);
@@ -256,22 +355,33 @@ export default function TodayScreen() {
     // Update local store first for immediate UI feedback
     approveTask(taskId, approverId);
     
-    // Sync stars to cloud (tasks are local, but stars persist in cloud)
+    // Sync to cloud: update task status and add stars
     if (isSupabaseConfigured() && profile?.family_id) {
       try {
-        const { error } = await addStarsLedgerEntry(
-          profile.family_id,
-          assigneeId,
-          stars,
-          'Task approval',
-          approverId,
-          taskId
-        );
+        const [statusResult, starsResult] = await Promise.all([
+          updateCloudTaskInstance(taskId, {
+            status: 'approved',
+            completedAt: new Date().toISOString(),
+            completionRequestedBy: null,
+            completionRequestedAt: null
+          }),
+          addStarsLedgerEntry(
+            profile.family_id,
+            assigneeId,
+            stars,
+            'Task approval',
+            approverId,
+            taskId
+          )
+        ]);
         
-        if (error) {
-          console.error('[Today] Error syncing task approval stars to cloud:', error.message);
+        if (statusResult.error) {
+          console.error('[Today] Error syncing task status to cloud:', statusResult.error.message);
+        }
+        if (starsResult.error) {
+          console.error('[Today] Error syncing task approval stars to cloud:', starsResult.error.message);
         } else {
-          console.log('[Today] Task approval stars synced to cloud:', stars);
+          console.log('[Today] Task approval synced to cloud, stars:', stars);
         }
       } catch (err) {
         console.error('[Today] Cloud sync error:', err);
@@ -316,7 +426,7 @@ export default function TodayScreen() {
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.rejectButton}
-              onPress={() => rejectTask(task.id)}
+              onPress={() => handleRejectTask(task.id)}
               data-testid={`button-reject-${task.id}`}
             >
               <Ionicons name="close" size={24} color="#FFFFFF" />

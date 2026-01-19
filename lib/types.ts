@@ -61,6 +61,7 @@ export interface TaskInstance {
   dueAt: string;
   status: TaskStatus;
   createdAt: string;
+  createdById?: string; // Profile ID of who created/assigned the task
   completedAt?: string;
   expiresAt?: string;
   scheduleType?: TaskScheduleType;

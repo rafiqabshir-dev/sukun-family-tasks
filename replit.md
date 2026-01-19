@@ -32,7 +32,14 @@ Preferred communication style: Simple, everyday language.
 - **UI/UX**: Features a tab-based navigation (Today, Spin, Leaderboard, Setup), an onboarding flow, and consistent typography. Islamic values are reflected in a gentle tone and default sound settings.
 
 ### Cloud Integration (Supabase)
-- **Cloud-Only Mode**: Supabase is required. Members are loaded directly from the cloud (no local storage merging). This prevents data duplication and ensures cloud is the single source of truth.
+- **Cloud-Only Mode**: Supabase is required. Members, tasks, and task instances are loaded directly from the cloud (no local storage merging). This prevents data duplication and ensures cloud is the single source of truth.
+- **Cloud-First Task Operations**:
+  - Task templates stored in `tasks` table with schedule_type, time_window_minutes
+  - Task instances stored in `task_instances` table with expires_at, schedule_type
+  - On login, authContext loads tasks/instances from Supabase alongside members
+  - Task assignment creates cloud record first, then syncs to local store using cloud-generated ID
+  - Task completion, approval, and rejection all sync to cloud in real-time
+  - Stars are persisted to `stars_ledger` table for all task-related star awards
 - **Auth Flow**: Two authentication methods available:
   1. **Email/password** (for guardians): Standard sign-up with email confirmation
   2. **Passcode** (for participants/kids): Simplified 4-digit code login

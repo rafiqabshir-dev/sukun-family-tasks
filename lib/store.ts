@@ -23,6 +23,9 @@ interface StoreActions {
   upsertMemberWithUUID: (uuid: string, name: string, role: 'guardian' | 'kid', age?: number) => void;
   setMemberPowers: (memberId: string, powers: PowerKey[]) => void;
   setTaskTemplates: (templates: TaskTemplate[]) => void;
+  setTaskTemplatesFromCloud: (templates: TaskTemplate[]) => void;
+  setTaskInstancesFromCloud: (instances: TaskInstance[]) => void;
+  addTaskInstanceFromCloud: (instance: TaskInstance) => void;
   toggleTaskTemplate: (id: string) => void;
   addTaskTemplate: (template: Omit<TaskTemplate, "id">) => TaskTemplate;
   updateTaskTemplate: (id: string, updates: Partial<TaskTemplate>) => void;
@@ -321,6 +324,43 @@ export const useStore = create<AppState & StoreActions & { isReady: boolean; aut
   setTaskTemplates: (templates) => {
     set({ taskTemplates: templates });
     saveToStorage({ ...get(), taskTemplates: templates });
+  },
+
+  setTaskTemplatesFromCloud: (templates) => {
+    console.log('[Store] setTaskTemplatesFromCloud:', templates.length, 'templates');
+    set({ taskTemplates: templates });
+    // Don't save to AsyncStorage - cloud is the source of truth
+  },
+
+  setTaskInstancesFromCloud: (instances) => {
+    console.log('[Store] setTaskInstancesFromCloud:', instances.length, 'instances');
+    set({ taskInstances: instances });
+    // Don't save to AsyncStorage - cloud is the source of truth
+  },
+
+  addTaskInstanceFromCloud: (instance: TaskInstance) => {
+    console.log('[Store] addTaskInstanceFromCloud:', instance.id);
+    const existing = get().taskInstances;
+    // Dedupe by ID: if instance already exists, merge with existing to preserve local fields
+    const existingIndex = existing.findIndex(i => i.id === instance.id);
+    let taskInstances: TaskInstance[];
+    if (existingIndex >= 0) {
+      taskInstances = [...existing];
+      // Merge: cloud fields take precedence, but preserve local-only fields like approvedBy
+      const existingInstance = taskInstances[existingIndex];
+      taskInstances[existingIndex] = {
+        ...existingInstance,
+        ...instance,
+        // Preserve local-only fields if not provided by cloud
+        approvedBy: instance.approvedBy || existingInstance.approvedBy
+      };
+      console.log('[Store] Merged existing instance:', instance.id);
+    } else {
+      taskInstances = [...existing, instance];
+      console.log('[Store] Added new instance:', instance.id);
+    }
+    set({ taskInstances });
+    // Don't save to AsyncStorage - cloud is the source of truth
   },
 
   toggleTaskTemplate: (id) => {

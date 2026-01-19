@@ -42,6 +42,8 @@ CREATE TABLE tasks (
   max_age INTEGER,
   is_archived BOOLEAN DEFAULT false,
   enabled BOOLEAN DEFAULT true,
+  schedule_type TEXT CHECK (schedule_type IN ('one_time', 'recurring_daily', 'time_sensitive')),
+  time_window_minutes INTEGER,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -52,8 +54,10 @@ CREATE TABLE task_instances (
   task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
   assignee_profile_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   created_by_profile_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
-  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'pending_approval', 'approved', 'rejected')),
+  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'pending_approval', 'approved', 'rejected', 'expired')),
   due_at TIMESTAMPTZ,
+  expires_at TIMESTAMPTZ,
+  schedule_type TEXT CHECK (schedule_type IN ('one_time', 'recurring_daily', 'time_sensitive')),
   created_at TIMESTAMPTZ DEFAULT NOW(),
   completed_at TIMESTAMPTZ,
   completion_requested_by UUID REFERENCES profiles(id),
