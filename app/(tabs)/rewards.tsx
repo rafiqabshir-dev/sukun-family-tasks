@@ -143,16 +143,16 @@ export default function RewardsScreen() {
             </TouchableOpacity>
           </View>
         )}
-        {!isRedeemed && !isGuardian && actingMember && (
+        {!isRedeemed && !isGuardian && currentMember && (
           <View style={styles.progressContainer}>
-            {actingMember.starsTotal >= reward.starsCost ? (
+            {currentMember.starsTotal >= reward.starsCost ? (
               <View style={styles.canClaimBadge}>
                 <Ionicons name="checkmark" size={14} color="#FFFFFF" />
                 <Text style={styles.canClaimText}>Ready!</Text>
               </View>
             ) : (
               <Text style={styles.progressText}>
-                {actingMember.starsTotal}/{reward.starsCost}
+                {currentMember.starsTotal}/{reward.starsCost}
               </Text>
             )}
           </View>
