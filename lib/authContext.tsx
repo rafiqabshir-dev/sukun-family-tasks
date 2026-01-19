@@ -186,6 +186,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                       xp: 0
                     })),
                     profileId: p.id,
+                    passcode: p.passcode || undefined,
                   }));
                   
                   // Replace members entirely from cloud - no local merging

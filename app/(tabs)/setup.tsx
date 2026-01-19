@@ -43,6 +43,13 @@ export default function SetupScreen() {
   const [loadingRequests, setLoadingRequests] = useState(false);
   const [processingRequest, setProcessingRequest] = useState<string | null>(null);
   
+  // Participant removal modal state
+  const [showRemoveModal, setShowRemoveModal] = useState(false);
+  const [removeTarget, setRemoveTarget] = useState<{memberId: string, memberName: string, profileId?: string, passcode?: string} | null>(null);
+  const [removePasscodeInput, setRemovePasscodeInput] = useState("");
+  const [removeError, setRemoveError] = useState("");
+  const [copiedPasscode, setCopiedPasscode] = useState<string | null>(null);
+  
   // Check if current user is the family owner (first guardian to join)
   useEffect(() => {
     const checkOwnership = async () => {
@@ -281,69 +288,114 @@ export default function SetupScreen() {
     }
   };
 
-  const handleRemoveParticipant = async (memberId: string, memberName: string, profileId?: string) => {
-    const doRemove = async () => {
-      setRemovingMember(memberId);
-      
-      // Remove from Supabase if configured
-      if (isConfigured && profileId) {
-        try {
-          const supabaseModule = await import("@/lib/supabase");
-          const client = supabaseModule.getSupabaseClient();
-          if (!client) {
-            throw new Error("Supabase not configured");
-          }
-          // Remove family association (nullify family_id)
-          const { error } = await client
-            .from("profiles")
-            .update({ family_id: null })
-            .eq("id", profileId);
-          
-          if (error) {
-            console.error("Error removing participant from cloud:", error);
-            if (Platform.OS === 'web') {
-              window.alert("Error removing participant: " + error.message);
-            } else {
-              Alert.alert("Error", "Failed to remove participant: " + error.message);
-            }
-            setRemovingMember(null);
-            return;
-          }
-        } catch (err: any) {
-          console.error("Error removing participant:", err);
-          if (Platform.OS === 'web') {
-            window.alert("Error removing participant: " + (err?.message || "Unknown error"));
-          } else {
-            Alert.alert("Error", "Failed to remove participant");
-          }
+  const handleRemoveParticipant = (memberId: string, memberName: string, profileId?: string, passcode?: string) => {
+    // Open the removal modal with passcode confirmation
+    setRemoveTarget({ memberId, memberName, profileId, passcode });
+    setRemovePasscodeInput("");
+    setRemoveError("");
+    setShowRemoveModal(true);
+  };
+  
+  const confirmRemoveParticipant = async () => {
+    if (!removeTarget) return;
+    
+    // Defensive check: verify passcode if participant has one
+    if (removeTarget.passcode && removePasscodeInput !== removeTarget.passcode) {
+      setRemoveError("Incorrect passcode. Please try again.");
+      return;
+    }
+    
+    setRemovingMember(removeTarget.memberId);
+    setRemoveError("");
+    
+    // Remove from Supabase if configured
+    if (isConfigured && removeTarget.profileId) {
+      try {
+        const supabaseModule = await import("@/lib/supabase");
+        const client = supabaseModule.getSupabaseClient();
+        if (!client) {
+          throw new Error("Supabase not configured");
+        }
+        
+        // Delete dependent data first (reverse cascading deletion)
+        // 1. Delete task instances assigned to this participant
+        const { error: taskError } = await client
+          .from("task_instances")
+          .delete()
+          .eq("assigned_to", removeTarget.profileId);
+        
+        if (taskError) {
+          console.warn("[Setup] Error deleting task instances:", taskError.message);
+          // Continue anyway - might not have any
+        }
+        
+        // 2. Delete stars ledger entries for this participant
+        const { error: starsError } = await client
+          .from("stars_ledger")
+          .delete()
+          .eq("profile_id", removeTarget.profileId);
+        
+        if (starsError) {
+          console.warn("[Setup] Error deleting stars ledger:", starsError.message);
+          // Continue anyway - might not have any
+        }
+        
+        // 3. Finally, delete the profile
+        const { error: deleteProfileError } = await client
+          .from("profiles")
+          .delete()
+          .eq("id", removeTarget.profileId);
+        
+        if (deleteProfileError) {
+          console.error("Error deleting participant profile:", deleteProfileError);
+          setRemoveError("Failed to remove participant: " + deleteProfileError.message);
           setRemovingMember(null);
           return;
         }
+        
+        console.log("[Setup] Successfully deleted participant from Supabase:", removeTarget.profileId);
+        
+      } catch (err: any) {
+        console.error("Error removing participant:", err);
+        setRemoveError("Failed to remove participant: " + (err?.message || "Unknown error"));
+        setRemovingMember(null);
+        return;
       }
-      
-      // Remove from local store
-      removeMember(memberId);
-      setRemovingMember(null);
-    };
-
+    }
+    
+    // Remove from local store
+    removeMember(removeTarget.memberId);
+    setRemovingMember(null);
+    setShowRemoveModal(false);
+    setRemoveTarget(null);
+    
+    // Show success message
     if (Platform.OS === 'web') {
-      const confirmed = window.confirm(`Are you sure you want to remove ${memberName} from the family?`);
-      if (confirmed) {
-        await doRemove();
-      }
+      window.alert(`${removeTarget.memberName} has been removed from the family.`);
     } else {
-      Alert.alert(
-        "Remove Participant",
-        `Are you sure you want to remove ${memberName} from the family?`,
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Remove",
-            style: "destructive",
-            onPress: doRemove,
-          },
-        ]
-      );
+      Alert.alert("Success", `${removeTarget.memberName} has been removed from the family.`);
+    }
+  };
+  
+  // Compute if Remove button should be disabled
+  const isRemoveDisabled = () => {
+    if (removingMember) return true;
+    if (!removeTarget) return true;
+    // If participant has a passcode, require it to match
+    if (removeTarget.passcode) {
+      return removePasscodeInput !== removeTarget.passcode;
+    }
+    // No passcode - allow deletion (owner-only action anyway)
+    return false;
+  };
+  
+  const handleCopyPasscode = async (passcode: string) => {
+    try {
+      await Clipboard.setStringAsync(passcode);
+      setCopiedPasscode(passcode);
+      setTimeout(() => setCopiedPasscode(null), 2000);
+    } catch (error) {
+      console.error("Failed to copy passcode:", error);
     }
   };
 
@@ -482,10 +534,19 @@ export default function SetupScreen() {
                     <View style={styles.memberMetaRow}>
                       <Text style={styles.memberAge}>Age {kid.age}</Text>
                       {isOwner && kid.passcode && (
-                        <View style={styles.passcodeTag}>
+                        <TouchableOpacity 
+                          style={styles.passcodeTag}
+                          onPress={() => handleCopyPasscode(kid.passcode!)}
+                          data-testid={`button-copy-passcode-${kid.id}`}
+                        >
                           <Ionicons name="key-outline" size={10} color={colors.textSecondary} />
                           <Text style={styles.passcodeTagText}>{kid.passcode}</Text>
-                        </View>
+                          <Ionicons 
+                            name={copiedPasscode === kid.passcode ? "checkmark" : "copy-outline"} 
+                            size={10} 
+                            color={copiedPasscode === kid.passcode ? colors.success : colors.textSecondary} 
+                          />
+                        </TouchableOpacity>
                       )}
                     </View>
                     {kid.powers.length > 0 && (
@@ -508,7 +569,7 @@ export default function SetupScreen() {
                 {isOwner && (
                   <TouchableOpacity
                     style={styles.removeButton}
-                    onPress={() => handleRemoveParticipant(kid.id, kid.name, kid.profileId)}
+                    onPress={() => handleRemoveParticipant(kid.id, kid.name, kid.profileId, kid.passcode)}
                     data-testid={`button-remove-${kid.id}`}
                   >
                     <Ionicons name="close-circle" size={20} color={colors.error} />
@@ -996,6 +1057,92 @@ export default function SetupScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      <Modal visible={showRemoveModal} animationType="slide" transparent>
+        <KeyboardAvoidingView 
+          style={styles.modalOverlay}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Remove Participant</Text>
+              <TouchableOpacity onPress={() => {
+                setShowRemoveModal(false);
+                setRemoveTarget(null);
+                setRemovePasscodeInput("");
+                setRemoveError("");
+              }}>
+                <Ionicons name="close" size={28} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.removeWarningBox}>
+              <Ionicons name="warning" size={24} color={colors.error} />
+              <Text style={styles.removeWarningText}>
+                This action cannot be undone. {removeTarget?.memberName}'s profile and all their data will be permanently deleted.
+              </Text>
+            </View>
+
+            {removeTarget?.passcode ? (
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>
+                  Enter {removeTarget?.memberName}'s passcode to confirm
+                </Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="Enter 4-digit passcode"
+                  placeholderTextColor={colors.textMuted}
+                  value={removePasscodeInput}
+                  onChangeText={setRemovePasscodeInput}
+                  keyboardType="numeric"
+                  maxLength={4}
+                  autoFocus
+                  data-testid="input-remove-passcode"
+                />
+                {removeError ? (
+                  <Text style={styles.errorText}>{removeError}</Text>
+                ) : null}
+              </View>
+            ) : (
+              <Text style={styles.editNameDescription}>
+                Are you sure you want to remove {removeTarget?.memberName} from the family?
+              </Text>
+            )}
+
+            {removeError && !removeTarget?.passcode ? (
+              <Text style={styles.errorText}>{removeError}</Text>
+            ) : null}
+
+            <View style={styles.removeButtonRow}>
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={() => {
+                  setShowRemoveModal(false);
+                  setRemoveTarget(null);
+                  setRemovePasscodeInput("");
+                  setRemoveError("");
+                  setCopiedPasscode(null);
+                }}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.removeConfirmButton,
+                  isRemoveDisabled() && styles.confirmButtonDisabled,
+                ]}
+                onPress={confirmRemoveParticipant}
+                disabled={isRemoveDisabled()}
+                data-testid="button-confirm-remove"
+              >
+                <Text style={styles.removeConfirmButtonText}>
+                  {removingMember ? "Removing..." : "Remove"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </ScrollView>
   );
 }
@@ -1474,5 +1621,54 @@ const styles = StyleSheet.create({
   removeButton: {
     padding: spacing.sm,
     marginLeft: spacing.sm,
+  },
+  removeWarningBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: colors.errorBackground || "#FEE2E2",
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  removeWarningText: {
+    flex: 1,
+    fontSize: fontSize.sm,
+    color: colors.error,
+    lineHeight: 20,
+  },
+  removeButtonRow: {
+    flexDirection: "row",
+    gap: spacing.md,
+    marginTop: spacing.md,
+  },
+  cancelButton: {
+    flex: 1,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.surfaceSecondary,
+    alignItems: "center",
+  },
+  cancelButtonText: {
+    fontSize: fontSize.md,
+    fontWeight: "600",
+    color: colors.text,
+  },
+  removeConfirmButton: {
+    flex: 1,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.error,
+    alignItems: "center",
+  },
+  removeConfirmButtonText: {
+    fontSize: fontSize.md,
+    fontWeight: "600",
+    color: "#FFFFFF",
+  },
+  errorText: {
+    color: colors.error,
+    fontSize: fontSize.sm,
+    marginTop: spacing.xs,
   },
 });
