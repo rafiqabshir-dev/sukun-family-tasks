@@ -340,11 +340,12 @@ export default function SetupScreen() {
           // Continue anyway - might not have any
         }
         
-        // 3. Finally, delete the profile
-        const { error: deleteProfileError } = await client
+        // 3. Finally, delete the profile - use .select() to verify deletion
+        const { data: deletedData, error: deleteProfileError } = await client
           .from("profiles")
           .delete()
-          .eq("id", removeTarget.profileId);
+          .eq("id", removeTarget.profileId)
+          .select();
         
         if (deleteProfileError) {
           console.error("Error deleting participant profile:", deleteProfileError);
@@ -353,7 +354,15 @@ export default function SetupScreen() {
           return;
         }
         
-        console.log("[Setup] Successfully deleted participant from Supabase:", removeTarget.profileId);
+        // Check if any rows were actually deleted
+        if (!deletedData || deletedData.length === 0) {
+          console.error("[Setup] No profile was deleted - RLS may be blocking deletion");
+          setRemoveError("Unable to delete participant. You may not have permission.");
+          setRemovingMember(null);
+          return;
+        }
+        
+        console.log("[Setup] Successfully deleted participant from Supabase:", removeTarget.profileId, "deleted rows:", deletedData.length);
         
       } catch (err: any) {
         console.error("Error removing participant:", err);
