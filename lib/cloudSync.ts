@@ -565,13 +565,28 @@ export async function updateCloudTaskInstance(
     if (updates.completionRequestedBy !== undefined) cloudUpdates.completion_requested_by = updates.completionRequestedBy;
     if (updates.completionRequestedAt !== undefined) cloudUpdates.completion_requested_at = updates.completionRequestedAt;
 
-    const { error } = await supabase
+    console.log('[CloudSync] updateCloudTaskInstance:', { instanceId, cloudUpdates });
+
+    const { data, error } = await supabase
       .from('task_instances')
       .update(cloudUpdates)
-      .eq('id', instanceId);
+      .eq('id', instanceId)
+      .select();
 
-    return { error: error ? new Error(error.message) : null };
+    console.log('[CloudSync] Update result:', { data, error: error?.message, rowsAffected: data?.length || 0 });
+
+    if (error) {
+      console.error('[CloudSync] Update error details:', { code: error.code, message: error.message, details: error.details });
+      return { error: new Error(error.message) };
+    }
+    
+    if (!data || data.length === 0) {
+      console.warn('[CloudSync] Update affected 0 rows - RLS policy may have blocked the update');
+    }
+
+    return { error: null };
   } catch (error) {
+    console.error('[CloudSync] Unexpected error:', error);
     return { error: error as Error };
   }
 }

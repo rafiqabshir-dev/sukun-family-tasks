@@ -248,6 +248,9 @@ CREATE POLICY "Kids can mark their own tasks pending"
   ON task_instances FOR UPDATE
   USING (
     assignee_profile_id = auth.uid() AND status = 'open'
+  )
+  WITH CHECK (
+    assignee_profile_id = auth.uid() AND status IN ('open', 'pending_approval')
   );
 
 CREATE POLICY "Guardians can update task instances"
