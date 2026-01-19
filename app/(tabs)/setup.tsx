@@ -340,29 +340,30 @@ export default function SetupScreen() {
           // Continue anyway - might not have any
         }
         
-        // 3. Finally, delete the profile - use .select() to verify deletion
-        const { data: deletedData, error: deleteProfileError } = await client
+        // 3. Remove participant from family by setting family_id to null
+        // Note: Full deletion blocked by RLS, so we remove from family instead
+        const { data: updatedData, error: updateError } = await client
           .from("profiles")
-          .delete()
+          .update({ family_id: null })
           .eq("id", removeTarget.profileId)
           .select();
         
-        if (deleteProfileError) {
-          console.error("Error deleting participant profile:", deleteProfileError);
-          setRemoveError("Failed to remove participant: " + deleteProfileError.message);
+        if (updateError) {
+          console.error("Error removing participant from family:", updateError);
+          setRemoveError("Failed to remove participant: " + updateError.message);
           setRemovingMember(null);
           return;
         }
         
-        // Check if any rows were actually deleted
-        if (!deletedData || deletedData.length === 0) {
-          console.error("[Setup] No profile was deleted - RLS may be blocking deletion");
-          setRemoveError("Unable to delete participant. You may not have permission.");
+        // Check if any rows were actually updated
+        if (!updatedData || updatedData.length === 0) {
+          console.error("[Setup] No profile was updated - RLS may be blocking the operation");
+          setRemoveError("Unable to remove participant. You may not have permission.");
           setRemovingMember(null);
           return;
         }
         
-        console.log("[Setup] Successfully deleted participant from Supabase:", removeTarget.profileId, "deleted rows:", deletedData.length);
+        console.log("[Setup] Successfully removed participant from family:", removeTarget.profileId);
         
       } catch (err: any) {
         console.error("Error removing participant:", err);
