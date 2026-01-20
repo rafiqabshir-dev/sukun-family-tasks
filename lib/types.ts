@@ -50,6 +50,7 @@ export interface TaskTemplate {
   isArchived?: boolean;
   scheduleType?: TaskScheduleType;
   timeWindowMinutes?: number;
+  tags?: string[];
 }
 
 export type TaskStatus = "open" | "pending_approval" | "done" | "expired";

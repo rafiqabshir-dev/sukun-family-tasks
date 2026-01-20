@@ -96,9 +96,13 @@ export default function TodayScreen() {
 
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showDeductModal, setShowDeductModal] = useState(false);
-  const [selectedTemplate, setSelectedTemplate] = useState<TaskTemplate | null>(null);
-  const [selectedKid, setSelectedKid] = useState<string>("");
+  // Multi-select state for task assignment
+  const [selectedTemplateIds, setSelectedTemplateIds] = useState<Set<string>>(new Set());
+  const [selectedKidIds, setSelectedKidIds] = useState<Set<string>>(new Set());
+  const [taskSearchQuery, setTaskSearchQuery] = useState("");
+  const [expandedTags, setExpandedTags] = useState<Set<string>>(new Set(["all"]));
   const [dueDate, setDueDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [isAssigning, setIsAssigning] = useState(false);
   const [deductKid, setDeductKid] = useState<string>("");
   const [deductAmount, setDeductAmount] = useState<number>(1);
   const [deductReason, setDeductReason] = useState<string>("");
@@ -112,14 +116,113 @@ export default function TodayScreen() {
 
   const openAssignModal = () => {
     const kidsList = members.filter((m) => m.role === "kid");
-    if (kidsList.length === 1) {
-      setSelectedKid(kidsList[0].id);
-    }
+    // Auto-select all kids by default
+    setSelectedKidIds(new Set(kidsList.map(k => k.id)));
+    setSelectedTemplateIds(new Set());
+    setTaskSearchQuery("");
+    setExpandedTags(new Set(["all"]));
+    setDueDate(format(new Date(), "yyyy-MM-dd"));
     setShowAssignModal(true);
   };
 
   const kids = members.filter((m) => m.role === "kid");
   const enabledTemplates = taskTemplates.filter((t) => t.enabled);
+
+  // Predefined tags for grouping tasks
+  const TASK_TAGS = [
+    { key: "morning", label: "Morning Routine", icon: "sunny-outline" as const },
+    { key: "before-bed", label: "Before Bed", icon: "moon-outline" as const },
+    { key: "chores", label: "Chores", icon: "home-outline" as const },
+    { key: "learning", label: "Learning", icon: "book-outline" as const },
+    { key: "kindness", label: "Kindness", icon: "heart-outline" as const },
+  ];
+
+  // Filter templates by search query
+  const filteredTemplates = useMemo(() => {
+    if (!taskSearchQuery.trim()) return enabledTemplates;
+    const query = taskSearchQuery.toLowerCase();
+    return enabledTemplates.filter(t => 
+      t.title.toLowerCase().includes(query) ||
+      (t.tags || []).some(tag => tag.toLowerCase().includes(query)) ||
+      t.category.toLowerCase().includes(query)
+    );
+  }, [enabledTemplates, taskSearchQuery]);
+
+  // Group templates by tag
+  const templatesByTag = useMemo(() => {
+    const groups: Record<string, typeof filteredTemplates> = { all: filteredTemplates };
+    TASK_TAGS.forEach(tag => {
+      groups[tag.key] = filteredTemplates.filter(t => 
+        (t.tags || []).includes(tag.key) || t.category === tag.key
+      );
+    });
+    // Add "other" for templates without tags
+    groups.other = filteredTemplates.filter(t => 
+      !(t.tags?.length) && !TASK_TAGS.some(tag => t.category === tag.key)
+    );
+    return groups;
+  }, [filteredTemplates]);
+
+  // Toggle template selection
+  const toggleTemplateSelection = (templateId: string) => {
+    setSelectedTemplateIds(prev => {
+      const next = new Set(prev);
+      if (next.has(templateId)) {
+        next.delete(templateId);
+      } else {
+        next.add(templateId);
+      }
+      return next;
+    });
+  };
+
+  // Toggle kid selection
+  const toggleKidSelection = (kidId: string) => {
+    setSelectedKidIds(prev => {
+      const next = new Set(prev);
+      if (next.has(kidId)) {
+        next.delete(kidId);
+      } else {
+        next.add(kidId);
+      }
+      return next;
+    });
+  };
+
+  // Select/deselect all templates in a tag group
+  const toggleTagTemplates = (tagKey: string, select: boolean) => {
+    const tagTemplates = templatesByTag[tagKey] || [];
+    setSelectedTemplateIds(prev => {
+      const next = new Set(prev);
+      tagTemplates.forEach(t => {
+        if (select) {
+          next.add(t.id);
+        } else {
+          next.delete(t.id);
+        }
+      });
+      return next;
+    });
+  };
+
+  // Toggle tag expansion
+  const toggleTagExpanded = (tagKey: string) => {
+    setExpandedTags(prev => {
+      const next = new Set(prev);
+      if (next.has(tagKey)) {
+        next.delete(tagKey);
+      } else {
+        next.add(tagKey);
+      }
+      return next;
+    });
+  };
+
+  // Check if all templates in a tag are selected
+  const areAllTagTemplatesSelected = (tagKey: string) => {
+    const tagTemplates = templatesByTag[tagKey] || [];
+    return tagTemplates.length > 0 && tagTemplates.every(t => selectedTemplateIds.has(t.id));
+  };
 
   const tasksWithStatus = useMemo(() => {
     return taskInstances.map((t) => ({
@@ -148,66 +251,108 @@ export default function TodayScreen() {
   const getMember = (memberId: string) =>
     members.find((m) => m.id === memberId);
 
+  // Validate date format (YYYY-MM-DD)
+  const isValidDateFormat = (dateStr: string) => {
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(dateStr)) return false;
+    const date = new Date(dateStr);
+    return !isNaN(date.getTime());
+  };
+
   const handleAssignTask = async () => {
-    if (!selectedTemplate || !selectedKid || !dueDate || !currentMember?.id) return;
+    if (selectedTemplateIds.size === 0 || selectedKidIds.size === 0 || !dueDate || !currentMember?.id) return;
     
-    const dueAt = `${dueDate}T12:00:00`;
-    let success = false;
-    
-    // Sync to cloud first if configured - cloud is the source of truth
-    if (isSupabaseConfigured() && profile?.family_id) {
-      try {
-        const { data, error } = await createCloudTaskInstance(
-          profile.family_id,
-          selectedTemplate.id,
-          selectedKid,
-          currentMember.id,
-          dueAt
-        );
-        
-        if (error) {
-          console.error('[Today] Error creating task instance in cloud:', error.message);
-          // Show error to user - don't create locally without cloud
-          if (Platform.OS === 'web') {
-            window.alert('Unable to assign task. Please check your connection and try again.');
-          } else {
-            Alert.alert('Error', 'Unable to assign task. Please check your connection and try again.');
-          }
-          return; // Modal stays open on error
-        }
-        
-        if (data) {
-          // Use cloudInstanceToLocal helper for proper field mapping
-          const localInstance = cloudInstanceToLocal(data);
-          addTaskInstanceFromCloud(localInstance);
-          console.log('[Today] Task instance created in cloud:', data.id);
-          success = true;
-        }
-      } catch (err) {
-        console.error('[Today] Cloud sync error:', err);
-        if (Platform.OS === 'web') {
-          window.alert('Unable to assign task. Please check your connection and try again.');
-        } else {
-          Alert.alert('Error', 'Unable to assign task. Please check your connection and try again.');
-        }
-        return; // Modal stays open on error
+    // Validate date format
+    if (!isValidDateFormat(dueDate)) {
+      const message = 'Please enter a valid date in YYYY-MM-DD format';
+      if (Platform.OS === 'web') {
+        window.alert(message);
+      } else {
+        Alert.alert('Invalid Date', message);
       }
-    } else {
-      // No cloud configured - local-only mode (development/testing)
-      addTaskInstance({
-        templateId: selectedTemplate.id,
-        assignedToMemberId: selectedKid,
-        dueAt,
-        status: "open",
-      });
-      success = true;
+      return;
     }
     
-    // Only dismiss modal and reset form on success
-    if (success) {
+    setIsAssigning(true);
+    const dueAt = `${dueDate}T12:00:00`;
+    let successCount = 0;
+    let errorCount = 0;
+    
+    // Convert Sets to arrays for unique template/kid combinations
+    const templateIds = Array.from(selectedTemplateIds);
+    const kidIds = Array.from(selectedKidIds);
+    const totalAssignments = templateIds.length * kidIds.length;
+    
+    // Create all template/kid combinations
+    const assignments: { templateId: string; kidId: string }[] = [];
+    templateIds.forEach(templateId => {
+      kidIds.forEach(kidId => {
+        assignments.push({ templateId, kidId });
+      });
+    });
+    
+    try {
+      // Sync to cloud first if configured - cloud is the source of truth
+      if (isSupabaseConfigured() && profile?.family_id) {
+        // Batch create with Promise.allSettled for efficiency
+        const results = await Promise.allSettled(
+          assignments.map(async ({ templateId, kidId }) => {
+            const { data, error } = await createCloudTaskInstance(
+              profile.family_id!,
+              templateId,
+              kidId,
+              currentMember.id,
+              dueAt
+            );
+            if (error) throw error;
+            return data;
+          })
+        );
+        
+        results.forEach((result, index) => {
+          if (result.status === 'fulfilled' && result.value) {
+            const localInstance = cloudInstanceToLocal(result.value);
+            addTaskInstanceFromCloud(localInstance);
+            successCount++;
+          } else {
+            console.error('[Today] Failed to assign:', assignments[index], result.status === 'rejected' ? result.reason : 'No data');
+            errorCount++;
+          }
+        });
+      } else {
+        // No cloud configured - local-only mode (development/testing)
+        assignments.forEach(({ templateId, kidId }) => {
+          addTaskInstance({
+            templateId,
+            assignedToMemberId: kidId,
+            dueAt,
+            status: "open",
+          });
+          successCount++;
+        });
+      }
+    } catch (err) {
+      console.error('[Today] Unexpected error during assignment:', err);
+      errorCount = totalAssignments - successCount;
+    } finally {
+      setIsAssigning(false);
+    }
+    
+    // Show result and dismiss modal
+    if (errorCount > 0) {
+      const message = `Assigned ${successCount} of ${totalAssignments} tasks. ${errorCount} failed.`;
+      if (Platform.OS === 'web') {
+        window.alert(message);
+      } else {
+        Alert.alert('Partial Success', message);
+      }
+    }
+    
+    if (successCount > 0) {
       setShowAssignModal(false);
-      setSelectedTemplate(null);
-      setSelectedKid("");
+      setSelectedTemplateIds(new Set());
+      setSelectedKidIds(new Set());
+      setTaskSearchQuery("");
       setDueDate(format(new Date(), "yyyy-MM-dd"));
     }
   };
@@ -661,62 +806,206 @@ export default function TodayScreen() {
       </ScrollView>
 
       <Modal visible={showAssignModal} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+        <KeyboardAvoidingView 
+          style={styles.modalOverlay}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
+          <View style={styles.assignModalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Assign Task</Text>
+              <Text style={styles.modalTitle}>Assign Tasks</Text>
               <TouchableOpacity onPress={() => setShowAssignModal(false)}>
                 <Ionicons name="close" size={28} color={colors.text} />
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.modalLabel}>Select Task</Text>
-            <ScrollView style={styles.templateList} horizontal showsHorizontalScrollIndicator={false}>
-              {enabledTemplates.map((template) => (
-                <TouchableOpacity
-                  key={template.id}
-                  style={[
-                    styles.templateChip,
-                    selectedTemplate?.id === template.id && styles.templateChipSelected,
-                  ]}
-                  onPress={() => setSelectedTemplate(template)}
-                >
-                  <Text
-                    style={[
-                      styles.templateChipText,
-                      selectedTemplate?.id === template.id && styles.templateChipTextSelected,
-                    ]}
-                  >
-                    {template.title}
-                  </Text>
+            {/* Search Input */}
+            <View style={styles.searchContainer}>
+              <Ionicons name="search-outline" size={20} color={colors.textMuted} />
+              <TextInput
+                style={styles.searchInput}
+                value={taskSearchQuery}
+                onChangeText={setTaskSearchQuery}
+                placeholder="Search tasks..."
+                placeholderTextColor={colors.textMuted}
+                data-testid="input-task-search"
+              />
+              {taskSearchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setTaskSearchQuery("")}>
+                  <Ionicons name="close-circle" size={20} color={colors.textMuted} />
                 </TouchableOpacity>
-              ))}
-            </ScrollView>
-
-            <Text style={styles.modalLabel}>Assign To</Text>
-            <View style={styles.kidsList}>
-              {kids.map((kid) => (
-                <TouchableOpacity
-                  key={kid.id}
-                  style={[
-                    styles.kidChip,
-                    selectedKid === kid.id && styles.kidChipSelected,
-                  ]}
-                  onPress={() => setSelectedKid(kid.id)}
-                  data-testid={`button-select-kid-${kid.id}`}
-                >
-                  <Text
-                    style={[
-                      styles.kidChipText,
-                      selectedKid === kid.id && styles.kidChipTextSelected,
-                    ]}
-                  >
-                    {kid.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+              )}
             </View>
 
+            {/* Task Selection with Tag Groups */}
+            <Text style={styles.modalLabel}>
+              Select Tasks ({selectedTemplateIds.size} selected)
+            </Text>
+            <ScrollView style={styles.tagGroupContainer} showsVerticalScrollIndicator={false}>
+              {/* All Tasks Group */}
+              <View style={styles.tagGroup}>
+                <TouchableOpacity 
+                  style={styles.tagHeader}
+                  onPress={() => toggleTagExpanded("all")}
+                >
+                  <View style={styles.tagHeaderLeft}>
+                    <Ionicons 
+                      name={expandedTags.has("all") ? "chevron-down" : "chevron-forward"} 
+                      size={20} 
+                      color={colors.text} 
+                    />
+                    <Ionicons name="list-outline" size={18} color={colors.primary} />
+                    <Text style={styles.tagLabel}>All Tasks ({filteredTemplates.length})</Text>
+                  </View>
+                  <TouchableOpacity 
+                    style={styles.selectAllButton}
+                    onPress={() => toggleTagTemplates("all", !areAllTagTemplatesSelected("all"))}
+                  >
+                    <Text style={styles.selectAllText}>
+                      {areAllTagTemplatesSelected("all") ? "Clear All" : "Select All"}
+                    </Text>
+                  </TouchableOpacity>
+                </TouchableOpacity>
+                {expandedTags.has("all") && (
+                  <View style={styles.tagTemplates}>
+                    {filteredTemplates.map((template) => (
+                      <TouchableOpacity
+                        key={template.id}
+                        style={[
+                          styles.templateChip,
+                          selectedTemplateIds.has(template.id) && styles.templateChipSelected,
+                        ]}
+                        onPress={() => toggleTemplateSelection(template.id)}
+                        data-testid={`button-select-task-${template.id}`}
+                      >
+                        <View style={styles.templateChipInner}>
+                          {selectedTemplateIds.has(template.id) && (
+                            <Ionicons name="checkmark-circle" size={16} color={colors.surface} />
+                          )}
+                          <Text
+                            style={[
+                              styles.templateChipText,
+                              selectedTemplateIds.has(template.id) && styles.templateChipTextSelected,
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {template.title}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+              </View>
+
+              {/* Tag-based Groups */}
+              {TASK_TAGS.map((tag) => {
+                const tagTemplatesList = templatesByTag[tag.key] || [];
+                if (tagTemplatesList.length === 0) return null;
+                
+                return (
+                  <View key={tag.key} style={styles.tagGroup}>
+                    <TouchableOpacity 
+                      style={styles.tagHeader}
+                      onPress={() => toggleTagExpanded(tag.key)}
+                    >
+                      <View style={styles.tagHeaderLeft}>
+                        <Ionicons 
+                          name={expandedTags.has(tag.key) ? "chevron-down" : "chevron-forward"} 
+                          size={20} 
+                          color={colors.text} 
+                        />
+                        <Ionicons name={tag.icon} size={18} color={colors.primary} />
+                        <Text style={styles.tagLabel}>{tag.label} ({tagTemplatesList.length})</Text>
+                      </View>
+                      <TouchableOpacity 
+                        style={styles.selectAllButton}
+                        onPress={() => toggleTagTemplates(tag.key, !areAllTagTemplatesSelected(tag.key))}
+                      >
+                        <Text style={styles.selectAllText}>
+                          {areAllTagTemplatesSelected(tag.key) ? "Clear" : "Select All"}
+                        </Text>
+                      </TouchableOpacity>
+                    </TouchableOpacity>
+                    {expandedTags.has(tag.key) && (
+                      <View style={styles.tagTemplates}>
+                        {tagTemplatesList.map((template) => (
+                          <TouchableOpacity
+                            key={template.id}
+                            style={[
+                              styles.templateChip,
+                              selectedTemplateIds.has(template.id) && styles.templateChipSelected,
+                            ]}
+                            onPress={() => toggleTemplateSelection(template.id)}
+                          >
+                            <View style={styles.templateChipInner}>
+                              {selectedTemplateIds.has(template.id) && (
+                                <Ionicons name="checkmark-circle" size={16} color={colors.surface} />
+                              )}
+                              <Text
+                                style={[
+                                  styles.templateChipText,
+                                  selectedTemplateIds.has(template.id) && styles.templateChipTextSelected,
+                                ]}
+                                numberOfLines={1}
+                              >
+                                {template.title}
+                              </Text>
+                            </View>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
+            </ScrollView>
+
+            {/* Kids Multi-Select */}
+            <Text style={styles.modalLabel}>
+              Assign To ({selectedKidIds.size} selected)
+            </Text>
+            <View style={styles.kidsMultiSelect}>
+              <TouchableOpacity 
+                style={styles.selectAllKidsButton}
+                onPress={() => {
+                  const allSelected = kids.every(k => selectedKidIds.has(k.id));
+                  setSelectedKidIds(allSelected ? new Set() : new Set(kids.map(k => k.id)));
+                }}
+              >
+                <Text style={styles.selectAllText}>
+                  {kids.every(k => selectedKidIds.has(k.id)) ? "Clear All" : "Select All"}
+                </Text>
+              </TouchableOpacity>
+              <View style={styles.kidsList}>
+                {kids.map((kid) => (
+                  <TouchableOpacity
+                    key={kid.id}
+                    style={[
+                      styles.kidChip,
+                      selectedKidIds.has(kid.id) && styles.kidChipSelected,
+                    ]}
+                    onPress={() => toggleKidSelection(kid.id)}
+                    data-testid={`button-select-kid-${kid.id}`}
+                  >
+                    <View style={styles.kidChipContent}>
+                      {selectedKidIds.has(kid.id) && (
+                        <Ionicons name="checkmark-circle" size={16} color={colors.surface} />
+                      )}
+                      <Text
+                        style={[
+                          styles.kidChipText,
+                          selectedKidIds.has(kid.id) && styles.kidChipTextSelected,
+                        ]}
+                      >
+                        {kid.name}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Due Date */}
             <Text style={styles.modalLabel}>Due Date</Text>
             <TextInput
               style={styles.dateInput}
@@ -726,19 +1015,28 @@ export default function TodayScreen() {
               placeholderTextColor={colors.textMuted}
             />
 
+            {/* Assignment Summary & Confirm Button */}
+            <View style={styles.assignSummary}>
+              <Text style={styles.assignSummaryText}>
+                {selectedTemplateIds.size} task{selectedTemplateIds.size !== 1 ? 's' : ''} × {selectedKidIds.size} kid{selectedKidIds.size !== 1 ? 's' : ''} = {selectedTemplateIds.size * selectedKidIds.size} assignment{selectedTemplateIds.size * selectedKidIds.size !== 1 ? 's' : ''}
+              </Text>
+            </View>
+            
             <TouchableOpacity
               style={[
                 styles.confirmButton,
-                (!selectedTemplate || !selectedKid) && styles.confirmButtonDisabled,
+                (selectedTemplateIds.size === 0 || selectedKidIds.size === 0 || isAssigning) && styles.confirmButtonDisabled,
               ]}
               onPress={handleAssignTask}
-              disabled={!selectedTemplate || !selectedKid}
+              disabled={selectedTemplateIds.size === 0 || selectedKidIds.size === 0 || isAssigning}
               data-testid="button-confirm-assign"
             >
-              <Text style={styles.confirmButtonText}>Assign Task</Text>
+              <Text style={styles.confirmButtonText}>
+                {isAssigning ? "Assigning..." : `Assign ${selectedTemplateIds.size * selectedKidIds.size} Task${selectedTemplateIds.size * selectedKidIds.size !== 1 ? 's' : ''}`}
+              </Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       <Modal visible={showDeductModal} animationType="slide" transparent>
@@ -1097,6 +1395,94 @@ const styles = StyleSheet.create({
     borderTopRightRadius: borderRadius.xl,
     padding: spacing.lg,
     maxHeight: "80%",
+  },
+  assignModalContent: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: borderRadius.xl,
+    borderTopRightRadius: borderRadius.xl,
+    padding: spacing.lg,
+    maxHeight: "90%",
+  },
+  searchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.surfaceSecondary,
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: fontSize.md,
+    color: colors.text,
+    padding: 0,
+  },
+  tagGroupContainer: {
+    maxHeight: 200,
+    marginBottom: spacing.sm,
+  },
+  tagGroup: {
+    marginBottom: spacing.sm,
+  },
+  tagHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.xs,
+    backgroundColor: colors.surfaceSecondary,
+    borderRadius: borderRadius.md,
+  },
+  tagHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
+  tagLabel: {
+    fontSize: fontSize.sm,
+    fontWeight: "500",
+    color: colors.text,
+  },
+  selectAllButton: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  selectAllText: {
+    fontSize: fontSize.xs,
+    color: colors.primary,
+    fontWeight: "600",
+  },
+  tagTemplates: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+    paddingTop: spacing.sm,
+    paddingLeft: spacing.lg,
+  },
+  templateChipInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
+  kidsMultiSelect: {
+    marginBottom: spacing.sm,
+  },
+  selectAllKidsButton: {
+    alignSelf: "flex-end",
+    marginBottom: spacing.sm,
+  },
+  assignSummary: {
+    backgroundColor: colors.surfaceSecondary,
+    padding: spacing.sm,
+    borderRadius: borderRadius.md,
+    alignItems: "center",
+    marginTop: spacing.sm,
+  },
+  assignSummaryText: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
   },
   modalHeader: {
     flexDirection: "row",

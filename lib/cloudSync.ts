@@ -90,7 +90,8 @@ export function taskToTemplate(task: Task): TaskTemplate {
     enabled: task.enabled,
     isArchived: task.is_archived,
     scheduleType: task.schedule_type || undefined,
-    timeWindowMinutes: task.time_window_minutes || undefined
+    timeWindowMinutes: task.time_window_minutes || undefined,
+    tags: task.tags || []
   };
 }
 
@@ -109,7 +110,8 @@ export function templateToTask(template: TaskTemplate, familyId: string): Partia
     is_archived: template.isArchived || false,
     enabled: template.enabled,
     schedule_type: template.scheduleType || null,
-    time_window_minutes: template.timeWindowMinutes || null
+    time_window_minutes: template.timeWindowMinutes || null,
+    tags: template.tags || []
   };
 }
 

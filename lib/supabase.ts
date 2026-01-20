@@ -123,6 +123,7 @@ export type Task = {
   enabled: boolean;
   schedule_type: 'one_time' | 'recurring_daily' | 'time_sensitive' | null;
   time_window_minutes: number | null;
+  tags: string[];
   created_at: string;
 };
 
