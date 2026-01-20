@@ -7,7 +7,7 @@ import { TaskInstance, TaskTemplate } from "@/lib/types";
 import { useAuth } from "@/lib/authContext";
 import { format, isToday, isBefore, startOfDay, differenceInMinutes, differenceInSeconds, parseISO, isAfter } from "date-fns";
 import { isSupabaseConfigured } from "@/lib/supabase";
-import { addStarsLedgerEntry, createCloudTaskInstance, updateCloudTaskInstance, cloudInstanceToLocal } from "@/lib/cloudSync";
+import { addStarsLedgerEntry, createCloudTask, createCloudTaskInstance, updateCloudTaskInstance, cloudInstanceToLocal, taskToTemplate, archiveCloudTask } from "@/lib/cloudSync";
 
 function getTaskStatus(task: TaskInstance): "open" | "pending_approval" | "done" | "overdue" | "expired" {
   if (task.status === "done") return "done";
@@ -106,6 +106,10 @@ export default function TodayScreen() {
   const [deductKid, setDeductKid] = useState<string>("");
   const [deductAmount, setDeductAmount] = useState<number>(1);
   const [deductReason, setDeductReason] = useState<string>("");
+  // One-off task state
+  const [showOneOffForm, setShowOneOffForm] = useState(false);
+  const [oneOffTitle, setOneOffTitle] = useState("");
+  const [oneOffStars, setOneOffStars] = useState(1);
 
   // Current user is strictly the authenticated user - no fallback to cached data
   const currentMember = profile ? members.find((m) => m.id === profile.id || m.profileId === profile.id) : null;
@@ -121,6 +125,9 @@ export default function TodayScreen() {
     setTaskSearchQuery("");
     setExpandedTags(new Set(["all"]));
     setDueDate(format(new Date(), "yyyy-MM-dd"));
+    setShowOneOffForm(false);
+    setOneOffTitle("");
+    setOneOffStars(1);
     setShowAssignModal(true);
   };
 
@@ -353,6 +360,126 @@ export default function TodayScreen() {
     if (successCount > 0) {
       setShowAssignModal(false);
       setSelectedTemplateIds(new Set());
+      setSelectedKidIds(new Set());
+      setTaskSearchQuery("");
+      setDueDate(format(new Date(), "yyyy-MM-dd"));
+    }
+  };
+
+  const handleCreateOneOffTask = async () => {
+    if (!oneOffTitle.trim() || selectedKidIds.size === 0 || !dueDate || !currentMember?.id || !profile?.family_id) return;
+    
+    if (!isValidDateFormat(dueDate)) {
+      const message = 'Please enter a valid date in YYYY-MM-DD format';
+      if (Platform.OS === 'web') {
+        window.alert(message);
+      } else {
+        Alert.alert('Invalid Date', message);
+      }
+      return;
+    }
+    
+    setIsAssigning(true);
+    const dueAt = `${dueDate}T12:00:00`;
+    let successCount = 0;
+    let errorCount = 0;
+    const memberIds = Array.from(selectedKidIds);
+    const totalAssignments = memberIds.length;
+    
+    try {
+      const oneOffTemplate: Omit<TaskTemplate, 'id'> = {
+        title: oneOffTitle.trim(),
+        category: 'personal',
+        iconKey: 'flash-outline',
+        defaultStars: oneOffStars,
+        difficulty: 'medium',
+        preferredPowers: [],
+        enabled: false,
+        isArchived: false,
+        scheduleType: 'one_time',
+      };
+      
+      const { data: createdTask, error: taskError } = await createCloudTask(
+        profile.family_id,
+        oneOffTemplate
+      );
+      
+      if (taskError || !createdTask) {
+        console.error('[Today] Failed to create one-off task template:', taskError);
+        if (Platform.OS === 'web') {
+          window.alert('Failed to create task. Please try again.');
+        } else {
+          Alert.alert('Error', 'Failed to create task. Please try again.');
+        }
+        setIsAssigning(false);
+        return;
+      }
+      
+      const results = await Promise.allSettled(
+        memberIds.map(async (memberId) => {
+          const { data, error } = await createCloudTaskInstance(
+            profile.family_id!,
+            createdTask.id,
+            memberId,
+            currentMember.id,
+            dueAt
+          );
+          if (error) throw error;
+          return data;
+        })
+      );
+      
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled' && result.value) {
+          const localInstance = cloudInstanceToLocal(result.value);
+          addTaskInstanceFromCloud(localInstance);
+          successCount++;
+        } else {
+          const errorMsg = result.status === 'rejected' ? (result.reason as Error)?.message || 'Unknown error' : 'No data';
+          console.error('[Today] Failed to assign one-off task:', memberIds[index], errorMsg);
+          errorCount++;
+        }
+      });
+      
+      if (successCount > 0) {
+        const localTemplate = taskToTemplate(createdTask);
+        addTaskTemplate(localTemplate);
+      } else if (createdTask) {
+        console.log('[Today] All assignments failed - archiving orphan template');
+        try {
+          await archiveCloudTask(createdTask.id);
+        } catch (archiveErr) {
+          console.error('[Today] Failed to archive orphan template:', archiveErr);
+        }
+      }
+    } catch (err) {
+      console.error('[Today] Unexpected error creating one-off task:', err);
+      errorCount = totalAssignments - successCount;
+    } finally {
+      setIsAssigning(false);
+    }
+    
+    if (errorCount > 0 && successCount === 0) {
+      const message = 'Failed to assign task to any members. Please try again.';
+      if (Platform.OS === 'web') {
+        window.alert(message);
+      } else {
+        Alert.alert('Assignment Failed', message);
+      }
+    } else if (errorCount > 0) {
+      const message = `Created ${successCount} of ${totalAssignments} assignments. ${errorCount} failed.`;
+      if (Platform.OS === 'web') {
+        window.alert(message);
+      } else {
+        Alert.alert('Partial Success', message);
+      }
+    }
+    
+    if (successCount > 0) {
+      setShowAssignModal(false);
+      setShowOneOffForm(false);
+      setOneOffTitle("");
+      setOneOffStars(1);
       setSelectedKidIds(new Set());
       setTaskSearchQuery("");
       setDueDate(format(new Date(), "yyyy-MM-dd"));
@@ -960,6 +1087,73 @@ export default function TodayScreen() {
                   </View>
                 );
               })}
+              
+              {/* No Results - Create One-Off Task Option (only when cloud is configured) */}
+              {filteredTemplates.length === 0 && taskSearchQuery.trim().length > 0 && !showOneOffForm && (
+                <View style={styles.noResultsContainer}>
+                  <Text style={styles.noResultsText}>No tasks match "{taskSearchQuery}"</Text>
+                  {isSupabaseConfigured() && profile?.family_id && (
+                    <TouchableOpacity 
+                      style={styles.createOneOffButton}
+                      onPress={() => {
+                        setShowOneOffForm(true);
+                        setOneOffTitle(taskSearchQuery.trim());
+                      }}
+                      data-testid="button-create-one-off"
+                    >
+                      <Ionicons name="flash-outline" size={18} color={colors.surface} />
+                      <Text style={styles.createOneOffButtonText}>Create One-Off Task</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
+              
+              {/* One-Off Task Form */}
+              {showOneOffForm && (
+                <View style={styles.oneOffFormContainer}>
+                  <View style={styles.oneOffFormHeader}>
+                    <Ionicons name="flash" size={20} color={colors.primary} />
+                    <Text style={styles.oneOffFormTitle}>One-Off Task</Text>
+                    <TouchableOpacity 
+                      style={styles.oneOffCancelButton}
+                      onPress={() => setShowOneOffForm(false)}
+                    >
+                      <Text style={styles.oneOffCancelText}>Cancel</Text>
+                    </TouchableOpacity>
+                  </View>
+                  
+                  <TextInput
+                    style={styles.oneOffTitleInput}
+                    value={oneOffTitle}
+                    onChangeText={setOneOffTitle}
+                    placeholder="Task name..."
+                    placeholderTextColor={colors.textMuted}
+                    data-testid="input-one-off-title"
+                  />
+                  
+                  <View style={styles.oneOffStarsRow}>
+                    <Text style={styles.oneOffStarsLabel}>Stars:</Text>
+                    <View style={styles.starsSelector}>
+                      {[1, 2, 3, 4, 5].map((stars) => (
+                        <TouchableOpacity
+                          key={stars}
+                          style={[
+                            styles.starOption,
+                            oneOffStars === stars && styles.starOptionSelected,
+                          ]}
+                          onPress={() => setOneOffStars(stars)}
+                          data-testid={`button-stars-${stars}`}
+                        >
+                          <Text style={[
+                            styles.starOptionText,
+                            oneOffStars === stars && styles.starOptionTextSelected,
+                          ]}>{stars}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                </View>
+              )}
             </ScrollView>
 
             {/* Assignees Multi-Select (Guardians + Kids) */}
@@ -1018,25 +1212,51 @@ export default function TodayScreen() {
             />
 
             {/* Assignment Summary & Confirm Button */}
-            <View style={styles.assignSummary}>
-              <Text style={styles.assignSummaryText}>
-                {selectedTemplateIds.size} task{selectedTemplateIds.size !== 1 ? 's' : ''} × {selectedKidIds.size} member{selectedKidIds.size !== 1 ? 's' : ''} = {selectedTemplateIds.size * selectedKidIds.size} assignment{selectedTemplateIds.size * selectedKidIds.size !== 1 ? 's' : ''}
-              </Text>
-            </View>
-            
-            <TouchableOpacity
-              style={[
-                styles.confirmButton,
-                (selectedTemplateIds.size === 0 || selectedKidIds.size === 0 || isAssigning) && styles.confirmButtonDisabled,
-              ]}
-              onPress={handleAssignTask}
-              disabled={selectedTemplateIds.size === 0 || selectedKidIds.size === 0 || isAssigning}
-              data-testid="button-confirm-assign"
-            >
-              <Text style={styles.confirmButtonText}>
-                {isAssigning ? "Assigning..." : `Assign ${selectedTemplateIds.size * selectedKidIds.size} Task${selectedTemplateIds.size * selectedKidIds.size !== 1 ? 's' : ''}`}
-              </Text>
-            </TouchableOpacity>
+            {showOneOffForm ? (
+              <>
+                <View style={styles.assignSummary}>
+                  <Text style={styles.assignSummaryText}>
+                    Create "{oneOffTitle}" for {selectedKidIds.size} member{selectedKidIds.size !== 1 ? 's' : ''} ({oneOffStars} star{oneOffStars !== 1 ? 's' : ''} each)
+                  </Text>
+                </View>
+                
+                <TouchableOpacity
+                  style={[
+                    styles.confirmButton,
+                    (!oneOffTitle.trim() || selectedKidIds.size === 0 || isAssigning) && styles.confirmButtonDisabled,
+                  ]}
+                  onPress={handleCreateOneOffTask}
+                  disabled={!oneOffTitle.trim() || selectedKidIds.size === 0 || isAssigning}
+                  data-testid="button-confirm-one-off"
+                >
+                  <Text style={styles.confirmButtonText}>
+                    {isAssigning ? "Creating..." : `Create & Assign`}
+                  </Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <View style={styles.assignSummary}>
+                  <Text style={styles.assignSummaryText}>
+                    {selectedTemplateIds.size} task{selectedTemplateIds.size !== 1 ? 's' : ''} × {selectedKidIds.size} member{selectedKidIds.size !== 1 ? 's' : ''} = {selectedTemplateIds.size * selectedKidIds.size} assignment{selectedTemplateIds.size * selectedKidIds.size !== 1 ? 's' : ''}
+                  </Text>
+                </View>
+                
+                <TouchableOpacity
+                  style={[
+                    styles.confirmButton,
+                    (selectedTemplateIds.size === 0 || selectedKidIds.size === 0 || isAssigning) && styles.confirmButtonDisabled,
+                  ]}
+                  onPress={handleAssignTask}
+                  disabled={selectedTemplateIds.size === 0 || selectedKidIds.size === 0 || isAssigning}
+                  data-testid="button-confirm-assign"
+                >
+                  <Text style={styles.confirmButtonText}>
+                    {isAssigning ? "Assigning..." : `Assign ${selectedTemplateIds.size * selectedKidIds.size} Task${selectedTemplateIds.size * selectedKidIds.size !== 1 ? 's' : ''}`}
+                  </Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -1680,5 +1900,101 @@ const styles = StyleSheet.create({
     color: colors.warning,
     fontWeight: "500",
     textAlign: "center",
+  },
+  noResultsContainer: {
+    padding: spacing.lg,
+    alignItems: "center",
+    gap: spacing.md,
+  },
+  noResultsText: {
+    fontSize: fontSize.sm,
+    color: colors.textMuted,
+    textAlign: "center",
+  },
+  createOneOffButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+  },
+  createOneOffButtonText: {
+    color: colors.surface,
+    fontSize: fontSize.sm,
+    fontWeight: "600",
+  },
+  oneOffFormContainer: {
+    backgroundColor: colors.surfaceSecondary,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    marginTop: spacing.sm,
+  },
+  oneOffFormHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  oneOffFormTitle: {
+    fontSize: fontSize.md,
+    fontWeight: "600",
+    color: colors.text,
+    flex: 1,
+  },
+  oneOffCancelButton: {
+    padding: spacing.xs,
+  },
+  oneOffCancelText: {
+    color: colors.error,
+    fontSize: fontSize.sm,
+    fontWeight: "500",
+  },
+  oneOffTitleInput: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.md,
+    padding: spacing.sm,
+    fontSize: fontSize.md,
+    color: colors.text,
+    backgroundColor: colors.surface,
+    marginBottom: spacing.md,
+  },
+  oneOffStarsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+  },
+  oneOffStarsLabel: {
+    fontSize: fontSize.sm,
+    fontWeight: "500",
+    color: colors.textSecondary,
+  },
+  starsSelector: {
+    flexDirection: "row",
+    gap: spacing.sm,
+  },
+  starOption: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  starOptionSelected: {
+    backgroundColor: colors.secondary,
+    borderColor: colors.secondary,
+  },
+  starOptionText: {
+    fontSize: fontSize.sm,
+    fontWeight: "600",
+    color: colors.text,
+  },
+  starOptionTextSelected: {
+    color: colors.surface,
   },
 });
