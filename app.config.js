@@ -32,7 +32,17 @@ export default {
       favicon: "./assets/favicon.png",
       bundler: "metro"
     },
-    plugins: ["expo-router", "expo-secure-store"],
+    plugins: [
+      "expo-router", 
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#0D9488"
+        }
+      ]
+    ],
     extra: {
       SUPABASE_URL: process.env.SUPABASE_URL || "",
       SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY || ""

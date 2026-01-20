@@ -1,5 +1,5 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, KeyboardAvoidingView, Platform, Alert } from "react-native";
-import { useState } from "react";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, KeyboardAvoidingView, Platform, Alert, RefreshControl } from "react-native";
+import { useState, useCallback } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, borderRadius, fontSize } from "@/lib/theme";
 import { useStore } from "@/lib/store";
@@ -7,7 +7,7 @@ import { useAuth } from "@/lib/authContext";
 import { Reward, Member } from "@/lib/types";
 
 export default function RewardsScreen() {
-  const { profile } = useAuth();
+  const { profile, refreshProfile } = useAuth();
   const members = useStore((s) => s.members);
   const rewards = useStore((s) => s.rewards);
   const addReward = useStore((s) => s.addReward);
@@ -23,6 +23,18 @@ export default function RewardsScreen() {
   const [newTitle, setNewTitle] = useState("");
   const [newDescription, setNewDescription] = useState("");
   const [newStarsCost, setNewStarsCost] = useState("10");
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      await refreshProfile();
+    } catch (err) {
+      console.error('[Rewards] Refresh error:', err);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [refreshProfile]);
 
   // Current user is strictly the authenticated user - no fallback to cached data
   const currentMember = profile ? members.find((m) => m.id === profile.id || m.profileId === profile.id) : null;
@@ -198,7 +210,17 @@ export default function RewardsScreen() {
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView 
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+          />
+        }
+      >
         {kids.length > 0 && activeRewards.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Progress</Text>

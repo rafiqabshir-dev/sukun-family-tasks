@@ -5,6 +5,7 @@ import { View, ActivityIndicator, StyleSheet, Text } from "react-native";
 import { useStore } from "@/lib/store";
 import { colors } from "@/lib/theme";
 import { AuthProvider, useAuth } from "@/lib/authContext";
+import { PushNotificationProvider } from "@/lib/pushNotificationContext";
 import { resolveRoute, shouldNavigate, AuthState, UNPROTECTED_ROUTES } from "@/lib/navigation";
 
 function NavigationController() {
@@ -123,7 +124,9 @@ function RootLayoutContent() {
 export default function RootLayout() {
   return (
     <AuthProvider>
-      <RootLayoutContent />
+      <PushNotificationProvider>
+        <RootLayoutContent />
+      </PushNotificationProvider>
     </AuthProvider>
   );
 }

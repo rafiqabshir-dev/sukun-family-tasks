@@ -4,6 +4,7 @@ import { supabase, Profile, Family, JoinRequest, isSupabaseConfigured, TaskInsta
 import { useStore } from './store';
 import { Persona, derivePersona as derivePersonaFromState, AuthState } from './navigation';
 import { cloudInstanceToLocal, seedStarterTasksToCloud, taskToTemplate } from './cloudSync';
+import { notifyJoinRequest } from './pushNotificationService';
 
 export type JoinRequestWithProfile = JoinRequest & {
   requester_profile?: Profile;
@@ -784,6 +785,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setPendingJoinRequest(requestData as JoinRequest);
       setRequestedFamily(familyData as Family);
+
+      // Notify family guardians of the join request
+      const requesterName = profile?.display_name || 'Someone';
+      notifyJoinRequest(familyData.id, requesterName);
 
       return { error: null };
     } catch (error) {

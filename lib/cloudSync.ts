@@ -593,6 +593,55 @@ export async function updateCloudTaskInstance(
   }
 }
 
+export async function updatePushToken(profileId: string, pushToken: string): Promise<{ error: Error | null }> {
+  try {
+    const { error } = await supabase
+      .from('profiles')
+      .update({ push_token: pushToken })
+      .eq('id', profileId);
+
+    if (error) {
+      console.error('[CloudSync] Failed to update push token:', error);
+      return { error: new Error(error.message) };
+    }
+    
+    console.log('[CloudSync] Push token updated for profile:', profileId);
+    return { error: null };
+  } catch (error) {
+    console.error('[CloudSync] Unexpected error updating push token:', error);
+    return { error: error as Error };
+  }
+}
+
+export async function fetchPushTokensForFamily(familyId: string): Promise<{ 
+  tokens: Array<{ profileId: string; pushToken: string; role: string }>; 
+  error: Error | null 
+}> {
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, push_token, role')
+      .eq('family_id', familyId)
+      .not('push_token', 'is', null);
+
+    if (error) {
+      return { tokens: [], error: new Error(error.message) };
+    }
+
+    const tokens = (data || [])
+      .filter((p: { push_token: string | null }) => p.push_token)
+      .map((p: { id: string; push_token: string; role: string }) => ({
+        profileId: p.id,
+        pushToken: p.push_token,
+        role: p.role
+      }));
+
+    return { tokens, error: null };
+  } catch (error) {
+    return { tokens: [], error: error as Error };
+  }
+}
+
 export async function fetchFamilyTasks(familyId: string): Promise<{ 
   tasks: Task[]; 
   taskInstances: CloudTaskInstance[]; 

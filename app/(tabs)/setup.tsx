@@ -1,5 +1,5 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Modal, TextInput, KeyboardAvoidingView, Platform, Share, Linking, Alert } from "react-native";
-import { useState, useEffect } from "react";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Modal, TextInput, KeyboardAvoidingView, Platform, Share, Linking, Alert, RefreshControl } from "react-native";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -14,7 +14,7 @@ const STORAGE_KEY = "barakah-kids-race:v1";
 
 export default function SetupScreen() {
   const router = useRouter();
-  const { profile, family, signOut, isConfigured, getPendingJoinRequests, approveJoinRequest, rejectJoinRequest, updateProfileName, refreshPendingRequestsCount } = useAuth();
+  const { profile, family, signOut, isConfigured, getPendingJoinRequests, approveJoinRequest, rejectJoinRequest, updateProfileName, refreshPendingRequestsCount, refreshProfile } = useAuth();
   const members = useStore((s) => s.members);
   const taskTemplates = useStore((s) => s.taskTemplates);
   const taskInstances = useStore((s) => s.taskInstances);
@@ -49,6 +49,23 @@ export default function SetupScreen() {
   const [removePasscodeInput, setRemovePasscodeInput] = useState("");
   const [removeError, setRemoveError] = useState("");
   const [copiedPasscode, setCopiedPasscode] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      await refreshProfile();
+      if (isOwner && isConfigured) {
+        const requests = await getPendingJoinRequests();
+        setJoinRequests(requests);
+        refreshPendingRequestsCount();
+      }
+    } catch (err) {
+      console.error('[Setup] Refresh error:', err);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [refreshProfile, isOwner, isConfigured, getPendingJoinRequests, refreshPendingRequestsCount]);
   
   // Check if current user is the family owner (first guardian to join)
   useEffect(() => {
@@ -445,7 +462,18 @@ export default function SetupScreen() {
   const currentUserMember = findCurrentUserMember();
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView 
+      style={styles.container} 
+      contentContainerStyle={styles.content}
+      refreshControl={
+        <RefreshControl
+          refreshing={isRefreshing}
+          onRefresh={handleRefresh}
+          colors={[colors.primary]}
+          tintColor={colors.primary}
+        />
+      }
+    >
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Family Members</Text>

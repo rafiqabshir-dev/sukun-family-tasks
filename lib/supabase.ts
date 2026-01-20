@@ -98,6 +98,7 @@ export type Profile = {
   powers: string[];
   requires_login: boolean;
   passcode: string | null;
+  push_token: string | null;
   created_at: string;
 };
 

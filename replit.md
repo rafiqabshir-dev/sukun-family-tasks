@@ -107,6 +107,32 @@ Preferred communication style: Simple, everyday language.
   - `authEdgeCases.test.ts` (23 tests) - Edge cases and boundary conditions
   - `authIntegration.test.ts` (3 tests) - Complete app lifecycle (sign-in/sign-out cycles)
 
+### Push Notifications
+- **Implementation**: Uses expo-notifications, expo-device, expo-constants packages
+- **Token Registration**: `usePushNotifications` hook in `hooks/usePushNotifications.ts` handles permission requests and token registration
+- **Token Storage**: Push tokens stored in `profiles.push_token` column in Supabase (requires adding column to existing table)
+- **Context Provider**: `PushNotificationProvider` in `lib/pushNotificationContext.tsx` wraps the app and syncs tokens to Supabase
+- **Notification Service**: `lib/pushNotificationService.ts` provides functions to send notifications:
+  - `notifyTaskAssigned()` - When a task is assigned to a family member
+  - `notifyTaskPendingApproval()` - When someone completes a task needing approval
+  - `notifyTaskApproved()` - When a task is approved (star award)
+  - `notifyTaskRejected()` - When a task completion is rejected
+  - `notifyJoinRequest()` - When someone requests to join the family
+  - `notifyRewardClaimed()` - When a reward is claimed
+- **API**: Uses Expo Push API (https://exp.host/--/api/v2/push/send)
+- **Note**: Push notifications only work on physical devices, not simulators. Requires EAS build.
+
+### Pull-to-Refresh
+- **Pages with refresh**: Today, Leaderboard, Rewards, Setup
+- **Implementation**: Uses React Native's RefreshControl component with ScrollView
+- **Refresh Action**: Calls `refreshProfile()` from AuthContext which reloads profile, family, members, tasks, and instances from Supabase
+- **Visual Feedback**: Standard iOS/Android pull-down spinner with app's primary color
+
+### One-Off Task Creation
+- **Feature**: When searching for tasks during assignment, if no matches are found, guardians can create a one-off task
+- **Implementation**: Creates a hidden template (enabled: false) in Supabase that doesn't appear in the template picker
+- **Error Handling**: If all assignments fail, the orphan template is archived in cloud; only added to local store on success
+
 ## External Dependencies
 
 - expo (expo, expo-router, expo-constants, expo-linking, expo-status-bar)
@@ -118,3 +144,5 @@ Preferred communication style: Simple, everyday language.
 - typescript
 - @supabase/supabase-js
 - expo-secure-store
+- expo-notifications (push notifications)
+- expo-device (device detection for push notifications)

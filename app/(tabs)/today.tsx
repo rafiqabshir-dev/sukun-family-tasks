@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Pressable, Alert, Platform, KeyboardAvoidingView } from "react-native";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Pressable, Alert, Platform, KeyboardAvoidingView, RefreshControl } from "react-native";
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, borderRadius, fontSize } from "@/lib/theme";
@@ -8,6 +8,7 @@ import { useAuth } from "@/lib/authContext";
 import { format, isToday, isBefore, startOfDay, differenceInMinutes, differenceInSeconds, parseISO, isAfter } from "date-fns";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import { addStarsLedgerEntry, createCloudTask, createCloudTaskInstance, updateCloudTaskInstance, cloudInstanceToLocal, taskToTemplate, archiveCloudTask } from "@/lib/cloudSync";
+import { notifyTaskAssigned, notifyTaskPendingApproval, notifyTaskApproved, notifyTaskRejected } from "@/lib/pushNotificationService";
 
 function getTaskStatus(task: TaskInstance): "open" | "pending_approval" | "done" | "overdue" | "expired" {
   if (task.status === "done") return "done";
@@ -56,7 +57,7 @@ function formatTimeRemaining(expiresAt: string): string {
 }
 
 export default function TodayScreen() {
-  const { profile } = useAuth();
+  const { profile, refreshProfile } = useAuth();
   const members = useStore((s) => s.members);
   const taskTemplates = useStore((s) => s.taskTemplates);
   const taskInstances = useStore((s) => s.taskInstances);
@@ -110,6 +111,18 @@ export default function TodayScreen() {
   const [showOneOffForm, setShowOneOffForm] = useState(false);
   const [oneOffTitle, setOneOffTitle] = useState("");
   const [oneOffStars, setOneOffStars] = useState(1);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      await refreshProfile();
+    } catch (err) {
+      console.error('[Today] Refresh error:', err);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [refreshProfile]);
 
   // Current user is strictly the authenticated user - no fallback to cached data
   const currentMember = profile ? members.find((m) => m.id === profile.id || m.profileId === profile.id) : null;
@@ -318,14 +331,32 @@ export default function TodayScreen() {
           })
         );
         
+        const successfulAssignments: { memberId: string; templateTitle: string }[] = [];
+        
         results.forEach((result, index) => {
           if (result.status === 'fulfilled' && result.value) {
             const localInstance = cloudInstanceToLocal(result.value);
             addTaskInstanceFromCloud(localInstance);
             successCount++;
+            
+            const template = taskTemplates.find(t => t.id === assignments[index].templateId);
+            successfulAssignments.push({
+              memberId: assignments[index].kidId,
+              templateTitle: template?.title || 'Task'
+            });
           } else {
             console.error('[Today] Failed to assign:', assignments[index], result.status === 'rejected' ? result.reason : 'No data');
             errorCount++;
+          }
+        });
+        
+        // Send notifications for successful assignments
+        const assignerName = currentMember?.name || 'Guardian';
+        const notifiedMembers = new Set<string>();
+        successfulAssignments.forEach(({ memberId, templateTitle }) => {
+          if (!notifiedMembers.has(memberId)) {
+            notifiedMembers.add(memberId);
+            notifyTaskAssigned(profile.family_id!, memberId, templateTitle, assignerName);
           }
         });
       } else {
@@ -594,6 +625,14 @@ export default function TodayScreen() {
             console.error('[Today] Error syncing pending approval to cloud:', error.message);
           } else {
             console.log('[Today] Task pending approval synced to cloud');
+            // Notify guardians of pending approval
+            const completerName = members.find(m => m.id === requestedBy)?.name || 'Someone';
+            notifyTaskPendingApproval(
+              profile.family_id,
+              completerName,
+              template?.title || 'Task',
+              requestedBy
+            );
           }
         }
       } catch (err) {
@@ -604,6 +643,10 @@ export default function TodayScreen() {
 
   // Reject task with cloud sync
   const handleRejectTask = async (taskId: string) => {
+    const task = taskInstances.find((t) => t.id === taskId);
+    const template = task ? taskTemplates.find((t) => t.id === task.templateId) : null;
+    const assigneeId = task?.assignedToMemberId;
+    
     // Update local store first
     rejectTask(taskId);
     
@@ -620,6 +663,14 @@ export default function TodayScreen() {
           console.error('[Today] Error syncing task rejection to cloud:', error.message);
         } else {
           console.log('[Today] Task rejection synced to cloud');
+          // Notify assignee of rejection
+          if (assigneeId) {
+            notifyTaskRejected(
+              profile.family_id,
+              assigneeId,
+              template?.title || 'Task'
+            );
+          }
         }
       } catch (err) {
         console.error('[Today] Cloud sync error:', err);
@@ -666,6 +717,13 @@ export default function TodayScreen() {
           console.error('[Today] Error syncing task approval stars to cloud:', starsResult.error.message);
         } else {
           console.log('[Today] Task approval synced to cloud, stars:', stars);
+          // Notify assignee of approval
+          notifyTaskApproved(
+            profile.family_id,
+            assigneeId,
+            template?.title || 'Task',
+            stars
+          );
         }
       } catch (err) {
         console.error('[Today] Cloud sync error:', err);
@@ -845,7 +903,17 @@ export default function TodayScreen() {
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView 
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+          />
+        }
+      >
         <View style={styles.currentUserBar} data-testid="current-user-info">
           <View style={styles.actingAsLeft}>
             <View style={styles.actingAsAvatar}>

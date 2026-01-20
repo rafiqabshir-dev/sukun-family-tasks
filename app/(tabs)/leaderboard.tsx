@@ -1,15 +1,31 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from "react-native";
+import { useState, useCallback } from "react";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, borderRadius, fontSize } from "@/lib/theme";
 import { useStore } from "@/lib/store";
+import { useAuth } from "@/lib/authContext";
 
 export default function LeaderboardScreen() {
   const router = useRouter();
+  const { refreshProfile } = useAuth();
   const members = useStore((s) => s.members);
   const kids = members
     .filter((m) => m.role === "kid")
     .sort((a, b) => b.starsTotal - a.starsTotal);
+  
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      await refreshProfile();
+    } catch (err) {
+      console.error('[Leaderboard] Refresh error:', err);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [refreshProfile]);
 
   const getRankDisplay = (index: number) => {
     if (index === 0) return { icon: "trophy" as const, color: "#FFD700" };
@@ -19,7 +35,18 @@ export default function LeaderboardScreen() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView 
+      style={styles.container} 
+      contentContainerStyle={styles.content}
+      refreshControl={
+        <RefreshControl
+          refreshing={isRefreshing}
+          onRefresh={handleRefresh}
+          colors={[colors.primary]}
+          tintColor={colors.primary}
+        />
+      }
+    >
       {kids.length === 0 ? (
         <View style={styles.emptyState}>
           <View style={styles.emptyIcon}>
