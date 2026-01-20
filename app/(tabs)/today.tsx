@@ -115,9 +115,8 @@ export default function TodayScreen() {
   const guardianCount = members.filter((m) => m.role === "guardian").length;
 
   const openAssignModal = () => {
-    const kidsList = members.filter((m) => m.role === "kid");
-    // Auto-select all kids by default
-    setSelectedKidIds(new Set(kidsList.map(k => k.id)));
+    // Auto-select all family members by default (guardians + kids)
+    setSelectedKidIds(new Set(members.map(m => m.id)));
     setSelectedTemplateIds(new Set());
     setTaskSearchQuery("");
     setExpandedTags(new Set(["all"]));
@@ -125,6 +124,9 @@ export default function TodayScreen() {
     setShowAssignModal(true);
   };
 
+  // All family members can be assigned tasks (guardians and kids)
+  const assignees = members;
+  // Kids only (for deducting stars)
   const kids = members.filter((m) => m.role === "kid");
   const enabledTemplates = taskTemplates.filter((t) => t.enabled);
 
@@ -758,10 +760,10 @@ export default function TodayScreen() {
           </View>
         )}
 
-        {!isCurrentUserGuardian && myTasks.length > 0 && (
+        {myTasks.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>My Tasks</Text>
-            {myTasks.map((task) => renderTaskCard(task, false))}
+            {myTasks.map((task) => renderTaskCard(task, isCurrentUserGuardian))}
           </View>
         )}
 
@@ -790,7 +792,7 @@ export default function TodayScreen() {
         )}
 
         {(isCurrentUserGuardian 
-          ? dueTodayTasks.length === 0 && overdueTasks.length === 0 && pendingApprovalTasks.length === 0
+          ? myTasks.length === 0 && dueTodayTasks.length === 0 && overdueTasks.length === 0 && pendingApprovalTasks.length === 0
           : myTasks.length === 0 && pendingApprovalTasks.length === 0
         ) && (
           <View style={styles.emptyState}>
@@ -798,7 +800,7 @@ export default function TodayScreen() {
             <Text style={styles.emptyTitle}>All Clear!</Text>
             <Text style={styles.emptyText}>
               {isCurrentUserGuardian
-                ? "Assign tasks to participants using the button above."
+                ? "Assign tasks to family members using the button above."
                 : "No tasks right now. Great job!"}
             </Text>
           </View>
@@ -960,7 +962,7 @@ export default function TodayScreen() {
               })}
             </ScrollView>
 
-            {/* Kids Multi-Select */}
+            {/* Assignees Multi-Select (Guardians + Kids) */}
             <Text style={styles.modalLabel}>
               Assign To ({selectedKidIds.size} selected)
             </Text>
@@ -968,36 +970,36 @@ export default function TodayScreen() {
               <TouchableOpacity 
                 style={styles.selectAllKidsButton}
                 onPress={() => {
-                  const allSelected = kids.every(k => selectedKidIds.has(k.id));
-                  setSelectedKidIds(allSelected ? new Set() : new Set(kids.map(k => k.id)));
+                  const allSelected = assignees.every(a => selectedKidIds.has(a.id));
+                  setSelectedKidIds(allSelected ? new Set() : new Set(assignees.map(a => a.id)));
                 }}
               >
                 <Text style={styles.selectAllText}>
-                  {kids.every(k => selectedKidIds.has(k.id)) ? "Clear All" : "Select All"}
+                  {assignees.every(a => selectedKidIds.has(a.id)) ? "Clear All" : "Select All"}
                 </Text>
               </TouchableOpacity>
               <View style={styles.kidsList}>
-                {kids.map((kid) => (
+                {assignees.map((member) => (
                   <TouchableOpacity
-                    key={kid.id}
+                    key={member.id}
                     style={[
                       styles.kidChip,
-                      selectedKidIds.has(kid.id) && styles.kidChipSelected,
+                      selectedKidIds.has(member.id) && styles.kidChipSelected,
                     ]}
-                    onPress={() => toggleKidSelection(kid.id)}
-                    data-testid={`button-select-kid-${kid.id}`}
+                    onPress={() => toggleKidSelection(member.id)}
+                    data-testid={`button-select-member-${member.id}`}
                   >
                     <View style={styles.kidChipContent}>
-                      {selectedKidIds.has(kid.id) && (
+                      {selectedKidIds.has(member.id) && (
                         <Ionicons name="checkmark-circle" size={16} color={colors.surface} />
                       )}
                       <Text
                         style={[
                           styles.kidChipText,
-                          selectedKidIds.has(kid.id) && styles.kidChipTextSelected,
+                          selectedKidIds.has(member.id) && styles.kidChipTextSelected,
                         ]}
                       >
-                        {kid.name}
+                        {member.name}{member.role === 'guardian' ? ' (Guardian)' : ''}
                       </Text>
                     </View>
                   </TouchableOpacity>
@@ -1018,7 +1020,7 @@ export default function TodayScreen() {
             {/* Assignment Summary & Confirm Button */}
             <View style={styles.assignSummary}>
               <Text style={styles.assignSummaryText}>
-                {selectedTemplateIds.size} task{selectedTemplateIds.size !== 1 ? 's' : ''} × {selectedKidIds.size} kid{selectedKidIds.size !== 1 ? 's' : ''} = {selectedTemplateIds.size * selectedKidIds.size} assignment{selectedTemplateIds.size * selectedKidIds.size !== 1 ? 's' : ''}
+                {selectedTemplateIds.size} task{selectedTemplateIds.size !== 1 ? 's' : ''} × {selectedKidIds.size} member{selectedKidIds.size !== 1 ? 's' : ''} = {selectedTemplateIds.size * selectedKidIds.size} assignment{selectedTemplateIds.size * selectedKidIds.size !== 1 ? 's' : ''}
               </Text>
             </View>
             
