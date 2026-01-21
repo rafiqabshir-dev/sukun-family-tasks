@@ -601,6 +601,11 @@ export async function updatePushToken(profileId: string, pushToken: string): Pro
       .eq('id', profileId);
 
     if (error) {
+      // Handle case where push_token column doesn't exist yet
+      if (error.code === 'PGRST204' || error.message.includes('push_token')) {
+        console.warn('[CloudSync] push_token column not found in profiles table. Please add it in Supabase dashboard.');
+        return { error: null }; // Don't treat as error - feature just not available yet
+      }
       console.error('[CloudSync] Failed to update push token:', error);
       return { error: new Error(error.message) };
     }
@@ -625,6 +630,11 @@ export async function fetchPushTokensForFamily(familyId: string): Promise<{
       .not('push_token', 'is', null);
 
     if (error) {
+      // Handle case where push_token column doesn't exist yet
+      if (error.code === 'PGRST204' || error.message.includes('push_token')) {
+        console.warn('[CloudSync] push_token column not found. Push notifications disabled.');
+        return { tokens: [], error: null };
+      }
       return { tokens: [], error: new Error(error.message) };
     }
 
