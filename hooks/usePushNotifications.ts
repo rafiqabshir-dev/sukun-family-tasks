@@ -86,15 +86,23 @@ async function registerForPushNotificationsAsync(): Promise<string | undefined> 
     }
 
     try {
-      const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+      // Get projectId from config - required for Expo Go
+      const projectId = Constants.expoConfig?.extra?.eas?.projectId 
+        || Constants.easConfig?.projectId;
+      
+      console.log('[Push] Using projectId:', projectId);
+      
       if (projectId) {
         token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
       } else {
+        // Fallback - try without projectId (may fail in Expo Go)
+        console.warn('[Push] No projectId found, trying without it...');
         token = (await Notifications.getExpoPushTokenAsync()).data;
       }
       console.log('[Push] Expo Push Token:', token);
     } catch (error) {
       console.error('[Push] Error getting push token:', error);
+      console.log('[Push] To fix: Run "eas init" to link your project, or set EXPO_PROJECT_ID env var');
     }
   } else {
     console.log('[Push] Must use physical device for Push Notifications');
