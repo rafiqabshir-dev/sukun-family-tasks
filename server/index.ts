@@ -9,7 +9,7 @@ console.log('Starting Expo app...');
 const expo = spawn('npx', ['expo', 'start', '--tunnel', '--port', '5000'], {
   stdio: 'inherit',
   cwd: process.cwd(),
-  env: { ...process.env, CI: '1' }
+  env: { ...process.env, EXPO_NO_REDIRECT: '1' }
 });
 
 expo.on('error', (err) => {
