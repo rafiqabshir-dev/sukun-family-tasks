@@ -59,6 +59,9 @@ export default function SetupScreen() {
   const [savingMember, setSavingMember] = useState(false);
   const [copiedPasscode, setCopiedPasscode] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  
+  // Collapsible section state
+  const [expandedSection, setExpandedSection] = useState<'participants' | 'guardians' | null>(null);
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
@@ -548,164 +551,218 @@ export default function SetupScreen() {
             </TouchableOpacity>
           )}
         </View>
-        <View style={styles.card}>
-          <View style={styles.statRow}>
+        {/* Participants Section - Collapsible */}
+        <TouchableOpacity 
+          style={[styles.collapsibleCard, expandedSection === 'participants' && styles.collapsibleCardExpanded]}
+          onPress={() => setExpandedSection(expandedSection === 'participants' ? null : 'participants')}
+          activeOpacity={0.7}
+          data-testid="button-toggle-participants"
+        >
+          <View style={styles.collapsibleHeader}>
             <Ionicons name="people" size={24} color={colors.primary} />
-            <Text style={styles.statLabel}>Participants</Text>
-            <Text style={styles.statValue}>{kids.length}</Text>
+            <Text style={styles.collapsibleTitle}>Participants</Text>
+            <View style={styles.collapsibleBadge}>
+              <Text style={styles.collapsibleBadgeText}>{kids.length}</Text>
+            </View>
+            <Ionicons 
+              name={expandedSection === 'participants' ? "chevron-up" : "chevron-down"} 
+              size={20} 
+              color={colors.textSecondary} 
+            />
           </View>
-          <View style={styles.divider} />
-          <View style={styles.statRow}>
-            <Ionicons name="shield-checkmark" size={24} color={colors.primaryLight} />
-            <Text style={styles.statLabel}>Guardians</Text>
-            <Text style={styles.statValue}>{guardians.length}</Text>
-          </View>
-        </View>
+        </TouchableOpacity>
 
-        {kids.length === 0 && (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyText}>No participants yet</Text>
-            {isOwner && inviteCode && (
-              <TouchableOpacity
-                style={styles.inviteButton}
-                onPress={() => setShowInviteDrawer(true)}
-                data-testid="button-invite-members"
-              >
-                <Ionicons name="person-add" size={20} color="#FFFFFF" />
-                <Text style={styles.inviteButtonText}>Invite Members</Text>
-              </TouchableOpacity>
+        {expandedSection === 'participants' && (
+          <View style={styles.expandedSection}>
+            {kids.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyText}>No participants yet</Text>
+                {isOwner && inviteCode && (
+                  <TouchableOpacity
+                    style={styles.inviteButton}
+                    onPress={() => setShowInviteDrawer(true)}
+                    data-testid="button-invite-members"
+                  >
+                    <Ionicons name="person-add" size={20} color="#FFFFFF" />
+                    <Text style={styles.inviteButtonText}>Invite Members</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            ) : (
+              <View style={styles.expandedMembersList}>
+                {kids.map((kid) => (
+                  <View key={kid.id} style={styles.expandedMemberCard}>
+                    <TouchableOpacity 
+                      style={styles.expandedMemberContent}
+                      onPress={() => router.push(`/member/${kid.id}`)}
+                      data-testid={`button-member-${kid.id}`}
+                    >
+                      <View style={styles.expandedMemberHeader}>
+                        <View style={styles.expandedMemberAvatar}>
+                          {kid.avatar ? (
+                            <Text style={styles.expandedMemberAvatarEmoji}>{kid.avatar}</Text>
+                          ) : (
+                            <Text style={styles.expandedMemberInitial}>
+                              {kid.name.charAt(0).toUpperCase()}
+                            </Text>
+                          )}
+                        </View>
+                        <View style={styles.expandedMemberInfo}>
+                          <Text style={styles.expandedMemberName}>{kid.name}</Text>
+                          <Text style={styles.expandedMemberSubtitle}>
+                            {kid.age ? `Age ${kid.age}` : "Participant"}
+                          </Text>
+                        </View>
+                        <View style={styles.expandedMemberStars}>
+                          <Ionicons name="star" size={18} color={colors.secondary} />
+                          <Text style={styles.expandedMemberStarsText}>{kid.starsTotal}</Text>
+                        </View>
+                      </View>
+                      
+                      {/* Passcode row for owners */}
+                      {isOwner && kid.passcode && (
+                        <TouchableOpacity 
+                          style={styles.expandedPasscodeRow}
+                          onPress={() => handleCopyPasscode(kid.passcode!)}
+                          data-testid={`button-copy-passcode-${kid.id}`}
+                        >
+                          <Ionicons name="key-outline" size={14} color={colors.textSecondary} />
+                          <Text style={styles.expandedPasscodeText}>Login Code: {kid.passcode}</Text>
+                          <Ionicons 
+                            name={copiedPasscode === kid.passcode ? "checkmark-circle" : "copy-outline"} 
+                            size={16} 
+                            color={copiedPasscode === kid.passcode ? colors.success : colors.primary} 
+                          />
+                        </TouchableOpacity>
+                      )}
+                      
+                      {/* Powers */}
+                      {kid.powers.length > 0 && (
+                        <View style={styles.expandedPowerTags}>
+                          {kid.powers.map((p) => (
+                            <View key={p.powerKey} style={styles.expandedPowerTag}>
+                              <Text style={styles.expandedPowerTagText}>
+                                {POWER_INFO[p.powerKey].name}
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                    
+                    {/* Actions for owners */}
+                    {isOwner && (
+                      <View style={styles.expandedMemberActions}>
+                        <TouchableOpacity
+                          style={styles.expandedEditButton}
+                          onPress={() => handleOpenEditMember({ id: kid.id, name: kid.name, avatar: kid.avatar, age: kid.age })}
+                          data-testid={`button-edit-${kid.id}`}
+                        >
+                          <Ionicons name="pencil" size={18} color={colors.primary} />
+                          <Text style={styles.expandedEditButtonText}>Edit</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.expandedRemoveButton}
+                          onPress={() => handleRemoveParticipant(kid.id, kid.name, kid.profileId, kid.passcode)}
+                          data-testid={`button-remove-${kid.id}`}
+                        >
+                          <Ionicons name="trash-outline" size={18} color={colors.error} />
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </View>
+                ))}
+              </View>
             )}
           </View>
         )}
 
-        {kids.length > 0 && (
-          <View style={styles.membersList}>
-            {kids.map((kid) => (
-              <View key={kid.id} style={styles.memberItem}>
-                <TouchableOpacity 
-                  style={styles.memberItemContent}
-                  onPress={() => router.push(`/member/${kid.id}`)}
-                  data-testid={`button-member-${kid.id}`}
-                >
-                  <View style={styles.memberAvatar}>
-                    {kid.avatar ? (
-                      <Text style={styles.memberAvatarEmoji}>{kid.avatar}</Text>
-                    ) : (
-                      <Text style={styles.memberInitial}>
-                        {kid.name.charAt(0).toUpperCase()}
-                      </Text>
-                    )}
-                  </View>
-                  <View style={styles.memberInfo}>
-                    <Text style={styles.memberName}>{kid.name}</Text>
-                    <View style={styles.memberMetaRow}>
-                      <Text style={styles.memberAge}>Age {kid.age}</Text>
-                      {isOwner && kid.passcode && (
-                        <TouchableOpacity 
-                          style={styles.passcodeTag}
-                          onPress={() => handleCopyPasscode(kid.passcode!)}
-                          data-testid={`button-copy-passcode-${kid.id}`}
-                        >
-                          <Ionicons name="key-outline" size={10} color={colors.textSecondary} />
-                          <Text style={styles.passcodeTagText}>{kid.passcode}</Text>
-                          <Ionicons 
-                            name={copiedPasscode === kid.passcode ? "checkmark" : "copy-outline"} 
-                            size={10} 
-                            color={copiedPasscode === kid.passcode ? colors.success : colors.textSecondary} 
-                          />
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                    {kid.powers.length > 0 && (
-                      <View style={styles.powerTags}>
-                        {kid.powers.map((p) => (
-                          <View key={p.powerKey} style={styles.powerTag}>
-                            <Text style={styles.powerTagText}>
-                              {POWER_INFO[p.powerKey].name}
+        {/* Guardians Section - Collapsible */}
+        <TouchableOpacity 
+          style={[styles.collapsibleCard, expandedSection === 'guardians' && styles.collapsibleCardExpanded]}
+          onPress={() => setExpandedSection(expandedSection === 'guardians' ? null : 'guardians')}
+          activeOpacity={0.7}
+          data-testid="button-toggle-guardians"
+        >
+          <View style={styles.collapsibleHeader}>
+            <Ionicons name="shield-checkmark" size={24} color={colors.primaryLight} />
+            <Text style={styles.collapsibleTitle}>Guardians</Text>
+            <View style={styles.collapsibleBadge}>
+              <Text style={styles.collapsibleBadgeText}>{guardians.length}</Text>
+            </View>
+            <Ionicons 
+              name={expandedSection === 'guardians' ? "chevron-up" : "chevron-down"} 
+              size={20} 
+              color={colors.textSecondary} 
+            />
+          </View>
+        </TouchableOpacity>
+
+        {expandedSection === 'guardians' && (
+          <View style={styles.expandedSection}>
+            {guardians.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyText}>No guardians yet</Text>
+              </View>
+            ) : (
+              <View style={styles.expandedMembersList}>
+                {guardians.map((guardian) => {
+                  const isCurrentUser = guardian.id === profile?.id || 
+                    (profile?.display_name && guardian.name === profile.display_name && guardian.role === 'guardian');
+                  return (
+                    <View key={guardian.id} style={styles.expandedMemberCard}>
+                      <TouchableOpacity 
+                        style={styles.expandedMemberContent}
+                        onPress={() => router.push(`/member/${guardian.id}`)}
+                        data-testid={`button-member-${guardian.id}`}
+                      >
+                        <View style={styles.expandedMemberHeader}>
+                          <View style={[styles.expandedMemberAvatar, styles.expandedGuardianAvatar]}>
+                            {guardian.avatar ? (
+                              <Text style={styles.expandedMemberAvatarEmoji}>{guardian.avatar}</Text>
+                            ) : (
+                              <Text style={styles.expandedMemberInitial}>
+                                {guardian.name.charAt(0).toUpperCase()}
+                              </Text>
+                            )}
+                          </View>
+                          <View style={styles.expandedMemberInfo}>
+                            <View style={styles.expandedNameRow}>
+                              <Text style={styles.expandedMemberName}>{guardian.name}</Text>
+                              {isCurrentUser && (
+                                <View style={styles.youBadge}>
+                                  <Text style={styles.youBadgeText}>You</Text>
+                                </View>
+                              )}
+                            </View>
+                            <Text style={styles.expandedMemberSubtitle}>
+                              Guardian{guardian.age ? ` • Age ${guardian.age}` : ""}
                             </Text>
                           </View>
-                        ))}
-                      </View>
-                    )}
-                  </View>
-                  <View style={styles.memberStars}>
-                    <Ionicons name="star" size={14} color={colors.secondary} />
-                    <Text style={styles.memberStarsText}>{kid.starsTotal}</Text>
-                  </View>
-                </TouchableOpacity>
-                {isOwner && (
-                  <View style={styles.memberActions}>
-                    <TouchableOpacity
-                      style={styles.editMemberButton}
-                      onPress={() => handleOpenEditMember({ id: kid.id, name: kid.name, avatar: kid.avatar, age: kid.age })}
-                      data-testid={`button-edit-${kid.id}`}
-                    >
-                      <Ionicons name="pencil" size={16} color={colors.primary} />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.removeButton}
-                      onPress={() => handleRemoveParticipant(kid.id, kid.name, kid.profileId, kid.passcode)}
-                      data-testid={`button-remove-${kid.id}`}
-                    >
-                      <Ionicons name="close-circle" size={20} color={colors.error} />
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </View>
-            ))}
-          </View>
-        )}
-
-        {guardians.length > 0 && (
-          <View style={styles.membersList}>
-            {guardians.map((guardian) => {
-              // Check by ID or by display_name (handles local vs cloud ID mismatch)
-              const isCurrentUser = guardian.id === profile?.id || 
-                (profile?.display_name && guardian.name === profile.display_name && guardian.role === 'guardian');
-              return (
-                <View key={guardian.id} style={styles.memberItem}>
-                  <TouchableOpacity 
-                    style={styles.memberItemContent}
-                    onPress={() => router.push(`/member/${guardian.id}`)}
-                    data-testid={`button-member-${guardian.id}`}
-                  >
-                    <View style={[styles.memberAvatar, styles.guardianAvatar]}>
-                      {guardian.avatar ? (
-                        <Text style={styles.memberAvatarEmoji}>{guardian.avatar}</Text>
-                      ) : (
-                        <Text style={styles.memberInitial}>
-                          {guardian.name.charAt(0).toUpperCase()}
-                        </Text>
+                        </View>
+                      </TouchableOpacity>
+                      
+                      {/* Actions */}
+                      {(isOwner || (isCurrentUser && !isOwner)) && (
+                        <View style={styles.expandedMemberActions}>
+                          <TouchableOpacity
+                            style={styles.expandedEditButton}
+                            onPress={isOwner 
+                              ? () => handleOpenEditMember({ id: guardian.id, name: guardian.name, avatar: guardian.avatar, age: guardian.age })
+                              : handleOpenEditName
+                            }
+                            data-testid={isOwner ? `button-edit-${guardian.id}` : "button-edit-name"}
+                          >
+                            <Ionicons name="pencil" size={18} color={colors.primary} />
+                            <Text style={styles.expandedEditButtonText}>Edit</Text>
+                          </TouchableOpacity>
+                        </View>
                       )}
                     </View>
-                    <View style={styles.memberInfo}>
-                      <Text style={styles.memberName}>{guardian.name}</Text>
-                      <Text style={styles.memberAge}>
-                        Guardian{guardian.age ? `, Age ${guardian.age}` : ""}{isCurrentUser ? " (You)" : ""}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                  {isOwner && (
-                    <TouchableOpacity
-                      style={styles.editMemberButton}
-                      onPress={() => handleOpenEditMember({ id: guardian.id, name: guardian.name, avatar: guardian.avatar, age: guardian.age })}
-                      data-testid={`button-edit-${guardian.id}`}
-                    >
-                      <Ionicons name="pencil" size={16} color={colors.primary} />
-                    </TouchableOpacity>
-                  )}
-                  {isCurrentUser && !isOwner && (
-                    <TouchableOpacity
-                      style={styles.editNameButton}
-                      onPress={handleOpenEditName}
-                      data-testid="button-edit-name"
-                    >
-                      <Ionicons name="pencil" size={16} color={colors.primary} />
-                    </TouchableOpacity>
-                  )}
-                </View>
-              );
-            })}
+                  );
+                })}
+              </View>
+            )}
           </View>
         )}
       </View>
@@ -1615,6 +1672,198 @@ const styles = StyleSheet.create({
   powerTagText: {
     fontSize: fontSize.xs,
     color: colors.textSecondary,
+  },
+  // Collapsible section styles
+  collapsibleCard: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  collapsibleCardExpanded: {
+    backgroundColor: colors.primaryLight,
+    marginBottom: 0,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+  },
+  collapsibleHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+  },
+  collapsibleTitle: {
+    flex: 1,
+    fontSize: fontSize.md,
+    fontWeight: "600",
+    color: colors.text,
+  },
+  collapsibleBadge: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: borderRadius.full,
+    minWidth: 28,
+    alignItems: "center",
+  },
+  collapsibleBadgeText: {
+    fontSize: fontSize.sm,
+    fontWeight: "600",
+    color: "#FFFFFF",
+  },
+  expandedSection: {
+    backgroundColor: colors.surfaceSecondary,
+    borderBottomLeftRadius: borderRadius.md,
+    borderBottomRightRadius: borderRadius.md,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  expandedMembersList: {
+    gap: spacing.md,
+  },
+  expandedMemberCard: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  expandedMemberContent: {
+    gap: spacing.sm,
+  },
+  expandedMemberHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+  },
+  expandedMemberAvatar: {
+    width: 56,
+    height: 56,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  expandedGuardianAvatar: {
+    backgroundColor: colors.primaryLight,
+  },
+  expandedMemberAvatarEmoji: {
+    fontSize: 32,
+  },
+  expandedMemberInitial: {
+    fontSize: fontSize.xl,
+    fontWeight: "600",
+    color: "#FFFFFF",
+  },
+  expandedMemberInfo: {
+    flex: 1,
+  },
+  expandedNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  expandedMemberName: {
+    fontSize: fontSize.lg,
+    fontWeight: "600",
+    color: colors.text,
+  },
+  expandedMemberSubtitle: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  expandedMemberStars: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: colors.surfaceSecondary,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: borderRadius.sm,
+  },
+  expandedMemberStarsText: {
+    fontSize: fontSize.md,
+    fontWeight: "700",
+    color: colors.secondary,
+  },
+  expandedPasscodeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    backgroundColor: colors.surfaceSecondary,
+    padding: spacing.sm,
+    borderRadius: borderRadius.sm,
+    marginTop: spacing.sm,
+  },
+  expandedPasscodeText: {
+    flex: 1,
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    fontFamily: "monospace",
+  },
+  expandedPowerTags: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.xs,
+    marginTop: spacing.sm,
+  },
+  expandedPowerTag: {
+    backgroundColor: colors.primaryLight,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: borderRadius.sm,
+  },
+  expandedPowerTagText: {
+    fontSize: fontSize.xs,
+    fontWeight: "500",
+    color: colors.primary,
+  },
+  expandedMemberActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: spacing.sm,
+    marginTop: spacing.md,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  expandedEditButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: colors.surfaceSecondary,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.sm,
+  },
+  expandedEditButtonText: {
+    fontSize: fontSize.sm,
+    color: colors.primary,
+    fontWeight: "500",
+  },
+  expandedRemoveButton: {
+    backgroundColor: colors.surfaceSecondary,
+    padding: spacing.sm,
+    borderRadius: borderRadius.sm,
+  },
+  youBadge: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: borderRadius.sm,
+  },
+  youBadgeText: {
+    fontSize: fontSize.xs,
+    fontWeight: "600",
+    color: "#FFFFFF",
   },
   settingRow: {
     flexDirection: "row",
