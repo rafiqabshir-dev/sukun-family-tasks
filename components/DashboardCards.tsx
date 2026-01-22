@@ -1,9 +1,10 @@
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { useState, useEffect, useMemo } from "react";
 import { Ionicons } from "@expo/vector-icons";
+import Svg, { Path, Circle, Rect, Ellipse } from "react-native-svg";
 import { colors, spacing, borderRadius, fontSize } from "@/lib/theme";
 import { router } from "expo-router";
-import { WeatherData, getWeather, canPlayOutside, getClothingSuggestions, ClothingItem } from "@/lib/weatherService";
+import { WeatherData, getWeather, canPlayOutside } from "@/lib/weatherService";
 import { PrayerTimes, CurrentPrayer, getPrayerTimes, getCurrentPrayer, formatMinutesRemaining } from "@/lib/prayerService";
 import { getCurrentLocation, UserLocation } from "@/lib/locationService";
 import { TaskInstance, TaskTemplate, Member } from "@/lib/types";
@@ -141,32 +142,248 @@ export function WeatherCard({ weather }: { weather: WeatherData | null }) {
   );
 }
 
-const CLOTHING_ICONS: Record<string, { icon: string; color: string }> = {
-  "body": { icon: "body", color: "#5C9EAD" },
-  "footsteps": { icon: "footsteps", color: "#8B4513" },
-  "umbrella": { icon: "umbrella", color: "#4169E1" },
-  "water": { icon: "water", color: "#4169E1" },
-  "snow": { icon: "snow", color: "#87CEEB" },
-  "hand-left": { icon: "hand-left", color: "#D2691E" },
-  "help-circle": { icon: "radio-button-on", color: "#9370DB" },
-  "ribbon": { icon: "ribbon", color: "#DC143C" },
-  "sunny": { icon: "sunny", color: "#FFD700" },
-  "glasses": { icon: "glasses", color: "#2F4F4F" },
-  "navigate": { icon: "navigate", color: "#708090" },
-  "game-controller": { icon: "game-controller", color: "#FF69B4" },
-};
+interface OutfitConfig {
+  hatColor: string;
+  hasHat: boolean;
+  hasScarf: boolean;
+  scarfColor: string;
+  shirtColor: string;
+  shirtType: "tshirt" | "longsleeve" | "jacket" | "heavyjacket";
+  pantsColor: string;
+  pantsType: "shorts" | "pants" | "snowpants";
+  shoesColor: string;
+  shoesType: "sandals" | "sneakers" | "boots" | "snowboots";
+  hasGloves: boolean;
+  glovesColor: string;
+  hasUmbrella: boolean;
+  hasSunglasses: boolean;
+  description: string;
+}
+
+function getOutfitForWeather(weather: WeatherData): OutfitConfig {
+  const temp = weather.feelsLike;
+  const isRaining = weather.isRaining || weather.precipitationProbability >= 50;
+  const isSnowing = weather.isSnowing;
+  const isSunny = weather.conditionCode <= 2 && weather.uvIndex >= 6;
+  
+  if (temp <= 20) {
+    return {
+      hasHat: true, hatColor: "#8B4513",
+      hasScarf: true, scarfColor: "#DC143C",
+      shirtColor: "#4A6572", shirtType: "heavyjacket",
+      pantsColor: "#2C3E50", pantsType: "snowpants",
+      shoesColor: "#5D4037", shoesType: "snowboots",
+      hasGloves: true, glovesColor: "#8B4513",
+      hasUmbrella: false, hasSunglasses: false,
+      description: "Bundle up! Very cold outside"
+    };
+  } else if (temp <= 32) {
+    return {
+      hasHat: true, hatColor: "#6B4226",
+      hasScarf: true, scarfColor: "#C0392B",
+      shirtColor: "#34495E", shirtType: "heavyjacket",
+      pantsColor: "#2C3E50", pantsType: "pants",
+      shoesColor: "#5D4037", shoesType: "boots",
+      hasGloves: true, glovesColor: "#8B4513",
+      hasUmbrella: isRaining, hasSunglasses: false,
+      description: "Winter gear needed"
+    };
+  } else if (temp <= 45) {
+    return {
+      hasHat: true, hatColor: "#795548",
+      hasScarf: false, scarfColor: "",
+      shirtColor: "#5C6BC0", shirtType: "jacket",
+      pantsColor: "#455A64", pantsType: "pants",
+      shoesColor: "#6D4C41", shoesType: isRaining || isSnowing ? "boots" : "sneakers",
+      hasGloves: true, glovesColor: "#795548",
+      hasUmbrella: isRaining, hasSunglasses: false,
+      description: "Warm layers recommended"
+    };
+  } else if (temp <= 55) {
+    return {
+      hasHat: false, hatColor: "",
+      hasScarf: false, scarfColor: "",
+      shirtColor: "#7E57C2", shirtType: "jacket",
+      pantsColor: "#546E7A", pantsType: "pants",
+      shoesColor: "#5D4037", shoesType: isRaining ? "boots" : "sneakers",
+      hasGloves: false, glovesColor: "",
+      hasUmbrella: isRaining, hasSunglasses: false,
+      description: "Light jacket weather"
+    };
+  } else if (temp <= 65) {
+    return {
+      hasHat: false, hatColor: "",
+      hasScarf: false, scarfColor: "",
+      shirtColor: "#42A5F5", shirtType: "longsleeve",
+      pantsColor: "#5D6D7E", pantsType: "pants",
+      shoesColor: "#6D4C41", shoesType: isRaining ? "boots" : "sneakers",
+      hasGloves: false, glovesColor: "",
+      hasUmbrella: isRaining, hasSunglasses: isSunny,
+      description: "Comfortable long sleeves"
+    };
+  } else if (temp <= 75) {
+    return {
+      hasHat: isSunny, hatColor: "#FDD835",
+      hasScarf: false, scarfColor: "",
+      shirtColor: "#66BB6A", shirtType: "tshirt",
+      pantsColor: "#78909C", pantsType: "pants",
+      shoesColor: "#8D6E63", shoesType: isRaining ? "boots" : "sneakers",
+      hasGloves: false, glovesColor: "",
+      hasUmbrella: isRaining, hasSunglasses: isSunny,
+      description: "T-shirt and pants"
+    };
+  } else if (temp <= 85) {
+    return {
+      hasHat: isSunny, hatColor: "#FFEB3B",
+      hasScarf: false, scarfColor: "",
+      shirtColor: "#4DB6AC", shirtType: "tshirt",
+      pantsColor: "#90A4AE", pantsType: "shorts",
+      shoesColor: "#A1887F", shoesType: isRaining ? "sneakers" : "sandals",
+      hasGloves: false, glovesColor: "",
+      hasUmbrella: isRaining, hasSunglasses: isSunny,
+      description: "Light and breezy"
+    };
+  } else {
+    return {
+      hasHat: true, hatColor: "#FFF59D",
+      hasScarf: false, scarfColor: "",
+      shirtColor: "#4DD0E1", shirtType: "tshirt",
+      pantsColor: "#B0BEC5", pantsType: "shorts",
+      shoesColor: "#BCAAA4", shoesType: "sandals",
+      hasGloves: false, glovesColor: "",
+      hasUmbrella: isRaining, hasSunglasses: true,
+      description: "Stay cool! Hot day"
+    };
+  }
+}
+
+function DressedFigure({ outfit }: { outfit: OutfitConfig }) {
+  const skinColor = "#FFDAB9";
+  
+  return (
+    <Svg width={100} height={140} viewBox="0 0 100 140">
+      {outfit.hasHat && (
+        <>
+          <Ellipse cx="50" cy="18" rx="22" ry="8" fill={outfit.hatColor} />
+          <Rect x="35" y="10" width="30" height="12" fill={outfit.hatColor} rx="3" />
+        </>
+      )}
+      
+      <Circle cx="50" cy="28" r="14" fill={skinColor} />
+      
+      {outfit.hasSunglasses && (
+        <>
+          <Rect x="38" y="24" width="10" height="6" fill="#333" rx="2" />
+          <Rect x="52" y="24" width="10" height="6" fill="#333" rx="2" />
+          <Path d="M48 27 L52 27" stroke="#333" strokeWidth="2" />
+        </>
+      )}
+      
+      {outfit.hasScarf && (
+        <Path 
+          d={`M36 40 Q50 48 64 40 L62 52 Q50 46 38 52 Z`} 
+          fill={outfit.scarfColor} 
+        />
+      )}
+      
+      {outfit.shirtType === "tshirt" && (
+        <>
+          <Path d="M35 42 L25 50 L28 58 L38 52 L38 85 L62 85 L62 52 L72 58 L75 50 L65 42 Q55 38 50 42 Q45 38 35 42" fill={outfit.shirtColor} />
+        </>
+      )}
+      {outfit.shirtType === "longsleeve" && (
+        <>
+          <Path d="M35 42 L20 55 L23 62 L35 52 L35 85 L65 85 L65 52 L77 62 L80 55 L65 42 Q55 38 50 42 Q45 38 35 42" fill={outfit.shirtColor} />
+          <Rect x="18" y="55" width="8" height="20" fill={outfit.shirtColor} rx="3" />
+          <Rect x="74" y="55" width="8" height="20" fill={outfit.shirtColor} rx="3" />
+        </>
+      )}
+      {(outfit.shirtType === "jacket" || outfit.shirtType === "heavyjacket") && (
+        <>
+          <Path d="M32 42 L18 55 L21 65 L32 55 L32 88 L68 88 L68 55 L79 65 L82 55 L68 42 Q55 36 50 42 Q45 36 32 42" fill={outfit.shirtColor} />
+          <Rect x="16" y="55" width="10" height="25" fill={outfit.shirtColor} rx="4" />
+          <Rect x="74" y="55" width="10" height="25" fill={outfit.shirtColor} rx="4" />
+          <Path d="M48 42 L48 88" stroke={outfit.shirtType === "heavyjacket" ? "#FFF" : outfit.shirtColor} strokeWidth="2" opacity="0.3" />
+        </>
+      )}
+      
+      {!outfit.hasGloves && (
+        <>
+          <Circle cx="22" cy="78" r="5" fill={skinColor} />
+          <Circle cx="78" cy="78" r="5" fill={skinColor} />
+        </>
+      )}
+      {outfit.hasGloves && (
+        <>
+          <Ellipse cx="22" cy="78" rx="6" ry="7" fill={outfit.glovesColor} />
+          <Ellipse cx="78" cy="78" rx="6" ry="7" fill={outfit.glovesColor} />
+        </>
+      )}
+      
+      {outfit.pantsType === "shorts" && (
+        <>
+          <Rect x="38" y="85" width="24" height="18" fill={outfit.pantsColor} />
+          <Rect x="38" y="85" width="11" height="18" fill={outfit.pantsColor} />
+          <Rect x="51" y="85" width="11" height="18" fill={outfit.pantsColor} />
+        </>
+      )}
+      {(outfit.pantsType === "pants" || outfit.pantsType === "snowpants") && (
+        <>
+          <Path d="M36 85 L36 118 L48 118 L48 85 L52 85 L52 118 L64 118 L64 85 Z" fill={outfit.pantsColor} />
+        </>
+      )}
+      
+      {outfit.shoesType === "sandals" && (
+        <>
+          <Ellipse cx="42" cy="122" rx="8" ry="4" fill={outfit.shoesColor} />
+          <Ellipse cx="58" cy="122" rx="8" ry="4" fill={outfit.shoesColor} />
+        </>
+      )}
+      {outfit.shoesType === "sneakers" && (
+        <>
+          <Ellipse cx="42" cy="122" rx="9" ry="5" fill={outfit.shoesColor} />
+          <Ellipse cx="58" cy="122" rx="9" ry="5" fill={outfit.shoesColor} />
+          <Path d="M36 120 L48 120" stroke="#FFF" strokeWidth="1" />
+          <Path d="M52 120 L64 120" stroke="#FFF" strokeWidth="1" />
+        </>
+      )}
+      {(outfit.shoesType === "boots" || outfit.shoesType === "snowboots") && (
+        <>
+          <Rect x="34" y="115" width="14" height="12" fill={outfit.shoesColor} rx="3" />
+          <Rect x="52" y="115" width="14" height="12" fill={outfit.shoesColor} rx="3" />
+          {outfit.shoesType === "snowboots" && (
+            <>
+              <Rect x="34" y="108" width="14" height="10" fill={outfit.shoesColor} rx="2" />
+              <Rect x="52" y="108" width="14" height="10" fill={outfit.shoesColor} rx="2" />
+            </>
+          )}
+        </>
+      )}
+      
+      {outfit.hasUmbrella && (
+        <>
+          <Path d="M85 20 Q95 25 85 35 Q75 25 85 20" fill="#4169E1" />
+          <Rect x="84" y="25" width="2" height="35" fill="#666" />
+        </>
+      )}
+    </Svg>
+  );
+}
 
 export function WhatToWearCard({ weather }: { weather: WeatherData | null }) {
-  const suggestions = useMemo(() => {
-    if (!weather) return [];
-    return getClothingSuggestions(weather);
+  const outfit = useMemo(() => {
+    if (!weather) return null;
+    return getOutfitForWeather(weather);
   }, [weather]);
 
-  if (!weather || suggestions.length === 0) return null;
+  if (!weather || !outfit) return null;
 
-  const getIconInfo = (iconKey: string) => {
-    return CLOTHING_ICONS[iconKey] || { icon: "checkmark-circle", color: colors.success };
-  };
+  const accessories: string[] = [];
+  if (outfit.hasHat) accessories.push("Hat");
+  if (outfit.hasScarf) accessories.push("Scarf");
+  if (outfit.hasGloves) accessories.push("Gloves");
+  if (outfit.hasUmbrella) accessories.push("Umbrella");
+  if (outfit.hasSunglasses) accessories.push("Sunglasses");
 
   return (
     <View style={styles.card} data-testid="what-to-wear-card">
@@ -174,27 +391,29 @@ export function WhatToWearCard({ weather }: { weather: WeatherData | null }) {
         <View style={styles.cardIconContainer}>
           <Ionicons name="shirt" size={24} color={colors.primary} />
         </View>
-        <Text style={styles.cardTitle}>What to Wear Today</Text>
+        <Text style={styles.cardTitle}>What to Wear</Text>
         <View style={[styles.togglePill, styles.togglePillActive]}>
           <Ionicons name="person" size={14} color="#FFFFFF" />
           <Text style={[styles.togglePillText, styles.togglePillTextActive]}>Kids</Text>
         </View>
       </View>
-      <Text style={styles.wearSubtitle}>
-        Based on {weather.feelsLike}°F feels-like temperature
-      </Text>
-      <View style={styles.clothingGrid}>
-        {suggestions.map((item, index) => {
-          const iconInfo = getIconInfo(item.icon);
-          return (
-            <View key={index} style={styles.clothingItem}>
-              <View style={[styles.clothingIconCircle, { backgroundColor: iconInfo.color + "20" }]}>
-                <Ionicons name={iconInfo.icon as any} size={22} color={iconInfo.color} />
-              </View>
-              <Text style={styles.clothingItemText} numberOfLines={2}>{item.name}</Text>
+      <View style={styles.outfitContainer}>
+        <View style={styles.figureContainer}>
+          <DressedFigure outfit={outfit} />
+        </View>
+        <View style={styles.outfitDetails}>
+          <Text style={styles.outfitDescription}>{outfit.description}</Text>
+          <Text style={styles.feelsLikeText}>Feels like {weather.feelsLike}°F</Text>
+          {accessories.length > 0 && (
+            <View style={styles.accessoriesList}>
+              {accessories.map((acc, i) => (
+                <View key={i} style={styles.accessoryTag}>
+                  <Text style={styles.accessoryText}>{acc}</Text>
+                </View>
+              ))}
             </View>
-          );
-        })}
+          )}
+        </View>
       </View>
     </View>
   );
@@ -601,45 +820,47 @@ const styles = StyleSheet.create({
   togglePillTextActive: {
     color: "#FFFFFF",
   },
-  wearSubtitle: {
-    fontSize: fontSize.xs,
-    color: colors.textSecondary,
-    marginBottom: spacing.sm,
-  },
-  clothingGrid: {
+  outfitContainer: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm,
+    alignItems: "flex-start",
+    gap: spacing.md,
   },
-  clothingItem: {
+  figureContainer: {
     alignItems: "center",
-    width: 80,
-    paddingVertical: spacing.xs,
-  },
-  clothingIconCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
     justifyContent: "center",
-    alignItems: "center",
-    marginBottom: spacing.xs,
+    backgroundColor: colors.background,
+    borderRadius: borderRadius.md,
+    padding: spacing.sm,
   },
-  clothingItemText: {
-    fontSize: fontSize.xs,
-    color: colors.text,
-    textAlign: "center",
-  },
-  wearList: {
+  outfitDetails: {
+    flex: 1,
     gap: spacing.xs,
   },
-  wearItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-  },
-  wearItemText: {
-    fontSize: fontSize.sm,
+  outfitDescription: {
+    fontSize: fontSize.md,
+    fontWeight: "600",
     color: colors.text,
+  },
+  feelsLikeText: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+  },
+  accessoriesList: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.xs,
+    marginTop: spacing.xs,
+  },
+  accessoryTag: {
+    backgroundColor: colors.primaryLight,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: borderRadius.sm,
+  },
+  accessoryText: {
+    fontSize: fontSize.xs,
+    color: colors.primary,
+    fontWeight: "500",
   },
   emptyTasksContent: {
     alignItems: "center",
