@@ -7,6 +7,7 @@ import { colors } from "@/lib/theme";
 import { AuthProvider, useAuth } from "@/lib/authContext";
 import { PushNotificationProvider } from "@/lib/pushNotificationContext";
 import { resolveRoute, shouldNavigate, AuthState, UNPROTECTED_ROUTES } from "@/lib/navigation";
+import { initSounds } from "@/lib/soundService";
 
 function NavigationController() {
   const navigationState = useRootNavigationState();
@@ -88,6 +89,7 @@ function RootLayoutContent() {
 
   useEffect(() => {
     initialize();
+    initSounds();
   }, []);
 
   // Use store's authReady (persists across remounts) but also gate on authLoading

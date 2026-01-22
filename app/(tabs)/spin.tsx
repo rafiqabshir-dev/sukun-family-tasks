@@ -8,6 +8,7 @@ import { useAuth } from "@/lib/authContext";
 import { StagedTask, TaskTemplate, Member, TaskInstance } from "@/lib/types";
 import { format, addMinutes, endOfDay } from "date-fns";
 import { createCloudTaskInstance, createCloudTask, taskToTemplate } from "@/lib/cloudSync";
+import { playSpinSound, playWinnerSound, playClickSound, stopAllSounds } from "@/lib/soundService";
 
 type SpinState = "idle" | "spinning" | "proposal";
 
@@ -87,6 +88,7 @@ export default function SpinScreen() {
     if (spinQueue.length === 0 || kids.length === 0) return;
 
     setSpinState("spinning");
+    playSpinSound();
     
     Animated.sequence([
       Animated.timing(rotateAnim, {
@@ -101,8 +103,11 @@ export default function SpinScreen() {
       if (selectedKid && selectedTask) {
         setProposal({ kid: selectedKid, task: selectedTask });
         setSpinState("proposal");
+        stopAllSounds();
+        playWinnerSound();
       } else {
         setSpinState("idle");
+        stopAllSounds();
       }
       rotateAnim.setValue(0);
     });
@@ -226,6 +231,7 @@ export default function SpinScreen() {
       title: quickTaskName.trim(),
       stars: 1,
     });
+    playClickSound();
     
     setQuickTaskName("");
     setShowAddModal(false);
@@ -237,6 +243,7 @@ export default function SpinScreen() {
       stars: template.defaultStars,
       templateId: template.id,
     });
+    playClickSound();
     setShowTemplateSelect(false);
     setShowAddModal(false);
   };
