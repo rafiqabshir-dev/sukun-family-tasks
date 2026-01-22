@@ -8,6 +8,7 @@ interface WheelSegment {
   label: string;
   color: string;
   value?: number;
+  avatar?: string;
 }
 
 interface FamilyWheelProps {
@@ -159,23 +160,84 @@ export function FamilyWheel({
             <G>
               {segments.map((segment, index) => {
                 const pos = getTextPosition(index, segments.length);
+                const hasAvatar = !!segment.avatar;
                 const displayLabel = segment.label.length > 8 
                   ? segment.label.substring(0, 7) + "…" 
                   : segment.label;
+                const baseFontSize = segments.length > 6 ? 12 : 14;
+                
                 return (
-                  <SvgText
-                    key={`text-${segment.id}`}
-                    x={pos.x}
-                    y={pos.y}
-                    fill="#5D4037"
-                    fontSize={segments.length > 6 ? 12 : 14}
-                    fontWeight="bold"
-                    textAnchor="middle"
-                    alignmentBaseline="middle"
-                    transform={`rotate(${pos.rotation}, ${pos.x}, ${pos.y})`}
-                  >
-                    {displayLabel}
-                  </SvgText>
+                  <G key={`content-${segment.id}`}>
+                    {hasAvatar ? (
+                      <>
+                        <SvgText
+                          x={pos.x}
+                          y={pos.y - 8}
+                          fill="#5D4037"
+                          fontSize={baseFontSize + 8}
+                          textAnchor="middle"
+                          alignmentBaseline="middle"
+                          transform={`rotate(${pos.rotation}, ${pos.x}, ${pos.y - 8})`}
+                        >
+                          {segment.avatar}
+                        </SvgText>
+                        <SvgText
+                          x={pos.x}
+                          y={pos.y + 10}
+                          fill="#5D4037"
+                          fontSize={baseFontSize - 2}
+                          fontWeight="bold"
+                          textAnchor="middle"
+                          alignmentBaseline="middle"
+                          transform={`rotate(${pos.rotation}, ${pos.x}, ${pos.y + 10})`}
+                        >
+                          {displayLabel}
+                        </SvgText>
+                      </>
+                    ) : segment.value !== undefined ? (
+                      <>
+                        <SvgText
+                          x={pos.x}
+                          y={pos.y - 4}
+                          fill="#FFD700"
+                          fontSize={baseFontSize + 12}
+                          fontWeight="bold"
+                          textAnchor="middle"
+                          alignmentBaseline="middle"
+                          transform={`rotate(${pos.rotation}, ${pos.x}, ${pos.y - 4})`}
+                          stroke="#5D4037"
+                          strokeWidth={1}
+                        >
+                          {segment.value}
+                        </SvgText>
+                        <SvgText
+                          x={pos.x}
+                          y={pos.y + 14}
+                          fill="#5D4037"
+                          fontSize={baseFontSize - 4}
+                          fontWeight="bold"
+                          textAnchor="middle"
+                          alignmentBaseline="middle"
+                          transform={`rotate(${pos.rotation}, ${pos.x}, ${pos.y + 14})`}
+                        >
+                          {displayLabel}
+                        </SvgText>
+                      </>
+                    ) : (
+                      <SvgText
+                        x={pos.x}
+                        y={pos.y}
+                        fill="#5D4037"
+                        fontSize={baseFontSize}
+                        fontWeight="bold"
+                        textAnchor="middle"
+                        alignmentBaseline="middle"
+                        transform={`rotate(${pos.rotation}, ${pos.x}, ${pos.y})`}
+                      >
+                        {displayLabel}
+                      </SvgText>
+                    )}
+                  </G>
                 );
               })}
             </G>

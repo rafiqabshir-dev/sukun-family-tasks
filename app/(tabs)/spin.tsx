@@ -26,6 +26,7 @@ interface WheelSegment {
   label: string;
   color: string;
   value?: number;
+  avatar?: string;
 }
 
 const PASTEL_COLORS = [
@@ -93,6 +94,7 @@ export default function SpinScreen() {
       id: member.id,
       label: member.name,
       color: PASTEL_COLORS[index % PASTEL_COLORS.length],
+      avatar: member.avatar,
     })), [allMembers]
   );
 
@@ -417,32 +419,40 @@ export default function SpinScreen() {
               <Ionicons name="trophy" size={20} color="#FFD700" />
               <Text style={styles.scoreboardTitle}>Scoreboard</Text>
             </View>
-            {gameScores.map((score, index) => (
-              <View 
-                key={score.memberId} 
-                style={[
-                  styles.scoreRow, 
-                  index === currentPlayerIndex && styles.scoreRowActive
-                ]}
-              >
-                <View style={styles.scoreRowLeft}>
-                  <Ionicons name="person-circle" size={24} color="#8BC34A" />
-                  <Text style={styles.scoreName}>{score.memberName}</Text>
-                  {index === currentPlayerIndex && (
+            {gameScores.map((score, index) => {
+              const member = allMembers.find(m => m.id === score.memberId);
+              const isCurrentPlayer = index === currentPlayerIndex;
+              return (
+                <View 
+                  key={score.memberId} 
+                  style={[
+                    styles.scoreRow, 
+                    isCurrentPlayer && styles.scoreRowActive
+                  ]}
+                >
+                  <View style={styles.scoreRowLeft}>
+                    {member?.avatar ? (
+                      <Text style={styles.scoreEmoji}>{member.avatar}</Text>
+                    ) : (
+                      <Ionicons name="person-circle" size={24} color="#8BC34A" />
+                    )}
+                    <Text style={styles.scoreName} numberOfLines={1}>{score.memberName}</Text>
+                  </View>
+                  {isCurrentPlayer && (
                     <View style={styles.turnBadge}>
                       <Text style={styles.turnBadgeText}>
-                        {lastSpinResult ? `+${lastSpinResult}` : `${score.memberName}'s Turn`}
+                        {lastSpinResult ? `+${lastSpinResult}` : "Your Turn"}
                       </Text>
                     </View>
                   )}
+                  <View style={styles.scoreRowRight}>
+                    <Ionicons name="star" size={14} color="#FFD700" />
+                    <Text style={styles.scoreValue}>{score.score}</Text>
+                    <Ionicons name="star" size={14} color="#FFD700" />
+                  </View>
                 </View>
-                <View style={styles.scoreRowRight}>
-                  <Ionicons name="star" size={14} color="#FFD700" />
-                  <Text style={styles.scoreValue}>{score.score}</Text>
-                  <Ionicons name="star" size={14} color="#FFD700" />
-                </View>
-              </View>
-            ))}
+              );
+            })}
           </View>
         </>
       )}
@@ -775,21 +785,24 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: spacing.sm,
     flex: 1,
+    minWidth: 0,
   },
   scoreEmoji: {
-    fontSize: 20,
+    fontSize: 22,
   },
   scoreName: {
     fontSize: fontSize.md,
     fontWeight: "500",
     color: colors.text,
+    flexShrink: 1,
   },
   turnBadge: {
     backgroundColor: "#4CAF50",
     paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
+    paddingVertical: 3,
     borderRadius: borderRadius.sm,
-    marginLeft: spacing.sm,
+    marginHorizontal: spacing.xs,
+    flexShrink: 0,
   },
   turnBadgeText: {
     fontSize: fontSize.xs,
