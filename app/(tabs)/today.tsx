@@ -254,17 +254,17 @@ export default function TodayScreen() {
   }, [taskInstances]);
 
   const myTasks = tasksWithStatus.filter(
-    (t) => t.assignedToMemberId === currentMember?.id && t.computedStatus !== "done"
+    (t) => t.assignedToMemberId === currentMember?.id && t.computedStatus !== "done" && t.status !== "rejected"
   );
 
   const dueTodayTasks = tasksWithStatus.filter(
-    (t) => isToday(new Date(t.dueAt)) && t.computedStatus === "open"
+    (t) => isToday(new Date(t.dueAt)) && t.computedStatus === "open" && t.status !== "rejected"
   );
 
-  const overdueTasks = tasksWithStatus.filter((t) => t.computedStatus === "overdue");
+  const overdueTasks = tasksWithStatus.filter((t) => t.computedStatus === "overdue" && t.status !== "rejected");
 
   const pendingApprovalTasks = tasksWithStatus.filter(
-    (t) => t.computedStatus === "pending_approval"
+    (t) => t.computedStatus === "pending_approval" && t.status !== "rejected"
   );
 
   const getTemplate = (templateId: string) =>
