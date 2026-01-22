@@ -1008,38 +1008,40 @@ export default function TodayScreen() {
         />
 
         {isCurrentUserGuardian && (
-          <View style={styles.guardianActions}>
-            <TouchableOpacity
-              style={styles.assignButton}
-              onPress={openAssignModal}
-              data-testid="button-assign-task"
-            >
-              <Ionicons name="add-circle" size={24} color="#FFFFFF" />
-              <Text style={styles.assignButtonText}>Assign Task</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.deductButton}
-              onPress={openDeductModal}
-              data-testid="button-deduct-stars"
-            >
-              <Ionicons name="remove-circle" size={24} color="#FFFFFF" />
-              <Text style={styles.deductButtonText}>Deduct Stars</Text>
-            </TouchableOpacity>
-          </View>
-          
-          {overdueTasks.length > 0 && (
-            <TouchableOpacity
-              style={styles.clearOverdueButton}
-              onPress={handleClearOverdueTasks}
-              disabled={isClearingOverdue}
-              data-testid="button-clear-overdue"
-            >
-              <Ionicons name="trash-outline" size={20} color={colors.error} />
-              <Text style={styles.clearOverdueText}>
-                {isClearingOverdue ? "Clearing..." : `Clear ${overdueTasks.length} Overdue Task${overdueTasks.length > 1 ? 's' : ''}`}
-              </Text>
-            </TouchableOpacity>
-          )}
+          <>
+            <View style={styles.guardianActions}>
+              <TouchableOpacity
+                style={styles.assignButton}
+                onPress={openAssignModal}
+                data-testid="button-assign-task"
+              >
+                <Ionicons name="add-circle" size={24} color="#FFFFFF" />
+                <Text style={styles.assignButtonText}>Assign Task</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.deductButton}
+                onPress={openDeductModal}
+                data-testid="button-deduct-stars"
+              >
+                <Ionicons name="remove-circle" size={24} color="#FFFFFF" />
+                <Text style={styles.deductButtonText}>Deduct Stars</Text>
+              </TouchableOpacity>
+            </View>
+            
+            {overdueTasks.length > 0 && (
+              <TouchableOpacity
+                style={styles.clearOverdueButton}
+                onPress={handleClearOverdueTasks}
+                disabled={isClearingOverdue}
+                data-testid="button-clear-overdue"
+              >
+                <Ionicons name="trash-outline" size={20} color={colors.error} />
+                <Text style={styles.clearOverdueText}>
+                  {isClearingOverdue ? "Clearing..." : `Clear ${overdueTasks.length} Overdue Task${overdueTasks.length > 1 ? 's' : ''}`}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </>
         )}
 
         {pendingApprovalTasks.length > 0 && (
