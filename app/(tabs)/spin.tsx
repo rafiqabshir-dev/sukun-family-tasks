@@ -1,47 +1,272 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, KeyboardAvoidingView, Platform, Animated, Alert } from "react-native";
-import { useState, useRef, useEffect } from "react";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, KeyboardAvoidingView, Platform, Alert, RefreshControl } from "react-native";
+import { useState, useCallback, useMemo } from "react";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, borderRadius, fontSize } from "@/lib/theme";
 import { useStore } from "@/lib/store";
 import { useAuth } from "@/lib/authContext";
-import { StagedTask, TaskTemplate, Member, TaskInstance } from "@/lib/types";
+import { TaskTemplate, Member } from "@/lib/types";
 import { format, addMinutes, endOfDay } from "date-fns";
 import { createCloudTaskInstance, createCloudTask, taskToTemplate } from "@/lib/cloudSync";
-import { playSpinSound, playWinnerSound, playClickSound, stopAllSounds } from "@/lib/soundService";
+import { playSpinSound, playWinnerSound, playClickSound, stopAllSounds, playSuccessSound } from "@/lib/soundService";
+import { FamilyWheel } from "@/components/FamilyWheel";
+import { useResponsive } from "@/lib/useResponsive";
 
-type SpinState = "idle" | "spinning" | "proposal";
+type WheelMode = "assign" | "game";
+type GamePhase = "setup" | "playing" | "winner";
 
-interface SpinProposal {
-  kid: Member;
-  task: StagedTask;
+interface GameScore {
+  memberId: string;
+  memberName: string;
+  score: number;
 }
+
+interface WheelSegment {
+  id: string;
+  label: string;
+  color: string;
+  value?: number;
+}
+
+const PASTEL_COLORS = [
+  "#FFB5BA",
+  "#B5E8C3", 
+  "#FFE5A0",
+  "#B5D8FF",
+  "#E5B5FF",
+  "#FFD5B5",
+  "#B5FFE5",
+  "#FFB5E5",
+];
+
+const STAR_SEGMENTS: WheelSegment[] = [
+  { id: "star-1", label: "1", color: "#FFB5BA", value: 1 },
+  { id: "star-2", label: "2", color: "#B5E8C3", value: 2 },
+  { id: "star-3", label: "3", color: "#FFE5A0", value: 3 },
+  { id: "star-1b", label: "1", color: "#B5D8FF", value: 1 },
+  { id: "star-2b", label: "2", color: "#E5B5FF", value: 2 },
+  { id: "star-3b", label: "3", color: "#FFD5B5", value: 3 },
+];
 
 export default function SpinScreen() {
   const router = useRouter();
-  const { profile } = useAuth();
+  const responsive = useResponsive();
+  const { profile, refreshProfile } = useAuth();
   const isGuardian = profile?.role === 'guardian';
   
-  const spinQueue = useStore((s) => s.spinQueue);
   const members = useStore((s) => s.members);
   const taskTemplates = useStore((s) => s.taskTemplates);
-  const lastWinnerIds = useStore((s) => s.lastWinnerIds);
-  const addToSpinQueue = useStore((s) => s.addToSpinQueue);
-  const removeFromSpinQueue = useStore((s) => s.removeFromSpinQueue);
   const addTaskInstance = useStore((s) => s.addTaskInstance);
-  const recordWinner = useStore((s) => s.recordWinner);
+  const addTaskTemplate = useStore((s) => s.addTaskTemplate);
 
-  const [spinState, setSpinState] = useState<SpinState>("idle");
-  const [proposal, setProposal] = useState<SpinProposal | null>(null);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [quickTaskName, setQuickTaskName] = useState("");
-  const [showTemplateSelect, setShowTemplateSelect] = useState(false);
+  const [mode, setMode] = useState<WheelMode>("assign");
+  const [spinning, setSpinning] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  
+  const [selectedMember, setSelectedMember] = useState<Member | null>(null);
+  const [showTaskPicker, setShowTaskPicker] = useState(false);
+  const [taskSearch, setTaskSearch] = useState("");
+  
+  const [gamePhase, setGamePhase] = useState<GamePhase>("setup");
+  const [targetScore, setTargetScore] = useState(10);
+  const [gameScores, setGameScores] = useState<GameScore[]>([]);
+  const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0);
+  const [lastSpinResult, setLastSpinResult] = useState<number | null>(null);
+  const [winner, setWinner] = useState<GameScore | null>(null);
 
-  const rotateAnim = useRef(new Animated.Value(0)).current;
-  const kids = members.filter((m) => m.role === "kid");
+  const allMembers = members;
   const enabledTemplates = taskTemplates.filter((t) => t.enabled && !t.isArchived);
 
-  // Restrict Spin page to guardians only
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      await refreshProfile();
+    } catch (err) {
+      console.error('[Spin] Refresh error:', err);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [refreshProfile]);
+
+  const memberSegments: WheelSegment[] = useMemo(() => 
+    allMembers.map((member, index) => ({
+      id: member.id,
+      label: member.name,
+      color: PASTEL_COLORS[index % PASTEL_COLORS.length],
+    })), [allMembers]
+  );
+
+  const handleModeChange = (newMode: WheelMode) => {
+    if (spinning) return;
+    setMode(newMode);
+    setSelectedMember(null);
+    setGamePhase("setup");
+    setWinner(null);
+    playClickSound();
+  };
+
+  const handleAssignSpin = () => {
+    if (spinning || allMembers.length === 0) return;
+    setSpinning(true);
+    playSpinSound();
+  };
+
+  const handleAssignSpinComplete = (segment: WheelSegment) => {
+    setSpinning(false);
+    stopAllSounds();
+    playWinnerSound();
+    const member = allMembers.find(m => m.id === segment.id);
+    if (member) {
+      setSelectedMember(member);
+    }
+  };
+
+  const handleAssignTask = () => {
+    setShowTaskPicker(true);
+  };
+
+  const handleSelectTask = async (template: TaskTemplate) => {
+    if (!selectedMember || !profile?.family_id) return;
+
+    try {
+      const now = new Date();
+      const dueAt = endOfDay(now);
+      
+      const cloudInstance = await createCloudTaskInstance({
+        task_id: template.id,
+        member_id: selectedMember.id,
+        family_id: profile.family_id,
+        assigned_by: profile.id,
+        status: 'open',
+        due_at: dueAt.toISOString(),
+        schedule_type: 'one_time',
+        expires_at: null,
+      });
+
+      if (cloudInstance) {
+        addTaskInstance({
+          id: cloudInstance.id,
+          taskId: template.id,
+          memberId: selectedMember.id,
+          status: "open",
+          dueAt: dueAt.toISOString(),
+          scheduleType: "one_time",
+          expiresAt: null,
+        });
+        
+        playSuccessSound();
+        Alert.alert(
+          "Task Assigned!",
+          `"${template.title}" has been assigned to ${selectedMember.name}`,
+          [{ text: "OK" }]
+        );
+      }
+    } catch (error) {
+      console.error('[Spin] Error assigning task:', error);
+      Alert.alert("Error", "Failed to assign task. Please try again.");
+    }
+
+    setShowTaskPicker(false);
+    setSelectedMember(null);
+    setTaskSearch("");
+  };
+
+  const handleCreateQuickTask = async () => {
+    if (!taskSearch.trim() || !selectedMember || !profile?.family_id) return;
+
+    try {
+      const newTemplate = await createCloudTask({
+        title: taskSearch.trim(),
+        category: "personal",
+        icon_key: "star",
+        default_stars: 1,
+        family_id: profile.family_id,
+        schedule_type: "one_time",
+        enabled: false,
+      });
+
+      if (newTemplate) {
+        const template = taskToTemplate(newTemplate);
+        addTaskTemplate(template);
+        await handleSelectTask(template);
+      }
+    } catch (error) {
+      console.error('[Spin] Error creating quick task:', error);
+      Alert.alert("Error", "Failed to create task. Please try again.");
+    }
+  };
+
+  const startGame = () => {
+    if (allMembers.length < 2) {
+      Alert.alert("Need More Players", "You need at least 2 family members to play the game!");
+      return;
+    }
+    
+    const initialScores: GameScore[] = allMembers.map(m => ({
+      memberId: m.id,
+      memberName: m.name,
+      score: 0,
+    }));
+    
+    setGameScores(initialScores);
+    setCurrentPlayerIndex(0);
+    setGamePhase("playing");
+    setWinner(null);
+    setLastSpinResult(null);
+    playClickSound();
+  };
+
+  const handleGameSpin = () => {
+    if (spinning || gamePhase !== "playing") return;
+    setSpinning(true);
+    setLastSpinResult(null);
+    playSpinSound();
+  };
+
+  const handleGameSpinComplete = (segment: WheelSegment) => {
+    setSpinning(false);
+    stopAllSounds();
+    playWinnerSound();
+    
+    const starsWon = segment.value || 1;
+    setLastSpinResult(starsWon);
+    
+    setGameScores(prev => {
+      const updated = [...prev];
+      updated[currentPlayerIndex].score += starsWon;
+      
+      if (updated[currentPlayerIndex].score >= targetScore) {
+        setTimeout(() => {
+          setWinner(updated[currentPlayerIndex]);
+          setGamePhase("winner");
+          playSuccessSound();
+        }, 1000);
+      } else {
+        setTimeout(() => {
+          setCurrentPlayerIndex((currentPlayerIndex + 1) % allMembers.length);
+          setLastSpinResult(null);
+        }, 2000);
+      }
+      
+      return updated;
+    });
+  };
+
+  const resetGame = () => {
+    setGamePhase("setup");
+    setGameScores([]);
+    setCurrentPlayerIndex(0);
+    setWinner(null);
+    setLastSpinResult(null);
+    playClickSound();
+  };
+
+  const filteredTemplates = enabledTemplates.filter(t =>
+    t.title.toLowerCase().includes(taskSearch.toLowerCase())
+  );
+
+  const currentPlayer = gamePhase === "playing" ? gameScores[currentPlayerIndex] : null;
+
   if (!isGuardian) {
     return (
       <View style={styles.container}>
@@ -49,12 +274,11 @@ export default function SpinScreen() {
           <Ionicons name="lock-closed" size={64} color={colors.textMuted} />
           <Text style={styles.restrictedTitle}>Guardians Only</Text>
           <Text style={styles.restrictedText}>
-            The Spin Game is only available to guardians.
+            The Family Wheel is only available to guardians.
           </Text>
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => router.replace("/(tabs)/today")}
-            data-testid="button-back-to-today"
           >
             <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
             <Text style={styles.backButtonText}>Go to Today</Text>
@@ -64,825 +288,278 @@ export default function SpinScreen() {
     );
   }
 
-  const selectRandomKid = (): Member | null => {
-    if (kids.length === 0) return null;
-    if (kids.length === 1) return kids[0];
-
-    const weights = kids.map((kid) => {
-      const recentWins = lastWinnerIds.filter((id) => id === kid.id).length;
-      return Math.max(1, 10 - recentWins * 3);
-    });
-
-    const totalWeight = weights.reduce((a, b) => a + b, 0);
-    let random = Math.random() * totalWeight;
-
-    for (let i = 0; i < kids.length; i++) {
-      random -= weights[i];
-      if (random <= 0) return kids[i];
-    }
-
-    return kids[kids.length - 1];
-  };
-
-  const handleSpin = () => {
-    if (spinQueue.length === 0 || kids.length === 0) return;
-
-    setSpinState("spinning");
-    playSpinSound();
-    
-    Animated.sequence([
-      Animated.timing(rotateAnim, {
-        toValue: 5,
-        duration: 1500,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      const selectedKid = selectRandomKid();
-      const selectedTask = spinQueue[Math.floor(Math.random() * spinQueue.length)];
-      
-      if (selectedKid && selectedTask) {
-        setProposal({ kid: selectedKid, task: selectedTask });
-        setSpinState("proposal");
-        stopAllSounds();
-        playWinnerSound();
-      } else {
-        setSpinState("idle");
-        stopAllSounds();
-      }
-      rotateAnim.setValue(0);
-    });
-  };
-
-  const handleReroll = () => {
-    setProposal(null);
-    setSpinState("idle");
-    setTimeout(() => handleSpin(), 100);
-  };
-
-  const handleAccept = async () => {
-    if (!proposal || !profile?.family_id) {
-      console.log('[Spin] handleAccept - early return:', { hasProposal: !!proposal, familyId: profile?.family_id });
-      return;
-    }
-
-    let templateId = proposal.task.templateId;
-    let existingTemplate = taskTemplates.find((t) => t.id === templateId);
-    
-    // If no existing template, create in cloud first to get UUID
-    if (!existingTemplate) {
-      console.log('[Spin] Creating new template in cloud for quick task:', proposal.task.title);
-      
-      const newTemplateData = {
-        title: proposal.task.title,
-        category: "personal" as const,
-        iconKey: "person",
-        defaultStars: proposal.task.stars,
-        difficulty: "medium" as const,
-        preferredPowers: [] as string[],
-        enabled: true,
-        isArchived: false,
-      };
-      
-      // Cloud-first: Create template in Supabase to get proper UUID
-      const { data: cloudTask, error: taskError } = await createCloudTask(
-        profile.family_id,
-        newTemplateData
-      );
-      
-      if (taskError || !cloudTask) {
-        console.error('[Spin] Failed to create cloud task template:', taskError?.message);
-        Alert.alert('Error', 'Failed to create task. Please try again.');
-        return;
-      }
-      
-      console.log('[Spin] Cloud task template created with UUID:', cloudTask.id);
-      
-      // Convert cloud task to local template and add to store
-      const localTemplate = taskToTemplate(cloudTask);
-      useStore.getState().setTaskTemplatesFromCloud([...taskTemplates, localTemplate]);
-      
-      templateId = cloudTask.id;
-      existingTemplate = localTemplate;
-    }
-
-    const template = existingTemplate || taskTemplates.find((t) => t.id === templateId);
-    const now = new Date();
-    const today = format(now, "yyyy-MM-dd");
-    const dueAt = `${today}T12:00:00`;
-    
-    // Calculate expiration for time-sensitive or recurring tasks
-    let expiresAt: string | undefined;
-    if (template?.scheduleType === "time_sensitive" && template.timeWindowMinutes) {
-      expiresAt = addMinutes(now, template.timeWindowMinutes).toISOString();
-    } else if (template?.scheduleType === "recurring_daily") {
-      expiresAt = endOfDay(now).toISOString();
-    }
-
-    console.log('[Spin] Creating cloud task instance:', { 
-      familyId: profile.family_id, 
-      taskId: templateId, 
-      assignee: proposal.kid.profileId || proposal.kid.id 
-    });
-
-    // Cloud-first: Create task instance in Supabase first
-    const { data: cloudInstance, error } = await createCloudTaskInstance(
-      profile.family_id,
-      templateId!,
-      proposal.kid.profileId || proposal.kid.id, // Use profileId for cloud
-      profile.id, // createdBy is current user
-      dueAt,
-      expiresAt,
-      template?.scheduleType
-    );
-
-    if (error || !cloudInstance) {
-      console.error('[Spin] Failed to create cloud task instance:', error?.message);
-      Alert.alert('Error', 'Failed to assign task. Please try again.');
-      return;
-    }
-
-    console.log('[Spin] Cloud task instance created:', cloudInstance.id);
-
-    // Now sync to local store with cloud-generated ID
-    const localInstance: TaskInstance = {
-      id: cloudInstance.id,
-      templateId: templateId!,
-      assignedToMemberId: proposal.kid.id,
-      dueAt,
-      status: 'open',
-      createdAt: cloudInstance.created_at,
-      expiresAt,
-      scheduleType: template?.scheduleType,
-    };
-
-    useStore.getState().addTaskInstanceFromCloud(localInstance);
-
-    recordWinner(proposal.kid.id);
-    removeFromSpinQueue(proposal.task.id);
-    
-    setProposal(null);
-    setSpinState("idle");
-  };
-
-  const handleAddQuickTask = () => {
-    if (!quickTaskName.trim()) return;
-    
-    addToSpinQueue({
-      title: quickTaskName.trim(),
-      stars: 1,
-    });
-    playClickSound();
-    
-    setQuickTaskName("");
-    setShowAddModal(false);
-  };
-
-  const handleAddFromTemplate = (template: TaskTemplate) => {
-    addToSpinQueue({
-      title: template.title,
-      stars: template.defaultStars,
-      templateId: template.id,
-    });
-    playClickSound();
-    setShowTemplateSelect(false);
-    setShowAddModal(false);
-  };
-
-  const rotate = rotateAnim.interpolate({
-    inputRange: [0, 5],
-    outputRange: ["0deg", "1800deg"],
-  });
-
   return (
-    <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.queueSection}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Spin Queue</Text>
-            <TouchableOpacity 
-              style={styles.addQueueButton}
-              onPress={() => setShowAddModal(true)}
-              data-testid="button-add-to-queue"
-            >
-              <Ionicons name="add-circle" size={20} color="#FFFFFF" />
-              <Text style={styles.addQueueButtonText}>Add Task</Text>
-            </TouchableOpacity>
+    <ScrollView 
+      style={styles.container}
+      contentContainerStyle={[
+        styles.content,
+        responsive.isTablet && {
+          paddingHorizontal: responsive.horizontalPadding,
+          alignSelf: 'center',
+          width: '100%',
+          maxWidth: responsive.contentMaxWidth,
+        }
+      ]}
+      refreshControl={
+        <RefreshControl
+          refreshing={isRefreshing}
+          onRefresh={handleRefresh}
+          colors={[colors.primary]}
+          tintColor={colors.primary}
+        />
+      }
+    >
+      <View style={styles.modeSelector}>
+        <TouchableOpacity
+          style={[styles.modeTab, mode === "assign" && styles.modeTabActive]}
+          onPress={() => handleModeChange("assign")}
+          disabled={spinning}
+        >
+          <Text style={styles.modeIcon}>📋</Text>
+          <Text style={[styles.modeTabText, mode === "assign" && styles.modeTabTextActive]}>
+            Assign a Task
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.modeTab, mode === "game" && styles.modeTabActive]}
+          onPress={() => handleModeChange("game")}
+          disabled={spinning}
+        >
+          <Text style={styles.modeIcon}>🎮</Text>
+          <Text style={[styles.modeTabText, mode === "game" && styles.modeTabTextActive]}>
+            Family Game
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.header}>
+        <Text style={styles.modeEmoji}>{mode === "assign" ? "📋" : "🎮"}</Text>
+        <Text style={styles.headerTitle}>
+          {mode === "assign" ? "Assign a Task" : "Family Game"}
+        </Text>
+        <Text style={styles.starDecor}>⭐</Text>
+      </View>
+
+      <View style={styles.wheelContainer}>
+        <FamilyWheel
+          segments={mode === "assign" ? memberSegments : STAR_SEGMENTS}
+          spinning={spinning}
+          onSpinComplete={mode === "assign" ? handleAssignSpinComplete : handleGameSpinComplete}
+          size={responsive.isTablet ? 320 : 280}
+        />
+        
+        {mode === "game" && gamePhase === "playing" && (
+          <View style={styles.targetBadge}>
+            <Text style={styles.targetText}>Target: {targetScore} ⭐</Text>
           </View>
+        )}
+      </View>
 
-          {spinQueue.length === 0 ? (
-            <View style={styles.emptyQueue}>
-              <Ionicons name="layers-outline" size={48} color={colors.textMuted} />
-              <Text style={styles.emptyQueueText}>
-                Add tasks to the queue before spinning
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.queueList}>
-              {spinQueue.map((task) => (
-                <View key={task.id} style={styles.queueItem}>
-                  <View style={styles.queueItemInfo}>
-                    <Text style={styles.queueItemTitle}>{task.title}</Text>
-                    <View style={styles.queueItemStars}>
-                      <Ionicons name="star" size={12} color={colors.secondary} />
-                      <Text style={styles.queueItemStarsText}>{task.stars}</Text>
-                    </View>
-                  </View>
-                  <TouchableOpacity 
-                    onPress={() => removeFromSpinQueue(task.id)}
-                    data-testid={`button-remove-queue-${task.id}`}
-                  >
-                    <Ionicons name="close-circle" size={22} color={colors.error} />
-                  </TouchableOpacity>
-                </View>
-              ))}
-            </View>
-          )}
-        </View>
+      {mode === "assign" && (
+        <TouchableOpacity
+          style={[styles.spinButton, (spinning || allMembers.length === 0) && styles.spinButtonDisabled]}
+          onPress={handleAssignSpin}
+          disabled={spinning || allMembers.length === 0}
+        >
+          <Text style={styles.spinButtonIcon}>⭐</Text>
+          <Text style={styles.spinButtonText}>
+            {spinning ? "Spinning..." : "Spin to Choose"}
+          </Text>
+        </TouchableOpacity>
+      )}
 
-        <View style={styles.wheelSection}>
-          <Animated.View style={[styles.wheel, { transform: [{ rotate }] }]}>
-            <Ionicons name="sync" size={80} color={colors.primary} />
-          </Animated.View>
-
+      {mode === "game" && gamePhase === "setup" && (
+        <View style={styles.gameSetup}>
+          <Text style={styles.setupLabel}>Target Score:</Text>
+          <View style={styles.targetSelector}>
+            {[5, 10, 15, 20].map(score => (
+              <TouchableOpacity
+                key={score}
+                style={[styles.targetOption, targetScore === score && styles.targetOptionActive]}
+                onPress={() => setTargetScore(score)}
+              >
+                <Text style={[styles.targetOptionText, targetScore === score && styles.targetOptionTextActive]}>
+                  {score} ⭐
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
           <TouchableOpacity
-            style={[
-              styles.spinButton,
-              (spinQueue.length === 0 || kids.length === 0 || spinState === "spinning") && styles.spinButtonDisabled,
-            ]}
-            onPress={handleSpin}
-            disabled={spinQueue.length === 0 || kids.length === 0 || spinState === "spinning"}
-            data-testid="button-spin"
+            style={[styles.spinButton, allMembers.length < 2 && styles.spinButtonDisabled]}
+            onPress={startGame}
+            disabled={allMembers.length < 2}
           >
+            <Text style={styles.spinButtonIcon}>🎮</Text>
+            <Text style={styles.spinButtonText}>Start Game</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {mode === "game" && gamePhase === "playing" && (
+        <>
+          <TouchableOpacity
+            style={[styles.spinButton, spinning && styles.spinButtonDisabled]}
+            onPress={handleGameSpin}
+            disabled={spinning}
+          >
+            <Text style={styles.spinButtonIcon}>⭐</Text>
             <Text style={styles.spinButtonText}>
-              {spinState === "spinning" ? "Spinning..." : "Spin the Wheel!"}
+              {spinning ? "Spinning..." : `Spin for ${currentPlayer?.memberName || ""}`}
             </Text>
           </TouchableOpacity>
 
-          {kids.length === 0 && (
-            <Text style={styles.warningText}>Add participants in Setup first</Text>
-          )}
-          {spinQueue.length === 0 && kids.length > 0 && (
-            <Text style={styles.warningText}>Add tasks to the queue first</Text>
-          )}
-        </View>
-      </ScrollView>
-
-      <Modal visible={spinState === "proposal"} animationType="fade" transparent>
-        <View style={styles.proposalOverlay}>
-          <View style={styles.proposalContent}>
-            <View style={styles.proposalHeader}>
-              <Ionicons name="sparkles" size={32} color={colors.secondary} />
-              <Text style={styles.proposalTitle}>Spin Result!</Text>
+          <View style={styles.scoreboard}>
+            <View style={styles.scoreboardHeader}>
+              <Ionicons name="trophy" size={20} color="#FFD700" />
+              <Text style={styles.scoreboardTitle}>Scoreboard</Text>
             </View>
-
-            {proposal && (
-              <>
-                <TouchableOpacity 
-                  style={styles.proposalKid}
-                  onPress={() => {
-                    setSpinState("idle");
-                    setProposal(null);
-                    router.push(`/member/${proposal.kid.id}`);
-                  }}
-                >
-                  <View style={styles.proposalAvatar}>
-                    <Text style={styles.proposalAvatarText}>
-                      {proposal.kid.name.charAt(0).toUpperCase()}
-                    </Text>
-                  </View>
-                  <Text style={styles.proposalKidName}>{proposal.kid.name}</Text>
-                </TouchableOpacity>
-
-                <Text style={styles.proposalAssigned}>will do:</Text>
-
-                <View style={styles.proposalTask}>
-                  <Text style={styles.proposalTaskTitle}>{proposal.task.title}</Text>
-                  <View style={styles.proposalTaskStars}>
-                    <Ionicons name="star" size={16} color={colors.secondary} />
-                    <Text style={styles.proposalTaskStarsText}>{proposal.task.stars}</Text>
-                  </View>
+            {gameScores.map((score, index) => (
+              <View 
+                key={score.memberId} 
+                style={[
+                  styles.scoreRow, 
+                  index === currentPlayerIndex && styles.scoreRowActive
+                ]}
+              >
+                <View style={styles.scoreRowLeft}>
+                  <Text style={styles.scoreEmoji}>👤</Text>
+                  <Text style={styles.scoreName}>{score.memberName}</Text>
+                  {index === currentPlayerIndex && (
+                    <View style={styles.turnBadge}>
+                      <Text style={styles.turnBadgeText}>
+                        {lastSpinResult ? `+${lastSpinResult}` : `${score.memberName}'s Turn`}
+                      </Text>
+                    </View>
+                  )}
                 </View>
-
-                <View style={styles.proposalActions}>
-                  <TouchableOpacity
-                    style={styles.rerollButton}
-                    onPress={handleReroll}
-                    data-testid="button-reroll"
-                  >
-                    <Ionicons name="refresh" size={20} color={colors.primary} />
-                    <Text style={styles.rerollButtonText}>Reroll</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.acceptButton}
-                    onPress={handleAccept}
-                    data-testid="button-accept"
-                  >
-                    <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
-                    <Text style={styles.acceptButtonText}>Accept</Text>
-                  </TouchableOpacity>
+                <View style={styles.scoreRowRight}>
+                  <Text style={styles.scoreStars}>⭐</Text>
+                  <Text style={styles.scoreValue}>{score.score}</Text>
+                  <Text style={styles.scoreStars}>⭐</Text>
                 </View>
-              </>
-            )}
+              </View>
+            ))}
           </View>
-        </View>
-      </Modal>
+        </>
+      )}
 
-      <Modal visible={showAddModal} animationType="slide" transparent>
+      {mode === "game" && gamePhase === "winner" && winner && (
+        <View style={styles.winnerCard}>
+          <Text style={styles.confetti}>🎉</Text>
+          <Text style={styles.winnerTitle}>WE HAVE A WINNER!</Text>
+          <Text style={styles.winnerConfetti}>🎉</Text>
+          <View style={styles.winnerAvatar}>
+            <Text style={styles.winnerCrown}>👑</Text>
+            <View style={styles.avatarCircle}>
+              <Text style={styles.avatarEmoji}>😊</Text>
+            </View>
+          </View>
+          <Text style={styles.winnerName}>{winner.memberName}</Text>
+          <Text style={styles.winnerScore}>
+            ✨ Reached {winner.score} Stars! ✨
+          </Text>
+          <TouchableOpacity style={styles.celebrateButton} onPress={resetGame}>
+            <Text style={styles.celebrateButtonText}>🎉 Celebrate 🎉</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {selectedMember && mode === "assign" && (
+        <View style={styles.resultCard}>
+          <Text style={styles.resultEmoji}>📋</Text>
+          <Text style={styles.resultTitle}>It's Your Turn!</Text>
+          <View style={styles.selectedMemberAvatar}>
+            <Text style={styles.memberEmoji}>😊</Text>
+          </View>
+          <Text style={styles.selectedMemberName}>{selectedMember.name}</Text>
+          <TouchableOpacity style={styles.assignButton} onPress={handleAssignTask}>
+            <Text style={styles.assignButtonText}>Assign Task</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      <Modal visible={showTaskPicker} animationType="slide" transparent>
         <KeyboardAvoidingView 
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={styles.modalOverlay}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Add Task to Queue</Text>
+              <Text style={styles.modalTitle}>Choose a Task</Text>
               <TouchableOpacity onPress={() => {
-                setShowAddModal(false);
-                setShowTemplateSelect(false);
+                setShowTaskPicker(false);
+                setTaskSearch("");
               }}>
-                <Ionicons name="close" size={28} color={colors.text} />
+                <Ionicons name="close" size={24} color={colors.text} />
               </TouchableOpacity>
             </View>
 
-            {!showTemplateSelect ? (
-              <>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Quick Task</Text>
-                  <View style={styles.quickTaskRow}>
-                    <TextInput
-                      style={styles.textInput}
-                      placeholder="Enter task name..."
-                      placeholderTextColor={colors.textMuted}
-                      value={quickTaskName}
-                      onChangeText={setQuickTaskName}
-                      data-testid="input-quick-task"
-                    />
-                    <TouchableOpacity
-                      style={[
-                        styles.quickAddButton,
-                        !quickTaskName.trim() && styles.quickAddButtonDisabled,
-                      ]}
-                      onPress={handleAddQuickTask}
-                      disabled={!quickTaskName.trim()}
-                      data-testid="button-add-quick-task"
-                    >
-                      <Ionicons name="add" size={24} color="#FFFFFF" />
-                    </TouchableOpacity>
-                  </View>
-                </View>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search or create a task..."
+              value={taskSearch}
+              onChangeText={setTaskSearch}
+              placeholderTextColor={colors.textMuted}
+            />
 
+            <ScrollView style={styles.taskList}>
+              {filteredTemplates.map(template => (
                 <TouchableOpacity
-                  style={styles.templateSelectButton}
-                  onPress={() => setShowTemplateSelect(true)}
-                  data-testid="button-show-templates"
+                  key={template.id}
+                  style={styles.taskItem}
+                  onPress={() => handleSelectTask(template)}
                 >
-                  <Ionicons name="library-outline" size={20} color={colors.primary} />
-                  <Text style={styles.templateSelectButtonText}>
-                    Choose from Templates
-                  </Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              <ScrollView style={styles.templateList}>
-                <TouchableOpacity
-                  style={styles.backToQuickButton}
-                  onPress={() => setShowTemplateSelect(false)}
-                >
-                  <Ionicons name="arrow-back" size={18} color={colors.primary} />
-                  <Text style={styles.backToQuickButtonText}>Back to Quick Add</Text>
-                </TouchableOpacity>
-
-                {enabledTemplates.map((template) => (
-                  <TouchableOpacity
-                    key={template.id}
-                    style={styles.templateItem}
-                    onPress={() => handleAddFromTemplate(template)}
-                    data-testid={`button-select-template-${template.id}`}
-                  >
-                    <View style={styles.templateItemInfo}>
-                      <Text style={styles.templateItemTitle}>{template.title}</Text>
-                      <View style={styles.templateItemMeta}>
-                        <Text style={styles.templateItemCategory}>{template.category}</Text>
-                        <View style={styles.templateItemStars}>
-                          <Ionicons name="star" size={12} color={colors.secondary} />
-                          <Text style={styles.templateItemStarsText}>{template.defaultStars}</Text>
-                        </View>
-                      </View>
-                    </View>
-                    <Ionicons name="add-circle-outline" size={24} color={colors.primary} />
-                  </TouchableOpacity>
-                ))}
-
-                {enabledTemplates.length === 0 && (
-                  <View style={styles.noTemplates}>
-                    <Text style={styles.noTemplatesText}>
-                      No active templates. Add tasks in the Tasks tab first.
-                    </Text>
+                  <View style={styles.taskItemLeft}>
+                    <Ionicons name={(template.iconKey || "star") as any} size={20} color={colors.primary} />
+                    <Text style={styles.taskItemTitle}>{template.title}</Text>
                   </View>
-                )}
-              </ScrollView>
-            )}
+                  <View style={styles.taskItemRight}>
+                    <Text style={styles.taskItemStars}>{template.defaultStars}</Text>
+                    <Text style={styles.taskItemStarIcon}>⭐</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+              
+              {taskSearch.trim() && filteredTemplates.length === 0 && (
+                <TouchableOpacity style={styles.createTaskButton} onPress={handleCreateQuickTask}>
+                  <Ionicons name="add-circle" size={20} color="#FFFFFF" />
+                  <Text style={styles.createTaskText}>Create "{taskSearch}"</Text>
+                </TouchableOpacity>
+              )}
+            </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: "#F5FFF5",
   },
   content: {
     padding: spacing.lg,
-  },
-  queueSection: {
-    marginBottom: spacing.xl,
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: spacing.md,
-  },
-  sectionTitle: {
-    fontSize: fontSize.lg,
-    fontWeight: "600",
-    color: colors.text,
-  },
-  addQueueButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.primary,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.md,
-    gap: spacing.xs,
-  },
-  addQueueButtonText: {
-    color: "#FFFFFF",
-    fontSize: fontSize.sm,
-    fontWeight: "600",
-  },
-  emptyQueue: {
-    alignItems: "center",
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.lg,
-    padding: spacing.xl,
-    borderWidth: 2,
-    borderColor: colors.border,
-    borderStyle: "dashed",
-  },
-  emptyQueueText: {
-    fontSize: fontSize.md,
-    color: colors.textMuted,
-    marginTop: spacing.sm,
-    textAlign: "center",
-  },
-  queueList: {
-    gap: spacing.sm,
-  },
-  queueItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  queueItemInfo: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-  },
-  queueItemTitle: {
-    fontSize: fontSize.md,
-    fontWeight: "500",
-    color: colors.text,
-    flex: 1,
-  },
-  queueItemStars: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 2,
-  },
-  queueItemStarsText: {
-    fontSize: fontSize.sm,
-    fontWeight: "600",
-    color: colors.secondary,
-  },
-  wheelSection: {
-    alignItems: "center",
-    paddingVertical: spacing.xl,
-  },
-  wheel: {
-    width: 180,
-    height: 180,
-    borderRadius: borderRadius.full,
-    backgroundColor: colors.surface,
-    borderWidth: 8,
-    borderColor: colors.primary,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: spacing.xl,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  spinButton: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: spacing.xxl,
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.full,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  spinButtonDisabled: {
-    backgroundColor: colors.textMuted,
-    shadowOpacity: 0,
-  },
-  spinButtonText: {
-    fontSize: fontSize.lg,
-    fontWeight: "600",
-    color: "#FFFFFF",
-  },
-  warningText: {
-    fontSize: fontSize.sm,
-    color: colors.warning,
-    marginTop: spacing.md,
-  },
-  proposalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: spacing.lg,
-  },
-  proposalContent: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.xl,
-    padding: spacing.xl,
-    width: "100%",
-    maxWidth: 320,
-    alignItems: "center",
-  },
-  proposalHeader: {
-    alignItems: "center",
-    marginBottom: spacing.lg,
-  },
-  proposalTitle: {
-    fontSize: fontSize.xl,
-    fontWeight: "700",
-    color: colors.text,
-    marginTop: spacing.sm,
-  },
-  proposalKid: {
-    alignItems: "center",
-    marginBottom: spacing.md,
-  },
-  proposalAvatar: {
-    width: 80,
-    height: 80,
-    borderRadius: borderRadius.full,
-    backgroundColor: colors.primary,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: spacing.sm,
-  },
-  proposalAvatarText: {
-    fontSize: fontSize.xxxl,
-    fontWeight: "700",
-    color: "#FFFFFF",
-  },
-  proposalKidName: {
-    fontSize: fontSize.xl,
-    fontWeight: "600",
-    color: colors.primary,
-  },
-  proposalAssigned: {
-    fontSize: fontSize.md,
-    color: colors.textSecondary,
-    marginBottom: spacing.md,
-  },
-  proposalTask: {
-    backgroundColor: colors.surfaceSecondary,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    width: "100%",
-    alignItems: "center",
-    marginBottom: spacing.lg,
-  },
-  proposalTaskTitle: {
-    fontSize: fontSize.lg,
-    fontWeight: "600",
-    color: colors.text,
-    textAlign: "center",
-  },
-  proposalTaskStars: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginTop: spacing.xs,
-  },
-  proposalTaskStarsText: {
-    fontSize: fontSize.md,
-    fontWeight: "600",
-    color: colors.secondary,
-  },
-  proposalActions: {
-    flexDirection: "row",
-    gap: spacing.md,
-    width: "100%",
-  },
-  rerollButton: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.surfaceSecondary,
-    padding: spacing.md,
-    borderRadius: borderRadius.lg,
-    gap: spacing.xs,
-  },
-  rerollButtonText: {
-    fontSize: fontSize.md,
-    fontWeight: "600",
-    color: colors.primary,
-  },
-  acceptButton: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.success,
-    padding: spacing.md,
-    borderRadius: borderRadius.lg,
-    gap: spacing.xs,
-  },
-  acceptButtonText: {
-    fontSize: fontSize.md,
-    fontWeight: "600",
-    color: "#FFFFFF",
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "flex-end",
-  },
-  modalContent: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: borderRadius.xl,
-    borderTopRightRadius: borderRadius.xl,
-    padding: spacing.lg,
-    maxHeight: "70%",
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: spacing.lg,
-  },
-  modalTitle: {
-    fontSize: fontSize.xl,
-    fontWeight: "600",
-    color: colors.text,
-  },
-  inputGroup: {
-    marginBottom: spacing.lg,
-  },
-  inputLabel: {
-    fontSize: fontSize.sm,
-    fontWeight: "600",
-    color: colors.textSecondary,
-    marginBottom: spacing.xs,
-  },
-  quickTaskRow: {
-    flexDirection: "row",
-    gap: spacing.sm,
-  },
-  textInput: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    fontSize: fontSize.md,
-    color: colors.text,
-    backgroundColor: colors.surfaceSecondary,
-  },
-  quickAddButton: {
-    backgroundColor: colors.primary,
-    width: 48,
-    height: 48,
-    borderRadius: borderRadius.md,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  quickAddButtonDisabled: {
-    backgroundColor: colors.textMuted,
-  },
-  templateSelectButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.surfaceSecondary,
-    padding: spacing.md,
-    borderRadius: borderRadius.lg,
-    gap: spacing.sm,
-  },
-  templateSelectButtonText: {
-    fontSize: fontSize.md,
-    fontWeight: "500",
-    color: colors.primary,
-  },
-  templateList: {
-    maxHeight: 400,
-  },
-  backToQuickButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: spacing.md,
-    gap: spacing.xs,
-  },
-  backToQuickButtonText: {
-    fontSize: fontSize.sm,
-    color: colors.primary,
-  },
-  templateItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.surfaceSecondary,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
-  },
-  templateItemInfo: {
-    flex: 1,
-  },
-  templateItemTitle: {
-    fontSize: fontSize.md,
-    fontWeight: "500",
-    color: colors.text,
-  },
-  templateItemMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 4,
-    gap: spacing.sm,
-  },
-  templateItemCategory: {
-    fontSize: fontSize.xs,
-    color: colors.textMuted,
-    textTransform: "capitalize",
-  },
-  templateItemStars: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 2,
-  },
-  templateItemStarsText: {
-    fontSize: fontSize.xs,
-    fontWeight: "600",
-    color: colors.secondary,
-  },
-  noTemplates: {
-    alignItems: "center",
-    padding: spacing.xl,
-  },
-  noTemplatesText: {
-    fontSize: fontSize.md,
-    color: colors.textMuted,
-    textAlign: "center",
+    paddingBottom: 100,
   },
   restrictedContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
     padding: spacing.xl,
-    gap: spacing.md,
   },
   restrictedTitle: {
     fontSize: fontSize.xl,
-    fontWeight: "600",
+    fontWeight: "bold",
     color: colors.text,
-    marginTop: spacing.md,
+    marginTop: spacing.lg,
   },
   restrictedText: {
     fontSize: fontSize.md,
-    color: colors.textSecondary,
+    color: colors.textMuted,
     textAlign: "center",
-    marginBottom: spacing.lg,
+    marginTop: spacing.sm,
   },
   backButton: {
     flexDirection: "row",
@@ -891,9 +568,447 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     borderRadius: borderRadius.lg,
+    marginTop: spacing.xl,
     gap: spacing.sm,
   },
   backButtonText: {
+    color: "#FFFFFF",
+    fontSize: fontSize.md,
+    fontWeight: "600",
+  },
+  modeSelector: {
+    flexDirection: "row",
+    backgroundColor: "#FFFFFF",
+    borderRadius: borderRadius.xl,
+    padding: spacing.xs,
+    marginBottom: spacing.lg,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  modeTab: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.lg,
+    gap: spacing.xs,
+  },
+  modeTabActive: {
+    backgroundColor: "#E8F5E9",
+  },
+  modeIcon: {
+    fontSize: 16,
+  },
+  modeTabText: {
+    fontSize: fontSize.sm,
+    color: colors.textMuted,
+    fontWeight: "500",
+  },
+  modeTabTextActive: {
+    color: colors.primary,
+    fontWeight: "600",
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: spacing.lg,
+    gap: spacing.sm,
+  },
+  modeEmoji: {
+    fontSize: 20,
+  },
+  headerTitle: {
+    fontSize: fontSize.xl,
+    fontWeight: "bold",
+    color: "#5D4037",
+  },
+  starDecor: {
+    fontSize: 20,
+  },
+  wheelContainer: {
+    alignItems: "center",
+    marginBottom: spacing.lg,
+  },
+  targetBadge: {
+    position: "absolute",
+    bottom: 50,
+    backgroundColor: "#FFF8E1",
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.xl,
+    borderWidth: 2,
+    borderColor: "#FFD700",
+  },
+  targetText: {
+    fontSize: fontSize.md,
+    fontWeight: "bold",
+    color: "#5D4037",
+  },
+  spinButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#4CAF50",
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.xl,
+    borderRadius: 30,
+    marginBottom: spacing.lg,
+    gap: spacing.sm,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 5,
+  },
+  spinButtonDisabled: {
+    backgroundColor: "#A5D6A7",
+  },
+  spinButtonIcon: {
+    fontSize: 20,
+  },
+  spinButtonText: {
+    fontSize: fontSize.lg,
+    fontWeight: "bold",
+    color: "#FFFFFF",
+  },
+  gameSetup: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: borderRadius.xl,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  setupLabel: {
+    fontSize: fontSize.md,
+    fontWeight: "600",
+    color: colors.text,
+    marginBottom: spacing.md,
+    textAlign: "center",
+  },
+  targetSelector: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  targetOption: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.lg,
+    backgroundColor: "#F5F5F5",
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  targetOptionActive: {
+    backgroundColor: "#FFF8E1",
+    borderColor: "#FFD700",
+  },
+  targetOptionText: {
+    fontSize: fontSize.sm,
+    color: colors.textMuted,
+    fontWeight: "500",
+  },
+  targetOptionTextActive: {
+    color: "#5D4037",
+    fontWeight: "bold",
+  },
+  scoreboard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: borderRadius.xl,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  scoreboardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  scoreboardTitle: {
+    fontSize: fontSize.md,
+    fontWeight: "bold",
+    color: colors.text,
+  },
+  scoreRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.lg,
+    marginBottom: spacing.xs,
+  },
+  scoreRowActive: {
+    backgroundColor: "#FFF8E1",
+  },
+  scoreRowLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    flex: 1,
+  },
+  scoreEmoji: {
+    fontSize: 20,
+  },
+  scoreName: {
+    fontSize: fontSize.md,
+    fontWeight: "500",
+    color: colors.text,
+  },
+  turnBadge: {
+    backgroundColor: "#4CAF50",
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: borderRadius.sm,
+    marginLeft: spacing.sm,
+  },
+  turnBadgeText: {
+    fontSize: fontSize.xs,
+    color: "#FFFFFF",
+    fontWeight: "600",
+  },
+  scoreRowRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+  },
+  scoreStars: {
+    fontSize: 14,
+  },
+  scoreValue: {
+    fontSize: fontSize.lg,
+    fontWeight: "bold",
+    color: colors.text,
+    minWidth: 24,
+    textAlign: "center",
+  },
+  winnerCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: borderRadius.xl,
+    padding: spacing.xl,
+    alignItems: "center",
+    marginBottom: spacing.lg,
+    shadowColor: "#FFD700",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    borderWidth: 3,
+    borderColor: "#FFD700",
+  },
+  confetti: {
+    fontSize: 24,
+    position: "absolute",
+    left: spacing.lg,
+    top: spacing.lg,
+  },
+  winnerConfetti: {
+    fontSize: 24,
+    position: "absolute",
+    right: spacing.lg,
+    top: spacing.lg,
+  },
+  winnerTitle: {
+    fontSize: fontSize.lg,
+    fontWeight: "bold",
+    color: "#5D4037",
+    marginBottom: spacing.md,
+  },
+  winnerAvatar: {
+    alignItems: "center",
+    marginBottom: spacing.md,
+  },
+  winnerCrown: {
+    fontSize: 32,
+    marginBottom: -10,
+  },
+  avatarCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "#FFF8E1",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 3,
+    borderColor: "#FFD700",
+  },
+  avatarEmoji: {
+    fontSize: 40,
+  },
+  winnerName: {
+    fontSize: fontSize.xl,
+    fontWeight: "bold",
+    color: "#5D4037",
+    marginBottom: spacing.sm,
+  },
+  winnerScore: {
+    fontSize: fontSize.md,
+    color: "#FFD700",
+    fontWeight: "600",
+    marginBottom: spacing.lg,
+  },
+  celebrateButton: {
+    backgroundColor: "#FFB74D",
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.xl,
+    borderRadius: 30,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  celebrateButtonText: {
+    fontSize: fontSize.md,
+    fontWeight: "bold",
+    color: "#FFFFFF",
+  },
+  resultCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: borderRadius.xl,
+    padding: spacing.xl,
+    alignItems: "center",
+    marginBottom: spacing.lg,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  resultEmoji: {
+    fontSize: 24,
+    marginBottom: spacing.sm,
+  },
+  resultTitle: {
+    fontSize: fontSize.lg,
+    fontWeight: "bold",
+    color: "#5D4037",
+    marginBottom: spacing.md,
+  },
+  selectedMemberAvatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "#FFF8E1",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 3,
+    borderColor: "#FFD700",
+    marginBottom: spacing.md,
+  },
+  memberEmoji: {
+    fontSize: 40,
+  },
+  selectedMemberName: {
+    fontSize: fontSize.xl,
+    fontWeight: "bold",
+    color: "#5D4037",
+    marginBottom: spacing.xs,
+  },
+  assignButton: {
+    backgroundColor: "#FFB74D",
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.xl,
+    borderRadius: 30,
+    marginTop: spacing.md,
+  },
+  assignButtonText: {
+    fontSize: fontSize.md,
+    fontWeight: "bold",
+    color: "#FFFFFF",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: borderRadius.xl,
+    borderTopRightRadius: borderRadius.xl,
+    padding: spacing.lg,
+    maxHeight: "80%",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: spacing.md,
+  },
+  modalTitle: {
+    fontSize: fontSize.lg,
+    fontWeight: "bold",
+    color: colors.text,
+  },
+  searchInput: {
+    backgroundColor: "#F5F5F5",
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    fontSize: fontSize.md,
+    marginBottom: spacing.md,
+  },
+  taskList: {
+    maxHeight: 300,
+  },
+  taskItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F0F0F0",
+  },
+  taskItemLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    flex: 1,
+  },
+  taskItemTitle: {
+    fontSize: fontSize.md,
+    color: colors.text,
+  },
+  taskItemRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+  },
+  taskItemStars: {
+    fontSize: fontSize.md,
+    fontWeight: "bold",
+    color: colors.primary,
+  },
+  taskItemStarIcon: {
+    fontSize: 14,
+  },
+  createTaskButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.lg,
+    marginTop: spacing.md,
+    gap: spacing.sm,
+  },
+  createTaskText: {
     color: "#FFFFFF",
     fontSize: fontSize.md,
     fontWeight: "600",
