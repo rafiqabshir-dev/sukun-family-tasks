@@ -117,20 +117,16 @@ export function FamilyWheel({
     };
   };
 
-  // Create arc path for curved text - centered in slice, close to outer edge
+  // Create arc path for curved text - perfectly centered in slice
   const createTextArcPath = (index: number, total: number, isBottomHalf: boolean): string => {
     const angle = 360 / total;
     const startAngle = index * angle - 90;
     const endAngle = startAngle + angle;
     const textArcRadius = radius * 0.88; // Very close to outer edge
     
-    // Symmetric padding to center text in slice
-    const padding = angle * 0.08;
-    const paddedStart = startAngle + padding;
-    const paddedEnd = endAngle - padding;
-    
-    const startRad = (paddedStart * Math.PI) / 180;
-    const endRad = (paddedEnd * Math.PI) / 180;
+    // Use exact slice boundaries for perfect centering
+    const startRad = (startAngle * Math.PI) / 180;
+    const endRad = (endAngle * Math.PI) / 180;
     
     const x1 = centerX + textArcRadius * Math.cos(startRad);
     const y1 = centerY + textArcRadius * Math.sin(startRad);
