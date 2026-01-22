@@ -10,7 +10,7 @@ import { isSupabaseConfigured } from "@/lib/supabase";
 import { addStarsLedgerEntry, createCloudTask, createCloudTaskInstance, updateCloudTaskInstance, cloudInstanceToLocal, taskToTemplate, archiveCloudTask } from "@/lib/cloudSync";
 import { notifyTaskAssigned, notifyTaskPendingApproval, notifyTaskApproved, notifyTaskRejected } from "@/lib/pushNotificationService";
 import { useResponsive } from "@/lib/useResponsive";
-import { DashboardCards, useLocation, LocationBadge } from "@/components/DashboardCards";
+import { DashboardCards } from "@/components/DashboardCards";
 
 function getTaskStatus(task: TaskInstance): "open" | "pending_approval" | "done" | "overdue" | "expired" {
   if (task.status === "done") return "done";
@@ -71,7 +71,6 @@ export default function TodayScreen() {
   const rejectTask = useStore((s) => s.rejectTask);
   const deductStars = useStore((s) => s.deductStars);
   const [currentTime, setCurrentTime] = useState(new Date());
-  const { location } = useLocation();
   
   // Timer for countdown display updates only - does NOT call store actions
   useEffect(() => {
@@ -589,13 +588,22 @@ export default function TodayScreen() {
     setIsClearingOverdue(true);
     try {
       for (const task of overdueTasks) {
-        // Mark as done locally (no stars awarded for overdue completion)
-        useStore.getState().updateTaskInstanceStatus(task.id, "done");
-        
-        // Sync to cloud
+        // Sync to cloud first
         if (isSupabaseConfigured() && profile?.family_id) {
-          await updateCloudTaskInstance(task.id, { status: "done" });
+          await updateCloudTaskInstance(task.id, { 
+            status: "done",
+            completedAt: new Date().toISOString()
+          });
         }
+        
+        // Update local state - directly update task instances
+        useStore.setState((state) => ({
+          taskInstances: state.taskInstances.map((t) =>
+            t.id === task.id
+              ? { ...t, status: "done" as const, completedAt: new Date().toISOString() }
+              : t
+          ),
+        }));
       }
       
       if (Platform.OS === 'web') {
@@ -991,12 +999,9 @@ export default function TodayScreen() {
               </Text>
             </View>
           </View>
-          <View style={styles.userBarRight}>
-            <LocationBadge location={location} />
-            <View style={styles.starsDisplay}>
-              <Ionicons name="star" size={18} color={colors.secondary} />
-              <Text style={styles.starsCount}>{currentMember.starsTotal}</Text>
-            </View>
+          <View style={styles.starsDisplay}>
+            <Ionicons name="star" size={18} color={colors.secondary} />
+            <Text style={styles.starsCount}>{currentMember.starsTotal}</Text>
           </View>
         </View>
 
@@ -1534,11 +1539,6 @@ const styles = StyleSheet.create({
   actingAsRole: {
     fontSize: fontSize.sm,
     color: colors.textSecondary,
-  },
-  userBarRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
   },
   starsDisplay: {
     flexDirection: "row",

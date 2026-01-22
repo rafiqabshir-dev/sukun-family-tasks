@@ -1,11 +1,34 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { View, TouchableOpacity, Modal, Text, StyleSheet, ScrollView, Pressable, Platform, Alert } from "react-native";
 import { Tabs, useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, borderRadius, fontSize } from "@/lib/theme";
 import { useAuth } from "@/lib/authContext";
+import { getCurrentLocation, UserLocation } from "@/lib/locationService";
 
 type IconName = "today" | "today-outline" | "list" | "list-outline" | "sync" | "sync-outline" | "trophy" | "trophy-outline" | "gift" | "gift-outline" | "menu" | "menu-outline";
+
+// Location header component for Today tab
+function LocationHeaderRight() {
+  const [location, setLocation] = useState<UserLocation | null>(null);
+
+  useEffect(() => {
+    const fetchLocation = async () => {
+      const loc = await getCurrentLocation();
+      setLocation(loc);
+    };
+    fetchLocation();
+  }, []);
+
+  if (!location?.cityName) return null;
+
+  return (
+    <View style={styles.locationHeader}>
+      <Ionicons name="location" size={14} color="#FFFFFF" />
+      <Text style={styles.locationHeaderText}>{location.cityName}</Text>
+    </View>
+  );
+}
 
 // Separate component that re-renders when pendingRequestsCount changes
 function HeaderMenuButton({ onPress }: { onPress: () => void }) {
@@ -113,6 +136,7 @@ export default function TabLayout() {
           name="today"
           options={{
             title: "Today",
+            headerRight: () => <LocationHeaderRight />,
             tabBarIcon: ({ color, focused }) => (
               <Ionicons
                 name={focused ? "today" : "today-outline"}
@@ -366,6 +390,21 @@ const styles = StyleSheet.create({
   signOutText: {
     fontSize: fontSize.md,
     color: colors.error,
+    fontWeight: "500",
+  },
+  locationHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: borderRadius.full,
+    marginRight: spacing.md,
+    gap: 4,
+  },
+  locationHeaderText: {
+    color: "#FFFFFF",
+    fontSize: fontSize.xs,
     fontWeight: "500",
   },
 });

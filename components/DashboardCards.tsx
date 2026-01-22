@@ -852,15 +852,17 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   accessoryTag: {
-    backgroundColor: colors.primaryLight,
+    backgroundColor: colors.surface,
     paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
+    paddingVertical: 5,
     borderRadius: borderRadius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   accessoryText: {
-    fontSize: fontSize.xs,
-    color: colors.primary,
-    fontWeight: "500",
+    fontSize: fontSize.sm,
+    color: colors.text,
+    fontWeight: "600",
   },
   emptyTasksContent: {
     alignItems: "center",
