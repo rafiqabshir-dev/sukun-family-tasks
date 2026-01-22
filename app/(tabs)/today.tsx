@@ -116,6 +116,7 @@ export default function TodayScreen() {
   const [oneOffTitle, setOneOffTitle] = useState("");
   const [oneOffStars, setOneOffStars] = useState(1);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isClearingOverdue, setIsClearingOverdue] = useState(false);
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
@@ -564,6 +565,56 @@ export default function TodayScreen() {
     setDeductReason("");
   };
 
+  // Clear all overdue tasks (mark as done without stars)
+  const handleClearOverdueTasks = async () => {
+    if (overdueTasks.length === 0) return;
+    
+    const confirmMessage = `This will mark ${overdueTasks.length} overdue task${overdueTasks.length > 1 ? 's' : ''} as complete without awarding stars. Continue?`;
+    
+    const proceed = Platform.OS === 'web' 
+      ? window.confirm(confirmMessage)
+      : await new Promise<boolean>((resolve) => {
+          Alert.alert(
+            "Clear Overdue Tasks",
+            confirmMessage,
+            [
+              { text: "Cancel", style: "cancel", onPress: () => resolve(false) },
+              { text: "Clear All", style: "destructive", onPress: () => resolve(true) }
+            ]
+          );
+        });
+    
+    if (!proceed) return;
+    
+    setIsClearingOverdue(true);
+    try {
+      for (const task of overdueTasks) {
+        // Mark as done locally (no stars awarded for overdue completion)
+        useStore.getState().updateTaskInstanceStatus(task.id, "done");
+        
+        // Sync to cloud
+        if (isSupabaseConfigured() && profile?.family_id) {
+          await updateCloudTaskInstance(task.id, { status: "done" });
+        }
+      }
+      
+      if (Platform.OS === 'web') {
+        window.alert(`Cleared ${overdueTasks.length} overdue task${overdueTasks.length > 1 ? 's' : ''}`);
+      } else {
+        Alert.alert("Done", `Cleared ${overdueTasks.length} overdue task${overdueTasks.length > 1 ? 's' : ''}`);
+      }
+    } catch (err) {
+      console.error('[Today] Error clearing overdue tasks:', err);
+      if (Platform.OS === 'web') {
+        window.alert('Failed to clear some tasks. Please try again.');
+      } else {
+        Alert.alert("Error", "Failed to clear some tasks. Please try again.");
+      }
+    } finally {
+      setIsClearingOverdue(false);
+    }
+  };
+
   // Complete task with cloud sync
   const handleCompleteTask = async (taskId: string, requestedBy: string) => {
     const task = taskInstances.find((t) => t.id === taskId);
@@ -978,13 +1029,20 @@ export default function TodayScreen() {
               <Text style={styles.deductButtonText}>Deduct Stars</Text>
             </TouchableOpacity>
           </View>
-        )}
-
-        {myTasks.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>My Tasks</Text>
-            {myTasks.map((task) => renderTaskCard(task, isCurrentUserGuardian))}
-          </View>
+          
+          {overdueTasks.length > 0 && (
+            <TouchableOpacity
+              style={styles.clearOverdueButton}
+              onPress={handleClearOverdueTasks}
+              disabled={isClearingOverdue}
+              data-testid="button-clear-overdue"
+            >
+              <Ionicons name="trash-outline" size={20} color={colors.error} />
+              <Text style={styles.clearOverdueText}>
+                {isClearingOverdue ? "Clearing..." : `Clear ${overdueTasks.length} Overdue Task${overdueTasks.length > 1 ? 's' : ''}`}
+              </Text>
+            </TouchableOpacity>
+          )}
         )}
 
         {pendingApprovalTasks.length > 0 && (
@@ -997,10 +1055,7 @@ export default function TodayScreen() {
           </View>
         )}
 
-        {(isCurrentUserGuardian 
-          ? myTasks.length === 0 && pendingApprovalTasks.length === 0
-          : myTasks.length === 0 && pendingApprovalTasks.length === 0
-        ) && (
+        {pendingApprovalTasks.length === 0 && (
           <View style={styles.emptyState}>
             <Ionicons name="sunny-outline" size={64} color={colors.primary} />
             <Text style={styles.emptyTitle}>All Clear!</Text>
@@ -1897,6 +1952,23 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     borderRadius: borderRadius.lg,
     gap: spacing.sm,
+  },
+  clearOverdueButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surface,
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.error,
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  clearOverdueText: {
+    fontSize: fontSize.md,
+    fontWeight: "600",
+    color: colors.error,
   },
   deductButtonText: {
     color: "#FFFFFF",
