@@ -26,6 +26,8 @@ export interface WearSuggestion {
 interface CachedWeather {
   data: WeatherData;
   timestamp: number;
+  latitude: number;
+  longitude: number;
 }
 
 const WEATHER_CODE_MAP: Record<number, { condition: string; icon: string; isSevere: boolean; isRaining: boolean }> = {
@@ -61,8 +63,8 @@ const WEATHER_CODE_MAP: Record<number, { condition: string; icon: string; isSeve
 
 export async function getWeather(latitude: number, longitude: number): Promise<WeatherData | null> {
   try {
-    // Check cache first
-    const cached = await getCachedWeather();
+    // Check cache first - must be same location (within ~1km)
+    const cached = await getCachedWeather(latitude, longitude);
     if (cached) {
       return cached;
     }
@@ -121,24 +123,35 @@ export async function getWeather(latitude: number, longitude: number): Promise<W
       }
     }
 
-    // Cache the result
-    await cacheWeather(weather);
+    // Cache the result with location
+    await cacheWeather(weather, latitude, longitude);
     
     return weather;
   } catch (error) {
     console.error("[Weather] Fetch error:", error);
-    // Return cached data if available, even if expired
-    return await getCachedWeather(true);
+    // Return cached data if available, even if expired (but must match location)
+    return await getCachedWeather(latitude, longitude, true);
   }
 }
 
-async function getCachedWeather(ignoreExpiry = false): Promise<WeatherData | null> {
+function isNearLocation(lat1: number, lng1: number, lat2: number, lng2: number): boolean {
+  // Check if within ~1km (0.01 degrees is roughly 1km)
+  return Math.abs(lat1 - lat2) < 0.01 && Math.abs(lng1 - lng2) < 0.01;
+}
+
+async function getCachedWeather(latitude: number, longitude: number, ignoreExpiry = false): Promise<WeatherData | null> {
   try {
     const cached = await AsyncStorage.getItem(WEATHER_CACHE_KEY);
     if (!cached) return null;
 
     const parsed: CachedWeather = JSON.parse(cached);
     const now = Date.now();
+    
+    // Check if location matches
+    if (!isNearLocation(latitude, longitude, parsed.latitude, parsed.longitude)) {
+      console.log("[Weather] Cache location mismatch, fetching fresh data");
+      return null;
+    }
     
     if (!ignoreExpiry && now - parsed.timestamp > CACHE_DURATION_MS) {
       return null; // Cache expired
@@ -150,11 +163,13 @@ async function getCachedWeather(ignoreExpiry = false): Promise<WeatherData | nul
   }
 }
 
-async function cacheWeather(data: WeatherData): Promise<void> {
+async function cacheWeather(data: WeatherData, latitude: number, longitude: number): Promise<void> {
   try {
     const cached: CachedWeather = {
       data,
       timestamp: Date.now(),
+      latitude,
+      longitude,
     };
     await AsyncStorage.setItem(WEATHER_CACHE_KEY, JSON.stringify(cached));
   } catch (error) {

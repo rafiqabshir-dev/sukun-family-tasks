@@ -12,13 +12,6 @@ import { notifyTaskAssigned, notifyTaskPendingApproval, notifyTaskApproved, noti
 import { useResponsive } from "@/lib/useResponsive";
 import { DashboardCards } from "@/components/DashboardCards";
 
-function getTimeOfDay(): string {
-  const hour = new Date().getHours();
-  if (hour < 12) return "Morning";
-  if (hour < 17) return "Afternoon";
-  return "Evening";
-}
-
 function getTaskStatus(task: TaskInstance): "open" | "pending_approval" | "done" | "overdue" | "expired" {
   if (task.status === "done") return "done";
   if (task.status === "expired") return "expired";
@@ -952,8 +945,6 @@ export default function TodayScreen() {
           </View>
         </View>
 
-        <Text style={styles.greetingText}>Good {getTimeOfDay()}, {currentMember.name.split(' ')[0]}!</Text>
-
         <DashboardCards 
           taskInstances={taskInstances}
           taskTemplates={taskTemplates}
@@ -1665,13 +1656,6 @@ const styles = StyleSheet.create({
   },
   expiredIndicator: {
     padding: spacing.sm,
-  },
-  greetingText: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: colors.text,
-    marginBottom: spacing.lg,
-    marginTop: spacing.sm,
   },
   noActorState: {
     flex: 1,
