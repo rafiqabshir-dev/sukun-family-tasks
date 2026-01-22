@@ -836,23 +836,6 @@ export default function SetupScreen() {
       )}
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Task Templates</Text>
-        <View style={styles.card}>
-          <View style={styles.statRow}>
-            <Ionicons name="list" size={24} color={colors.primary} />
-            <Text style={styles.statLabel}>Active Tasks</Text>
-            <Text style={styles.statValue}>{enabledTasks}</Text>
-          </View>
-          <View style={styles.divider} />
-          <View style={styles.statRow}>
-            <Ionicons name="albums" size={24} color={colors.textMuted} />
-            <Text style={styles.statLabel}>Total Templates</Text>
-            <Text style={styles.statValue}>{taskTemplates.length}</Text>
-          </View>
-        </View>
-      </View>
-
-      <View style={styles.section}>
         <Text style={styles.sectionTitle}>Settings</Text>
         <View style={styles.card}>
           <View style={styles.settingRow}>
