@@ -1,33 +1,92 @@
 import { useState, useCallback, useEffect } from "react";
-import { View, TouchableOpacity, Modal, Text, StyleSheet, ScrollView, Pressable, Platform, Alert } from "react-native";
+import { View, TouchableOpacity, Modal, Text, StyleSheet, ScrollView, Pressable, Platform, Alert, Linking } from "react-native";
 import { Tabs, useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, borderRadius, fontSize } from "@/lib/theme";
 import { useAuth } from "@/lib/authContext";
-import { getCurrentLocation, UserLocation } from "@/lib/locationService";
+import { getCurrentLocation, requestLocationPermission, UserLocation } from "@/lib/locationService";
 import { useStore } from "@/lib/store";
 
 type IconName = "today" | "today-outline" | "list" | "list-outline" | "sync" | "sync-outline" | "trophy" | "trophy-outline" | "gift" | "gift-outline" | "menu" | "menu-outline";
 
-// Location component for header LEFT side
+// Location component for header LEFT side - always shows actionable state
 function HeaderLocationLeft() {
   const [location, setLocation] = useState<UserLocation | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchLocation = async () => {
+  const fetchLocation = useCallback(async () => {
+    setIsLoading(true);
+    try {
       const loc = await getCurrentLocation();
       setLocation(loc);
-    };
-    fetchLocation();
+    } catch (error) {
+      console.log('[Header] Location fetch error:', error);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
-  if (!location?.cityName) return null;
+  useEffect(() => {
+    fetchLocation();
+  }, [fetchLocation]);
 
+  const handleLocationPress = async () => {
+    if (location?.permissionDenied) {
+      if (Platform.OS === 'web') {
+        alert('Please enable location access in your browser settings to get accurate weather and prayer times.');
+      } else {
+        Alert.alert(
+          'Location Access',
+          'Enable location access to get accurate weather and prayer times for your area.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { 
+              text: 'Open Settings', 
+              onPress: () => Linking.openSettings() 
+            },
+            {
+              text: 'Try Again',
+              onPress: async () => {
+                const granted = await requestLocationPermission();
+                if (granted) {
+                  fetchLocation();
+                }
+              }
+            }
+          ]
+        );
+      }
+    }
+  };
+
+  // Always show something - never return null
+  if (isLoading) {
+    return (
+      <View style={styles.headerLocationLeft}>
+        <Ionicons name="location-outline" size={14} color="rgba(255,255,255,0.7)" />
+        <Text style={[styles.headerLocationText, { opacity: 0.7 }]}>Loading...</Text>
+      </View>
+    );
+  }
+
+  // Permission denied - show actionable state
+  if (location?.permissionDenied) {
+    return (
+      <TouchableOpacity style={[styles.headerLocationLeft, styles.headerLocationWarning]} onPress={handleLocationPress}>
+        <Ionicons name="location-outline" size={14} color="#FCD34D" />
+        <Text style={[styles.headerLocationText, { color: '#FCD34D' }]}>Enable Location</Text>
+      </TouchableOpacity>
+    );
+  }
+
+  // Show city name (actual or default fallback)
+  const cityName = location?.cityName || location?.city || 'Unknown';
+  
   return (
-    <View style={styles.headerLocationLeft}>
+    <TouchableOpacity style={styles.headerLocationLeft} onPress={handleLocationPress}>
       <Ionicons name="location" size={14} color="#FFFFFF" />
-      <Text style={styles.headerLocationText}>{location.cityName}</Text>
-    </View>
+      <Text style={styles.headerLocationText}>{cityName}</Text>
+    </TouchableOpacity>
   );
 }
 
@@ -486,6 +545,11 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: fontSize.xs,
     fontWeight: "600",
+  },
+  headerLocationWarning: {
+    backgroundColor: "rgba(252, 211, 77, 0.2)",
+    borderWidth: 1,
+    borderColor: "rgba(252, 211, 77, 0.4)",
   },
   headerAvatar: {
     width: 40,

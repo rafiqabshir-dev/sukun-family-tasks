@@ -9,6 +9,9 @@ export interface UserLocation {
   longitude: number;
   timestamp: number;
   city?: string;
+  cityName?: string; // Alias for city
+  permissionDenied?: boolean;
+  isDefault?: boolean;
 }
 
 const DEFAULT_LOCATION: UserLocation = {
@@ -16,6 +19,8 @@ const DEFAULT_LOCATION: UserLocation = {
   longitude: -122.4194,
   timestamp: 0,
   city: 'San Francisco',
+  cityName: 'San Francisco',
+  isDefault: true,
 };
 
 export async function requestLocationPermission(): Promise<boolean> {
@@ -51,7 +56,7 @@ export async function getCurrentLocation(): Promise<UserLocation> {
       const granted = await requestLocationPermission();
       if (!granted) {
         console.log('[Location] Permission denied, using default');
-        return DEFAULT_LOCATION;
+        return { ...DEFAULT_LOCATION, permissionDenied: true };
       }
     }
 
@@ -63,6 +68,8 @@ export async function getCurrentLocation(): Promise<UserLocation> {
       latitude: location.coords.latitude,
       longitude: location.coords.longitude,
       timestamp: Date.now(),
+      isDefault: false,
+      permissionDenied: false,
     };
 
     try {
@@ -72,8 +79,10 @@ export async function getCurrentLocation(): Promise<UserLocation> {
       });
       if (reverseGeocode?.city) {
         userLocation.city = reverseGeocode.city;
+        userLocation.cityName = reverseGeocode.city;
       } else if (reverseGeocode?.region) {
         userLocation.city = reverseGeocode.region;
+        userLocation.cityName = reverseGeocode.region;
       }
     } catch (geocodeError) {
       console.log('[Location] Reverse geocode failed:', geocodeError);
