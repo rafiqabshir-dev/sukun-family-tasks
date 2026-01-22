@@ -139,6 +139,7 @@ export default function TabLayout() {
           name="rewards"
           options={{
             title: "Rewards",
+            tabBarItemStyle: { display: "none" },
             tabBarIcon: ({ color, focused }) => (
               <Ionicons
                 name={focused ? "gift" : "gift-outline"}
