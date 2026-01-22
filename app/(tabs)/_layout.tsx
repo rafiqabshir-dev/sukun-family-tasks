@@ -94,7 +94,6 @@ export default function TabLayout() {
           headerTitleStyle: {
             fontWeight: "600",
           },
-          headerRight: () => <HeaderMenuButton onPress={() => setShowMenu(true)} />,
           tabBarActiveTintColor: colors.primary,
           tabBarInactiveTintColor: colors.textMuted,
           tabBarStyle: {
@@ -188,6 +187,45 @@ export default function TabLayout() {
                 size={24}
                 color={color}
               />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="more"
+          listeners={{
+            tabPress: (e) => {
+              e.preventDefault();
+              setShowMenu(true);
+            },
+          }}
+          options={{
+            title: "More",
+            tabBarIcon: ({ color }) => (
+              <View style={{ position: 'relative' }}>
+                <Ionicons name="menu" size={24} color={color} />
+                {pendingRequestsCount > 0 && (
+                  <View style={{
+                    position: 'absolute',
+                    top: -4,
+                    right: -8,
+                    backgroundColor: '#EF4444',
+                    borderRadius: 9,
+                    minWidth: 16,
+                    height: 16,
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    paddingHorizontal: 3,
+                  }}>
+                    <Text style={{
+                      color: '#FFFFFF',
+                      fontSize: 10,
+                      fontWeight: 'bold',
+                    }}>
+                      {pendingRequestsCount > 9 ? '9+' : pendingRequestsCount}
+                    </Text>
+                  </View>
+                )}
+              </View>
             ),
           }}
         />
