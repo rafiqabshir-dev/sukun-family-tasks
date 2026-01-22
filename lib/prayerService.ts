@@ -212,12 +212,12 @@ export function formatPrayerTime(time: string): string {
 
 export function formatMinutesRemaining(minutes: number): string {
   if (minutes < 60) {
-    return `${minutes} minute${minutes !== 1 ? "s" : ""} remaining`;
+    return `Ends in ${minutes}m`;
   }
   const hours = Math.floor(minutes / 60);
   const mins = minutes % 60;
   if (mins === 0) {
-    return `${hours} hour${hours !== 1 ? "s" : ""} remaining`;
+    return `Ends in ${hours}h`;
   }
-  return `${hours}h ${mins}m remaining`;
+  return `Ends in ${hours}h ${mins}m`;
 }

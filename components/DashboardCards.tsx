@@ -68,8 +68,8 @@ export function PrayerCountdownCard({ currentTime, location }: { currentTime: Da
         <View style={[styles.prayerBadge, currentPrayer.isUrgent && styles.prayerBadgeUrgent]}>
           <Ionicons 
             name="time-outline" 
-            size={16} 
-            color={currentPrayer.isUrgent ? "#FFFFFF" : colors.primary} 
+            size={18} 
+            color="#FFFFFF"
           />
           <Text style={[styles.prayerTimeText, currentPrayer.isUrgent && styles.prayerTimeTextUrgent]}>
             {formatMinutesRemaining(currentPrayer.minutesRemaining)}
@@ -327,15 +327,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: spacing.xs,
     alignSelf: "flex-start",
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    backgroundColor: colors.primaryLight,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.primary,
     borderRadius: borderRadius.full,
   },
   locationText: {
-    fontSize: fontSize.sm,
-    color: colors.primary,
-    fontWeight: "500",
+    fontSize: fontSize.md,
+    color: "#FFFFFF",
+    fontWeight: "700",
   },
   severeBanner: {
     backgroundColor: colors.error,
@@ -401,8 +401,8 @@ const styles = StyleSheet.create({
   prayerBadge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.xs,
-    backgroundColor: colors.primaryLight,
+    gap: spacing.sm,
+    backgroundColor: colors.primary,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: borderRadius.lg,
@@ -412,8 +412,8 @@ const styles = StyleSheet.create({
   },
   prayerTimeText: {
     fontSize: fontSize.md,
-    fontWeight: "600",
-    color: colors.primary,
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
   prayerTimeTextUrgent: {
     color: "#FFFFFF",
