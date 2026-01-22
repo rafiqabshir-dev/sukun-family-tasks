@@ -324,8 +324,8 @@ export function TodayTasksSummary({ taskInstances, taskTemplates, members }: Omi
   );
 }
 
-export function DashboardCards({ taskInstances, taskTemplates, members, currentTime }: DashboardCardsProps) {
-  const [weather, setWeather] = useState<WeatherData | null>(null);
+// Hook to get location - can be used by parent components
+export function useLocation() {
   const [location, setLocation] = useState<UserLocation | null>(null);
   const [locationLoading, setLocationLoading] = useState(true);
 
@@ -343,6 +343,25 @@ export function DashboardCards({ taskInstances, taskTemplates, members, currentT
     loadLocation();
   }, []);
 
+  return { location, locationLoading };
+}
+
+// Standalone location badge component for use in headers
+export function LocationBadge({ location }: { location: UserLocation | null }) {
+  if (!location?.city) return null;
+  
+  return (
+    <View style={styles.locationBadge}>
+      <Ionicons name="location" size={14} color="#FFFFFF" />
+      <Text style={styles.locationText}>{location.city}</Text>
+    </View>
+  );
+}
+
+export function DashboardCards({ taskInstances, taskTemplates, members, currentTime }: DashboardCardsProps) {
+  const [weather, setWeather] = useState<WeatherData | null>(null);
+  const { location } = useLocation();
+
   useEffect(() => {
     if (!location) return;
     const loadWeather = async () => {
@@ -354,12 +373,6 @@ export function DashboardCards({ taskInstances, taskTemplates, members, currentT
 
   return (
     <View style={styles.dashboardContainer}>
-      {location?.city && (
-        <View style={styles.locationBadge}>
-          <Ionicons name="location" size={14} color={colors.primary} />
-          <Text style={styles.locationText}>{location.city}</Text>
-        </View>
-      )}
       <SevereWeatherBanner weather={weather} />
       <PrayerCountdownCard currentTime={currentTime} location={location} />
       <WeatherCard weather={weather} />

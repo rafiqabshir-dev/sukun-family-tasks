@@ -10,7 +10,7 @@ import { isSupabaseConfigured } from "@/lib/supabase";
 import { addStarsLedgerEntry, createCloudTask, createCloudTaskInstance, updateCloudTaskInstance, cloudInstanceToLocal, taskToTemplate, archiveCloudTask } from "@/lib/cloudSync";
 import { notifyTaskAssigned, notifyTaskPendingApproval, notifyTaskApproved, notifyTaskRejected } from "@/lib/pushNotificationService";
 import { useResponsive } from "@/lib/useResponsive";
-import { DashboardCards } from "@/components/DashboardCards";
+import { DashboardCards, useLocation, LocationBadge } from "@/components/DashboardCards";
 
 function getTaskStatus(task: TaskInstance): "open" | "pending_approval" | "done" | "overdue" | "expired" {
   if (task.status === "done") return "done";
@@ -71,6 +71,7 @@ export default function TodayScreen() {
   const rejectTask = useStore((s) => s.rejectTask);
   const deductStars = useStore((s) => s.deductStars);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const { location } = useLocation();
   
   // Timer for countdown display updates only - does NOT call store actions
   useEffect(() => {
@@ -906,6 +907,12 @@ export default function TodayScreen() {
 
   return (
     <View style={styles.container}>
+      {/* Page Header with Location */}
+      <View style={styles.pageHeader}>
+        <Text style={styles.pageTitle}>Today</Text>
+        <LocationBadge location={location} />
+      </View>
+      
       <ScrollView 
         contentContainerStyle={[
           styles.content,
@@ -1431,6 +1438,19 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  pageHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    backgroundColor: colors.primary,
+  },
+  pageTitle: {
+    fontSize: fontSize.xl,
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
   content: {
     padding: spacing.lg,
