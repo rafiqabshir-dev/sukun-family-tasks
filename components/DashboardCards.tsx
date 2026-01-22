@@ -7,6 +7,7 @@ import { router } from "expo-router";
 import { WeatherData, getWeatherFresh, canPlayOutside } from "@/lib/weatherService";
 import { PrayerTimes, CurrentPrayer, getPrayerTimesFresh, getCurrentPrayer, formatMinutesRemaining } from "@/lib/prayerService";
 import { getCurrentLocation, UserLocation } from "@/lib/locationService";
+import { Park, getNearbyParks, formatDistanceMiles, getOutdoorRecommendation, getParkIcon } from "@/lib/parkService";
 import { TaskInstance, TaskTemplate, Member } from "@/lib/types";
 import { isToday, isBefore, startOfDay } from "date-fns";
 
@@ -689,6 +690,226 @@ export function TodayTasksSummary({ taskInstances, taskTemplates, members }: Omi
   );
 }
 
+// NearbyParksCard - Shows nearby parks with weather-based outdoor recommendations
+export function NearbyParksCard({ 
+  weather, 
+  location 
+}: { 
+  weather: WeatherData | null; 
+  location: UserLocation | null;
+}) {
+  const [parks, setParks] = useState<Park[]>([]);
+  const [loadState, setLoadState] = useState<LoadingState>('loading');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
+
+  useEffect(() => {
+    if (!location || location.permissionDenied) {
+      setLoadState('loading');
+      return;
+    }
+    
+    const loadParks = async () => {
+      setLoadState('loading');
+      setErrorMessage(null);
+      try {
+        const parkData = await getNearbyParks(3000); // 3km radius
+        setParks(parkData.parks);
+        setLoadState('success');
+      } catch (error) {
+        console.error('[Parks] Load error:', error);
+        setLoadState('error');
+        setErrorMessage('Unable to find nearby parks');
+      }
+    };
+    loadParks();
+  }, [location]);
+
+  // Get outdoor recommendation based on weather
+  const outdoorRec = useMemo(() => {
+    if (!weather) return null;
+    return getOutdoorRecommendation({
+      temperature: weather.temperature,
+      conditions: weather.condition,
+      humidity: weather.humidity,
+      windSpeed: weather.windSpeed,
+      uvIndex: weather.uvIndex,
+    });
+  }, [weather]);
+
+  const openMapsApp = (park: Park) => {
+    const url = `https://www.openstreetmap.org/?mlat=${park.lat}&mlon=${park.lon}#map=17/${park.lat}/${park.lon}`;
+    Linking.openURL(url);
+  };
+
+  const openSourceLink = () => {
+    Linking.openURL('https://www.openstreetmap.org/');
+  };
+
+  // Limit shown parks based on expanded state
+  const visibleParks = expanded ? parks : parks.slice(0, 3);
+
+  // Get rating badge style
+  const getRatingStyle = (rating: 'perfect' | 'good' | 'caution' | 'not_recommended') => {
+    switch (rating) {
+      case 'perfect':
+        return { bg: '#E8F5E9', text: colors.success, icon: 'sunny' as const };
+      case 'good':
+        return { bg: '#E3F2FD', text: colors.primary, icon: 'partly-sunny' as const };
+      case 'caution':
+        return { bg: '#FFF3E0', text: colors.warning, icon: 'warning' as const };
+      case 'not_recommended':
+        return { bg: '#FFE5E5', text: colors.error, icon: 'close-circle' as const };
+    }
+  };
+
+  if (loadState === 'loading') {
+    return (
+      <View style={styles.card} data-testid="nearby-parks-card-loading">
+        <View style={styles.cardHeader}>
+          <View style={styles.cardIconContainer}>
+            <Ionicons name="leaf" size={24} color={colors.success} />
+          </View>
+          <Text style={styles.cardTitle}>Nearby Parks</Text>
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="small" color={colors.primary} />
+          <Text style={styles.loadingText}>Finding nearby parks...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (loadState === 'error') {
+    return (
+      <View style={styles.card} data-testid="nearby-parks-card-error">
+        <View style={styles.cardHeader}>
+          <View style={styles.cardIconContainer}>
+            <Ionicons name="leaf" size={24} color={colors.success} />
+          </View>
+          <Text style={styles.cardTitle}>Nearby Parks</Text>
+        </View>
+        <View style={styles.errorContainer}>
+          <Ionicons name="alert-circle" size={20} color={colors.error} />
+          <Text style={styles.errorText}>{errorMessage}</Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (parks.length === 0) {
+    return (
+      <View style={styles.card} data-testid="nearby-parks-card-empty">
+        <View style={styles.cardHeader}>
+          <View style={styles.cardIconContainer}>
+            <Ionicons name="leaf" size={24} color={colors.success} />
+          </View>
+          <Text style={styles.cardTitle}>Nearby Parks</Text>
+        </View>
+        <View style={styles.emptyTasksContent}>
+          <Ionicons name="map-outline" size={32} color={colors.textMuted} />
+          <Text style={[styles.emptyTasksText, { color: colors.textSecondary }]}>
+            No parks found nearby
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  const ratingStyle = outdoorRec ? getRatingStyle(outdoorRec.rating) : null;
+
+  return (
+    <View style={styles.card} data-testid="nearby-parks-card">
+      <View style={styles.cardHeader}>
+        <View style={styles.cardIconContainer}>
+          <Ionicons name="leaf" size={24} color={colors.success} />
+        </View>
+        <Text style={styles.cardTitle}>Nearby Parks</Text>
+      </View>
+
+      {/* Outdoor recommendation banner */}
+      {outdoorRec && ratingStyle && (
+        <View style={[styles.parkRecommendation, { backgroundColor: ratingStyle.bg }]}>
+          <Ionicons name={ratingStyle.icon} size={18} color={ratingStyle.text} />
+          <View style={styles.parkRecContent}>
+            <Text style={[styles.parkRecMessage, { color: ratingStyle.text }]}>
+              {outdoorRec.message}
+            </Text>
+            {outdoorRec.tips.length > 0 && (
+              <Text style={[styles.parkRecTip, { color: ratingStyle.text }]}>
+                {outdoorRec.tips[0]}
+              </Text>
+            )}
+          </View>
+        </View>
+      )}
+
+      {/* Parks list */}
+      <View style={styles.parksList}>
+        {visibleParks.map((park) => (
+          <TouchableOpacity 
+            key={park.id} 
+            style={styles.parkItem}
+            onPress={() => openMapsApp(park)}
+            activeOpacity={0.7}
+            data-testid={`park-item-${park.id}`}
+          >
+            <View style={styles.parkIconContainer}>
+              <Ionicons 
+                name={getParkIcon(park.type) as any} 
+                size={20} 
+                color={colors.success} 
+              />
+            </View>
+            <View style={styles.parkInfo}>
+              <Text style={styles.parkName} numberOfLines={1}>
+                {park.name}
+              </Text>
+              <View style={styles.parkMeta}>
+                <Text style={styles.parkDistance}>
+                  {formatDistanceMiles(park.distance)}
+                </Text>
+                {park.amenities.length > 0 && (
+                  <>
+                    <Text style={styles.parkDot}>•</Text>
+                    <Text style={styles.parkAmenity} numberOfLines={1}>
+                      {park.amenities.slice(0, 2).join(', ')}
+                    </Text>
+                  </>
+                )}
+              </View>
+            </View>
+            <Ionicons name="navigate-outline" size={16} color={colors.textMuted} />
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {/* Show more/less toggle */}
+      {parks.length > 3 && (
+        <TouchableOpacity 
+          style={styles.showMoreButton}
+          onPress={() => setExpanded(!expanded)}
+        >
+          <Text style={styles.showMoreText}>
+            {expanded ? 'Show less' : `Show ${parks.length - 3} more`}
+          </Text>
+          <Ionicons 
+            name={expanded ? 'chevron-up' : 'chevron-down'} 
+            size={16} 
+            color={colors.primary} 
+          />
+        </TouchableOpacity>
+      )}
+
+      {/* Source attribution */}
+      <TouchableOpacity onPress={openSourceLink} style={styles.parkSource}>
+        <Text style={styles.parkSourceText}>Data from OpenStreetMap</Text>
+        <Ionicons name="open-outline" size={12} color={colors.textMuted} />
+      </TouchableOpacity>
+    </View>
+  );
+}
+
 // Hook to get location - can be used by parent components
 export function useLocation() {
   const [location, setLocation] = useState<UserLocation | null>(null);
@@ -756,6 +977,7 @@ export function DashboardCards({ taskInstances, taskTemplates, members, currentT
       <PrayerCountdownCard currentTime={currentTime} location={location} />
       <WeatherCard weather={weather} loadState={weatherLoadState} errorMessage={weatherError} />
       <WhatToWearCard weather={weather} loadState={weatherLoadState} />
+      <NearbyParksCard weather={weather} location={location} />
       <TodayTasksSummary 
         taskInstances={taskInstances}
         taskTemplates={taskTemplates}
@@ -1082,5 +1304,101 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     fontWeight: "600",
     color: "#FFFFFF",
+  },
+  // NearbyParksCard styles
+  parkRecommendation: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+    padding: spacing.sm,
+    borderRadius: borderRadius.md,
+    marginBottom: spacing.sm,
+  },
+  parkRecContent: {
+    flex: 1,
+  },
+  parkRecMessage: {
+    fontSize: fontSize.sm,
+    fontWeight: "600",
+  },
+  parkRecTip: {
+    fontSize: fontSize.xs,
+    marginTop: 2,
+    opacity: 0.85,
+  },
+  parksList: {
+    gap: spacing.xs,
+  },
+  parkItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.xs,
+    backgroundColor: colors.surfaceSecondary,
+    borderRadius: borderRadius.md,
+  },
+  parkIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  parkInfo: {
+    flex: 1,
+  },
+  parkName: {
+    fontSize: fontSize.sm,
+    fontWeight: "600",
+    color: colors.text,
+  },
+  parkMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    marginTop: 2,
+  },
+  parkDistance: {
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    fontWeight: "500",
+  },
+  parkDot: {
+    fontSize: fontSize.xs,
+    color: colors.textMuted,
+  },
+  parkAmenity: {
+    fontSize: fontSize.xs,
+    color: colors.textMuted,
+    flex: 1,
+  },
+  showMoreButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.xs,
+    paddingVertical: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  showMoreText: {
+    fontSize: fontSize.sm,
+    color: colors.primary,
+    fontWeight: "500",
+  },
+  parkSource: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 4,
+    marginTop: spacing.sm,
+    paddingTop: spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  parkSourceText: {
+    fontSize: 11,
+    color: colors.textMuted,
   },
 });
