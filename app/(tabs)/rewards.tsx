@@ -5,9 +5,11 @@ import { colors, spacing, borderRadius, fontSize } from "@/lib/theme";
 import { useStore } from "@/lib/store";
 import { useAuth } from "@/lib/authContext";
 import { Reward, Member } from "@/lib/types";
+import { useResponsive } from "@/lib/useResponsive";
 
 export default function RewardsScreen() {
   const { profile, refreshProfile } = useAuth();
+  const responsive = useResponsive();
   const members = useStore((s) => s.members);
   const rewards = useStore((s) => s.rewards);
   const addReward = useStore((s) => s.addReward);
@@ -211,7 +213,15 @@ export default function RewardsScreen() {
   return (
     <View style={styles.container}>
       <ScrollView 
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          responsive.isTablet && {
+            paddingHorizontal: responsive.horizontalPadding,
+            alignSelf: 'center',
+            width: '100%',
+            maxWidth: responsive.contentMaxWidth,
+          }
+        ]}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}

@@ -9,11 +9,13 @@ import { useStore } from "@/lib/store";
 import { POWER_INFO } from "@/lib/types";
 import { fetchFamilyData, profileToMember, computeStarsForProfile } from "@/lib/cloudSync";
 import { useAuth, JoinRequestWithProfile } from "@/lib/authContext";
+import { useResponsive } from "@/lib/useResponsive";
 
 const STORAGE_KEY = "barakah-kids-race:v1";
 
 export default function SetupScreen() {
   const router = useRouter();
+  const responsive = useResponsive();
   const { profile, family, signOut, isConfigured, getPendingJoinRequests, approveJoinRequest, rejectJoinRequest, updateProfileName, refreshPendingRequestsCount, refreshProfile } = useAuth();
   const members = useStore((s) => s.members);
   const taskTemplates = useStore((s) => s.taskTemplates);
@@ -464,7 +466,15 @@ export default function SetupScreen() {
   return (
     <ScrollView 
       style={styles.container} 
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[
+        styles.content,
+        responsive.isTablet && {
+          paddingHorizontal: responsive.horizontalPadding,
+          alignSelf: 'center',
+          width: '100%',
+          maxWidth: responsive.contentMaxWidth,
+        }
+      ]}
       refreshControl={
         <RefreshControl
           refreshing={isRefreshing}

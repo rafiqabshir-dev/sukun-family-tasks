@@ -5,10 +5,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, borderRadius, fontSize } from "@/lib/theme";
 import { useStore } from "@/lib/store";
 import { useAuth } from "@/lib/authContext";
+import { useResponsive } from "@/lib/useResponsive";
 
 export default function LeaderboardScreen() {
   const router = useRouter();
   const { refreshProfile } = useAuth();
+  const responsive = useResponsive();
   const members = useStore((s) => s.members);
   const kids = members
     .filter((m) => m.role === "kid")
@@ -37,7 +39,15 @@ export default function LeaderboardScreen() {
   return (
     <ScrollView 
       style={styles.container} 
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[
+        styles.content,
+        responsive.isTablet && {
+          paddingHorizontal: responsive.horizontalPadding,
+          alignSelf: 'center',
+          width: '100%',
+          maxWidth: responsive.contentMaxWidth,
+        }
+      ]}
       refreshControl={
         <RefreshControl
           refreshing={isRefreshing}

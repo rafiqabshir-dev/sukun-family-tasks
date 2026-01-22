@@ -9,6 +9,7 @@ import { format, isToday, isBefore, startOfDay, differenceInMinutes, differenceI
 import { isSupabaseConfigured } from "@/lib/supabase";
 import { addStarsLedgerEntry, createCloudTask, createCloudTaskInstance, updateCloudTaskInstance, cloudInstanceToLocal, taskToTemplate, archiveCloudTask } from "@/lib/cloudSync";
 import { notifyTaskAssigned, notifyTaskPendingApproval, notifyTaskApproved, notifyTaskRejected } from "@/lib/pushNotificationService";
+import { useResponsive } from "@/lib/useResponsive";
 
 function getTaskStatus(task: TaskInstance): "open" | "pending_approval" | "done" | "overdue" | "expired" {
   if (task.status === "done") return "done";
@@ -58,6 +59,7 @@ function formatTimeRemaining(expiresAt: string): string {
 
 export default function TodayScreen() {
   const { profile, refreshProfile } = useAuth();
+  const responsive = useResponsive();
   const members = useStore((s) => s.members);
   const taskTemplates = useStore((s) => s.taskTemplates);
   const taskInstances = useStore((s) => s.taskInstances);
@@ -904,7 +906,15 @@ export default function TodayScreen() {
   return (
     <View style={styles.container}>
       <ScrollView 
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          responsive.isTablet && {
+            paddingHorizontal: responsive.horizontalPadding,
+            alignSelf: 'center',
+            width: '100%',
+            maxWidth: responsive.contentMaxWidth,
+          }
+        ]}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
