@@ -222,11 +222,16 @@ export function FamilyWheel({
                 const baseFontSize = segments.length > 6 ? 9 : segments.length > 4 ? 10 : 11;
                 const avatarSize = segments.length > 6 ? 32 : segments.length > 4 ? 38 : 44;
                 
+                // Calculate rotation to point avatar head towards the arc
+                const angle = 360 / segments.length;
+                const midAngle = index * angle + angle / 2 - 90;
+                const avatarRotation = midAngle + 90; // Head points outward
+                
                 return (
                   <G key={`content-${segment.id}`}>
                     {hasAvatar ? (
                       <>
-                        {/* Big centered avatar */}
+                        {/* Big centered avatar - rotated to face outward */}
                         <SvgText
                           x={pos.x}
                           y={pos.y}
@@ -234,6 +239,7 @@ export function FamilyWheel({
                           fontSize={avatarSize}
                           textAnchor="middle"
                           alignmentBaseline="middle"
+                          transform={`rotate(${avatarRotation}, ${pos.x}, ${pos.y})`}
                         >
                           {segment.avatar}
                         </SvgText>
