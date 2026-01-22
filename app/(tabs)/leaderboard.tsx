@@ -207,7 +207,6 @@ export default function LeaderboardScreen() {
       >
         {/* Leaderboard Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Leaderboard</Text>
           {kids.length === 0 ? (
             <View style={styles.emptyState}>
               <View style={styles.emptyIcon}>
@@ -267,19 +266,18 @@ export default function LeaderboardScreen() {
 
         {/* Rewards Section */}
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Rewards</Text>
-            {isGuardian && (
+          {isGuardian && (
+            <View style={styles.addButtonRow}>
               <TouchableOpacity
                 style={styles.addButton}
                 onPress={() => setShowAddModal(true)}
                 data-testid="button-add-reward"
               >
                 <Ionicons name="add-circle" size={18} color="#FFFFFF" />
-                <Text style={styles.addButtonText}>Add</Text>
+                <Text style={styles.addButtonText}>Add Reward</Text>
               </TouchableOpacity>
-            )}
-          </View>
+            </View>
+          )}
           
           {activeRewards.length === 0 ? (
             <View style={styles.emptyState}>
@@ -469,17 +467,10 @@ const styles = StyleSheet.create({
   section: {
     marginBottom: spacing.xl,
   },
-  sectionHeader: {
+  addButtonRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    justifyContent: "flex-end",
     marginBottom: spacing.md,
-  },
-  sectionTitle: {
-    fontSize: fontSize.lg,
-    fontWeight: "600",
-    color: colors.text,
-    marginBottom: spacing.sm,
   },
   addButton: {
     flexDirection: "row",

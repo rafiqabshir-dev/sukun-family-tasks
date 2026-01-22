@@ -153,7 +153,6 @@ export default function TabLayout() {
           name="tasks"
           options={{
             title: "Tasks",
-            tabBarItemStyle: { display: "none" },
             tabBarIcon: ({ color, focused }) => (
               <Ionicons
                 name={focused ? "list" : "list-outline"}
@@ -167,7 +166,6 @@ export default function TabLayout() {
           name="spin"
           options={{
             title: "Spin",
-            tabBarItemStyle: { display: "none" },
             tabBarIcon: ({ color, focused }) => (
               <Ionicons
                 name={focused ? "sync" : "sync-outline"}
@@ -181,29 +179,13 @@ export default function TabLayout() {
           name="setup"
           options={{
             title: "Setup",
-            tabBarItemStyle: { display: "none" },
             tabBarIcon: ({ color, focused }) => (
-              <Ionicons
-                name={focused ? "settings" : "settings-outline"}
-                size={24}
-                color={color}
-              />
-            ),
-          }}
-        />
-        <Tabs.Screen
-          name="more"
-          listeners={{
-            tabPress: (e) => {
-              e.preventDefault();
-              setShowMenu(true);
-            },
-          }}
-          options={{
-            title: "More",
-            tabBarIcon: ({ color }) => (
               <View style={{ position: 'relative' }}>
-                <Ionicons name="menu" size={24} color={color} />
+                <Ionicons
+                  name={focused ? "settings" : "settings-outline"}
+                  size={24}
+                  color={color}
+                />
                 {pendingRequestsCount > 0 && (
                   <View style={{
                     position: 'absolute',
@@ -228,6 +210,12 @@ export default function TabLayout() {
                 )}
               </View>
             ),
+          }}
+        />
+        <Tabs.Screen
+          name="more"
+          options={{
+            tabBarItemStyle: { display: "none" },
           }}
         />
       </Tabs>
