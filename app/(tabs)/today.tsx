@@ -588,15 +588,15 @@ export default function TodayScreen() {
     setIsClearingOverdue(true);
     try {
       for (const task of overdueTasks) {
-        // Sync to cloud first
+        // Sync to cloud first - use "approved" as valid DB status
         if (isSupabaseConfigured() && profile?.family_id) {
           await updateCloudTaskInstance(task.id, { 
-            status: "done",
+            status: "approved",
             completedAt: new Date().toISOString()
           });
         }
         
-        // Update local state - directly update task instances
+        // Update local state - use "done" for local status
         useStore.setState((state) => ({
           taskInstances: state.taskInstances.map((t) =>
             t.id === task.id
@@ -985,26 +985,6 @@ export default function TodayScreen() {
           />
         }
       >
-        <View style={styles.currentUserBar} data-testid="current-user-info">
-          <View style={styles.actingAsLeft}>
-            <View style={styles.actingAsAvatar}>
-              <Text style={styles.actingAsAvatarText}>
-                {currentMember.name.charAt(0).toUpperCase()}
-              </Text>
-            </View>
-            <View>
-              <Text style={styles.actingAsName}>{currentMember.name}</Text>
-              <Text style={styles.actingAsRole}>
-                {isCurrentUserGuardian ? "Guardian" : "Participant"}
-              </Text>
-            </View>
-          </View>
-          <View style={styles.starsDisplay}>
-            <Ionicons name="star" size={18} color={colors.secondary} />
-            <Text style={styles.starsCount}>{currentMember.starsTotal}</Text>
-          </View>
-        </View>
-
         <DashboardCards 
           taskInstances={taskInstances}
           taskTemplates={taskTemplates}
@@ -1501,58 +1481,6 @@ const styles = StyleSheet.create({
   content: {
     padding: spacing.lg,
     paddingBottom: spacing.xxl,
-  },
-  currentUserBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: colors.surface,
-    padding: spacing.md,
-    borderRadius: borderRadius.lg,
-    marginBottom: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  actingAsLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-  },
-  actingAsAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.primary,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  actingAsAvatarText: {
-    color: "#FFFFFF",
-    fontSize: fontSize.lg,
-    fontWeight: "600",
-  },
-  actingAsName: {
-    fontWeight: "600",
-    color: colors.text,
-    fontSize: fontSize.md,
-  },
-  actingAsRole: {
-    fontSize: fontSize.sm,
-    color: colors.textSecondary,
-  },
-  starsDisplay: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-    backgroundColor: colors.secondaryLight,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.md,
-  },
-  starsCount: {
-    fontSize: fontSize.md,
-    fontWeight: "600",
-    color: colors.text,
   },
   assignButton: {
     flex: 1,

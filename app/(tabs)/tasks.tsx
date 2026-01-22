@@ -297,13 +297,21 @@ export default function TasksScreen() {
             setIsClearingOverdue(true);
             try {
               for (const task of overdueTasks) {
+                // Use "approved" for cloud (valid DB status)
                 if (isSupabaseConfigured()) {
                   await updateCloudTaskInstance(task.id, { 
-                    status: "done", 
+                    status: "approved", 
                     completedAt: new Date().toISOString() 
                   });
                 }
-                completeTask(task.id, false);
+                // Update local state directly
+                useStore.setState((state) => ({
+                  taskInstances: state.taskInstances.map((t) =>
+                    t.id === task.id
+                      ? { ...t, status: "done" as const, completedAt: new Date().toISOString() }
+                      : t
+                  ),
+                }));
               }
               await refreshProfile();
             } catch (error) {

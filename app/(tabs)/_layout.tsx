@@ -5,11 +5,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, borderRadius, fontSize } from "@/lib/theme";
 import { useAuth } from "@/lib/authContext";
 import { getCurrentLocation, UserLocation } from "@/lib/locationService";
+import { useStore } from "@/lib/store";
 
 type IconName = "today" | "today-outline" | "list" | "list-outline" | "sync" | "sync-outline" | "trophy" | "trophy-outline" | "gift" | "gift-outline" | "menu" | "menu-outline";
 
-// Location header component for Today tab
-function LocationHeaderRight() {
+// Location component for header LEFT side
+function HeaderLocationLeft() {
   const [location, setLocation] = useState<UserLocation | null>(null);
 
   useEffect(() => {
@@ -23,10 +24,88 @@ function LocationHeaderRight() {
   if (!location?.cityName) return null;
 
   return (
-    <View style={styles.locationHeader}>
+    <View style={styles.headerLocationLeft}>
       <Ionicons name="location" size={14} color="#FFFFFF" />
-      <Text style={styles.locationHeaderText}>{location.cityName}</Text>
+      <Text style={styles.headerLocationText}>{location.cityName}</Text>
     </View>
+  );
+}
+
+// Avatar dropdown component for header RIGHT side
+function HeaderAvatarDropdown() {
+  const [showDropdown, setShowDropdown] = useState(false);
+  const { profile } = useAuth();
+  const members = useStore((s) => s.members);
+  
+  // Find current member from store
+  const currentMember = members.find((m) => m.id === profile?.id);
+  const isGuardian = currentMember?.role === "guardian";
+  
+  if (!currentMember) return null;
+
+  return (
+    <>
+      <TouchableOpacity 
+        style={styles.headerAvatar}
+        onPress={() => setShowDropdown(true)}
+        data-testid="button-avatar-dropdown"
+      >
+        {currentMember.avatar ? (
+          <Text style={styles.headerAvatarEmoji}>{currentMember.avatar}</Text>
+        ) : (
+          <Text style={styles.headerAvatarInitial}>
+            {currentMember.name.charAt(0).toUpperCase()}
+          </Text>
+        )}
+      </TouchableOpacity>
+
+      <Modal
+        visible={showDropdown}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDropdown(false)}
+      >
+        <Pressable 
+          style={styles.dropdownOverlay}
+          onPress={() => setShowDropdown(false)}
+        >
+          <Pressable style={styles.dropdownCard} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.dropdownUserInfo}>
+              <View style={styles.dropdownAvatarLarge}>
+                {currentMember.avatar ? (
+                  <Text style={styles.dropdownAvatarEmoji}>{currentMember.avatar}</Text>
+                ) : (
+                  <Text style={styles.dropdownAvatarInitial}>
+                    {currentMember.name.charAt(0).toUpperCase()}
+                  </Text>
+                )}
+              </View>
+              <View style={styles.dropdownUserDetails}>
+                <Text style={styles.dropdownUserName}>{currentMember.name}</Text>
+                <Text style={styles.dropdownUserRole}>
+                  {isGuardian ? "Guardian" : "Participant"}
+                </Text>
+              </View>
+            </View>
+            
+            <View style={styles.dropdownStarsRow}>
+              <View style={styles.dropdownStarsDisplay}>
+                <Ionicons name="star" size={20} color={colors.secondary} />
+                <Text style={styles.dropdownStarsCount}>{currentMember.starsTotal}</Text>
+                <Text style={styles.dropdownStarsLabel}>stars</Text>
+              </View>
+            </View>
+
+            <TouchableOpacity 
+              style={styles.dropdownCloseButton}
+              onPress={() => setShowDropdown(false)}
+            >
+              <Text style={styles.dropdownCloseText}>Close</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </>
   );
 }
 
@@ -136,7 +215,8 @@ export default function TabLayout() {
           name="today"
           options={{
             title: "Today",
-            headerRight: () => <LocationHeaderRight />,
+            headerLeft: () => <HeaderLocationLeft />,
+            headerRight: () => <HeaderAvatarDropdown />,
             tabBarIcon: ({ color, focused }) => (
               <Ionicons
                 name={focused ? "today" : "today-outline"}
@@ -392,19 +472,121 @@ const styles = StyleSheet.create({
     color: colors.error,
     fontWeight: "500",
   },
-  locationHeader: {
+  headerLocationLeft: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "rgba(255, 255, 255, 0.2)",
     paddingHorizontal: spacing.sm,
     paddingVertical: 4,
     borderRadius: borderRadius.full,
-    marginRight: spacing.md,
+    marginLeft: spacing.md,
     gap: 4,
   },
-  locationHeaderText: {
+  headerLocationText: {
     color: "#FFFFFF",
     fontSize: fontSize.xs,
+    fontWeight: "600",
+  },
+  headerAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(255, 255, 255, 0.25)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: spacing.md,
+  },
+  headerAvatarEmoji: {
+    fontSize: 18,
+  },
+  headerAvatarInitial: {
+    color: "#FFFFFF",
+    fontSize: fontSize.md,
+    fontWeight: "700",
+  },
+  dropdownOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-start",
+    alignItems: "flex-end",
+    paddingTop: 100,
+    paddingRight: spacing.md,
+  },
+  dropdownCard: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    minWidth: 220,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  dropdownUserInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  dropdownAvatarLarge: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  dropdownAvatarEmoji: {
+    fontSize: 24,
+  },
+  dropdownAvatarInitial: {
+    color: "#FFFFFF",
+    fontSize: fontSize.xl,
+    fontWeight: "700",
+  },
+  dropdownUserDetails: {
+    flex: 1,
+  },
+  dropdownUserName: {
+    fontSize: fontSize.lg,
+    fontWeight: "600",
+    color: colors.text,
+  },
+  dropdownUserRole: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+  },
+  dropdownStarsRow: {
+    backgroundColor: colors.secondaryLight,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  dropdownStarsDisplay: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.xs,
+  },
+  dropdownStarsCount: {
+    fontSize: fontSize.xl,
+    fontWeight: "700",
+    color: colors.secondary,
+  },
+  dropdownStarsLabel: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+  },
+  dropdownCloseButton: {
+    backgroundColor: colors.background,
+    borderRadius: borderRadius.md,
+    padding: spacing.sm,
+    alignItems: "center",
+  },
+  dropdownCloseText: {
+    fontSize: fontSize.md,
+    color: colors.textSecondary,
     fontWeight: "500",
   },
 });
