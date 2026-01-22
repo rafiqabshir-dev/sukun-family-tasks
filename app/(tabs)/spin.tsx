@@ -315,7 +315,7 @@ export default function SpinScreen() {
           onPress={() => handleModeChange("assign")}
           disabled={spinning}
         >
-          <Text style={styles.modeIcon}>📋</Text>
+          <Ionicons name="clipboard-outline" size={16} color={mode === "assign" ? colors.primary : colors.textMuted} />
           <Text style={[styles.modeTabText, mode === "assign" && styles.modeTabTextActive]}>
             Assign a Task
           </Text>
@@ -325,7 +325,7 @@ export default function SpinScreen() {
           onPress={() => handleModeChange("game")}
           disabled={spinning}
         >
-          <Text style={styles.modeIcon}>🎮</Text>
+          <Ionicons name="game-controller-outline" size={16} color={mode === "game" ? colors.primary : colors.textMuted} />
           <Text style={[styles.modeTabText, mode === "game" && styles.modeTabTextActive]}>
             Family Game
           </Text>
@@ -333,11 +333,11 @@ export default function SpinScreen() {
       </View>
 
       <View style={styles.header}>
-        <Text style={styles.modeEmoji}>{mode === "assign" ? "📋" : "🎮"}</Text>
+        <Ionicons name={mode === "assign" ? "clipboard" : "game-controller"} size={24} color="#5D4037" />
         <Text style={styles.headerTitle}>
           {mode === "assign" ? "Assign a Task" : "Family Game"}
         </Text>
-        <Text style={styles.starDecor}>⭐</Text>
+        <Ionicons name="star" size={20} color="#FFD700" />
       </View>
 
       <View style={styles.wheelContainer}>
@@ -350,7 +350,8 @@ export default function SpinScreen() {
         
         {mode === "game" && gamePhase === "playing" && (
           <View style={styles.targetBadge}>
-            <Text style={styles.targetText}>Target: {targetScore} ⭐</Text>
+            <Text style={styles.targetText}>Target: {targetScore}</Text>
+            <Ionicons name="star" size={16} color="#FFD700" style={{ marginLeft: 4 }} />
           </View>
         )}
       </View>
@@ -361,7 +362,7 @@ export default function SpinScreen() {
           onPress={handleAssignSpin}
           disabled={spinning || allMembers.length === 0}
         >
-          <Text style={styles.spinButtonIcon}>⭐</Text>
+          <Ionicons name="star" size={20} color="#FFFFFF" />
           <Text style={styles.spinButtonText}>
             {spinning ? "Spinning..." : "Spin to Choose"}
           </Text>
@@ -378,9 +379,12 @@ export default function SpinScreen() {
                 style={[styles.targetOption, targetScore === score && styles.targetOptionActive]}
                 onPress={() => setTargetScore(score)}
               >
-                <Text style={[styles.targetOptionText, targetScore === score && styles.targetOptionTextActive]}>
-                  {score} ⭐
-                </Text>
+                <View style={styles.targetOptionContent}>
+                  <Text style={[styles.targetOptionText, targetScore === score && styles.targetOptionTextActive]}>
+                    {score}
+                  </Text>
+                  <Ionicons name="star" size={14} color={targetScore === score ? "#FFD700" : colors.textMuted} />
+                </View>
               </TouchableOpacity>
             ))}
           </View>
@@ -389,7 +393,7 @@ export default function SpinScreen() {
             onPress={startGame}
             disabled={allMembers.length < 2}
           >
-            <Text style={styles.spinButtonIcon}>🎮</Text>
+            <Ionicons name="game-controller" size={20} color="#FFFFFF" />
             <Text style={styles.spinButtonText}>Start Game</Text>
           </TouchableOpacity>
         </View>
@@ -402,7 +406,7 @@ export default function SpinScreen() {
             onPress={handleGameSpin}
             disabled={spinning}
           >
-            <Text style={styles.spinButtonIcon}>⭐</Text>
+            <Ionicons name="star" size={20} color="#FFFFFF" />
             <Text style={styles.spinButtonText}>
               {spinning ? "Spinning..." : `Spin for ${currentPlayer?.memberName || ""}`}
             </Text>
@@ -422,7 +426,7 @@ export default function SpinScreen() {
                 ]}
               >
                 <View style={styles.scoreRowLeft}>
-                  <Text style={styles.scoreEmoji}>👤</Text>
+                  <Ionicons name="person-circle" size={24} color="#8BC34A" />
                   <Text style={styles.scoreName}>{score.memberName}</Text>
                   {index === currentPlayerIndex && (
                     <View style={styles.turnBadge}>
@@ -433,9 +437,9 @@ export default function SpinScreen() {
                   )}
                 </View>
                 <View style={styles.scoreRowRight}>
-                  <Text style={styles.scoreStars}>⭐</Text>
+                  <Ionicons name="star" size={14} color="#FFD700" />
                   <Text style={styles.scoreValue}>{score.score}</Text>
-                  <Text style={styles.scoreStars}>⭐</Text>
+                  <Ionicons name="star" size={14} color="#FFD700" />
                 </View>
               </View>
             ))}
@@ -445,31 +449,35 @@ export default function SpinScreen() {
 
       {mode === "game" && gamePhase === "winner" && winner && (
         <View style={styles.winnerCard}>
-          <Text style={styles.confetti}>🎉</Text>
+          <Ionicons name="sparkles" size={24} color="#FFD700" style={styles.confettiIcon} />
           <Text style={styles.winnerTitle}>WE HAVE A WINNER!</Text>
-          <Text style={styles.winnerConfetti}>🎉</Text>
+          <Ionicons name="sparkles" size={24} color="#FFD700" style={styles.confettiIconRight} />
           <View style={styles.winnerAvatar}>
-            <Text style={styles.winnerCrown}>👑</Text>
+            <Ionicons name="ribbon" size={32} color="#FFD700" style={styles.crownIcon} />
             <View style={styles.avatarCircle}>
-              <Text style={styles.avatarEmoji}>😊</Text>
+              <Ionicons name="happy" size={40} color="#8BC34A" />
             </View>
           </View>
           <Text style={styles.winnerName}>{winner.memberName}</Text>
-          <Text style={styles.winnerScore}>
-            ✨ Reached {winner.score} Stars! ✨
-          </Text>
+          <View style={styles.winnerScoreRow}>
+            <Ionicons name="star" size={16} color="#FFD700" />
+            <Text style={styles.winnerScore}>Reached {winner.score} Stars!</Text>
+            <Ionicons name="star" size={16} color="#FFD700" />
+          </View>
           <TouchableOpacity style={styles.celebrateButton} onPress={resetGame}>
-            <Text style={styles.celebrateButtonText}>🎉 Celebrate 🎉</Text>
+            <Ionicons name="sparkles" size={16} color="#FFFFFF" />
+            <Text style={styles.celebrateButtonText}>Celebrate</Text>
+            <Ionicons name="sparkles" size={16} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
       )}
 
       {selectedMember && mode === "assign" && (
         <View style={styles.resultCard}>
-          <Text style={styles.resultEmoji}>📋</Text>
+          <Ionicons name="clipboard" size={24} color="#5D4037" />
           <Text style={styles.resultTitle}>It's Your Turn!</Text>
           <View style={styles.selectedMemberAvatar}>
-            <Text style={styles.memberEmoji}>😊</Text>
+            <Ionicons name="happy" size={40} color="#8BC34A" />
           </View>
           <Text style={styles.selectedMemberName}>{selectedMember.name}</Text>
           <TouchableOpacity style={styles.assignButton} onPress={handleAssignTask}>
@@ -515,7 +523,7 @@ export default function SpinScreen() {
                   </View>
                   <View style={styles.taskItemRight}>
                     <Text style={styles.taskItemStars}>{template.defaultStars}</Text>
-                    <Text style={styles.taskItemStarIcon}>⭐</Text>
+                    <Ionicons name="star" size={14} color="#FFD700" />
                   </View>
                 </TouchableOpacity>
               ))}
@@ -713,6 +721,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFF8E1",
     borderColor: "#FFD700",
   },
+  targetOptionContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
   targetOptionText: {
     fontSize: fontSize.sm,
     color: colors.textMuted,
@@ -812,14 +825,12 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: "#FFD700",
   },
-  confetti: {
-    fontSize: 24,
+  confettiIcon: {
     position: "absolute",
     left: spacing.lg,
     top: spacing.lg,
   },
-  winnerConfetti: {
-    fontSize: 24,
+  confettiIconRight: {
     position: "absolute",
     right: spacing.lg,
     top: spacing.lg,
@@ -829,13 +840,13 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#5D4037",
     marginBottom: spacing.md,
+    marginTop: spacing.sm,
   },
   winnerAvatar: {
     alignItems: "center",
     marginBottom: spacing.md,
   },
-  winnerCrown: {
-    fontSize: 32,
+  crownIcon: {
     marginBottom: -10,
   },
   avatarCircle: {
@@ -848,22 +859,27 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: "#FFD700",
   },
-  avatarEmoji: {
-    fontSize: 40,
-  },
   winnerName: {
     fontSize: fontSize.xl,
     fontWeight: "bold",
     color: "#5D4037",
     marginBottom: spacing.sm,
   },
-  winnerScore: {
-    fontSize: fontSize.md,
-    color: "#FFD700",
-    fontWeight: "600",
+  winnerScoreRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
     marginBottom: spacing.lg,
   },
+  winnerScore: {
+    fontSize: fontSize.md,
+    color: "#5D4037",
+    fontWeight: "600",
+  },
   celebrateButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
     backgroundColor: "#FFB74D",
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.xl,
@@ -890,10 +906,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
-  },
-  resultEmoji: {
-    fontSize: 24,
-    marginBottom: spacing.sm,
   },
   resultTitle: {
     fontSize: fontSize.lg,
