@@ -484,8 +484,8 @@ export default function SetupScreen() {
   const handleSaveEditedMember = async () => {
     if (!editingMember) return;
     
-    const age = parseInt(editMemberAge);
-    if (isNaN(age) || age <= 0) {
+    const age = editMemberAge.trim() ? parseInt(editMemberAge) : 0;
+    if (isNaN(age) || age < 0) {
       Alert.alert("Error", "Please enter a valid age");
       return;
     }
@@ -494,7 +494,7 @@ export default function SetupScreen() {
     
     const { error } = await updateMemberProfile(editingMember.id, {
       avatar: editMemberAvatar,
-      age: age,
+      age: age || undefined,
     });
 
     if (error) {
