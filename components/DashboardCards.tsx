@@ -704,7 +704,8 @@ export function NearbyParksCard({
   const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
-    if (!location || location.permissionDenied) {
+    // Wait for location to be available (even default location is fine)
+    if (!location) {
       setLoadState('loading');
       return;
     }
@@ -713,7 +714,9 @@ export function NearbyParksCard({
       setLoadState('loading');
       setErrorMessage(null);
       try {
-        const parkData = await getNearbyParks(3000); // 3km radius
+        console.log('[NearbyParksCard] Loading parks for location:', location.city || 'Unknown', 
+          'isDefault:', location.isDefault);
+        const parkData = await getNearbyParks(5000); // 5km radius
         setParks(parkData.parks);
         setLoadState('success');
       } catch (error) {

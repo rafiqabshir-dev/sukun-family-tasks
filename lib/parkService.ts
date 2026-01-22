@@ -116,8 +116,16 @@ function getParkName(tags: Record<string, string>, type: 'park' | 'playground' |
 }
 
 // Fetch nearby parks using Overpass API (OpenStreetMap)
-export async function getNearbyParks(radiusMeters: number = 3000): Promise<ParkData> {
+export async function getNearbyParks(radiusMeters: number = 5000): Promise<ParkData> {
   const location = await getCurrentLocation();
+  
+  console.log('[Parks] Location for search:', {
+    lat: location?.latitude,
+    lon: location?.longitude,
+    city: location?.city,
+    isDefault: location?.isDefault,
+    permissionDenied: location?.permissionDenied,
+  });
   
   if (!location || !location.latitude || !location.longitude) {
     throw new Error('Location not available');
@@ -126,87 +134,127 @@ export async function getNearbyParks(radiusMeters: number = 3000): Promise<ParkD
   const { latitude: lat, longitude: lon } = location;
   
   // Overpass QL query to find parks, playgrounds, and gardens
+  // Using a larger timeout and including more leisure types
   const query = `
-    [out:json][timeout:25];
+    [out:json][timeout:30];
     (
       way["leisure"="park"](around:${radiusMeters},${lat},${lon});
       way["leisure"="playground"](around:${radiusMeters},${lat},${lon});
       way["leisure"="garden"]["access"!="private"](around:${radiusMeters},${lat},${lon});
+      way["leisure"="nature_reserve"](around:${radiusMeters},${lat},${lon});
+      way["leisure"="recreation_ground"](around:${radiusMeters},${lat},${lon});
       node["leisure"="playground"](around:${radiusMeters},${lat},${lon});
+      node["leisure"="park"](around:${radiusMeters},${lat},${lon});
       relation["leisure"="park"](around:${radiusMeters},${lat},${lon});
+      relation["boundary"="national_park"](around:${radiusMeters},${lat},${lon});
     );
     out center tags;
   `;
   
-  const response = await fetch('https://overpass-api.de/api/interpreter', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: `data=${encodeURIComponent(query)}`,
-  });
+  console.log('[Parks] Searching within', radiusMeters, 'meters of', lat, lon);
   
-  if (!response.ok) {
-    throw new Error(`Failed to fetch parks: ${response.status}`);
-  }
+  // Multiple Overpass API servers for fallback
+  const overpassServers = [
+    'https://overpass-api.de/api/interpreter',
+    'https://overpass.kumi.systems/api/interpreter',
+    'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+  ];
   
-  const data = await response.json();
+  let lastError: Error | null = null;
   
-  const parks: Park[] = [];
-  const seenIds = new Set<string>();
-  
-  for (const element of data.elements) {
-    // Get coordinates - use center for ways/relations, direct coords for nodes
-    let parkLat: number;
-    let parkLon: number;
-    
-    if (element.center) {
-      parkLat = element.center.lat;
-      parkLon = element.center.lon;
-    } else if (element.lat && element.lon) {
-      parkLat = element.lat;
-      parkLon = element.lon;
-    } else {
+  for (const server of overpassServers) {
+    try {
+      console.log('[Parks] Trying server:', server);
+      
+      const response = await fetch(server, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: `data=${encodeURIComponent(query)}`,
+      });
+      
+      if (!response.ok) {
+        console.error('[Parks] Server error:', server, response.status);
+        lastError = new Error(`Failed to fetch parks: ${response.status}`);
+        continue;
+      }
+      
+      const text = await response.text();
+      
+      // Check if response is HTML error page
+      if (text.includes('<!DOCTYPE') || text.includes('<html')) {
+        console.error('[Parks] Server returned HTML error:', server);
+        lastError = new Error('Server busy, returned error page');
+        continue;
+      }
+      
+      const data = JSON.parse(text);
+      console.log('[Parks] API returned', data.elements?.length || 0, 'elements from', server);
+      
+      // Success - continue with this data
+      const parks: Park[] = [];
+      const seenIds = new Set<string>();
+      
+      for (const element of data.elements) {
+        let parkLat: number;
+        let parkLon: number;
+        
+        if (element.center) {
+          parkLat = element.center.lat;
+          parkLon = element.center.lon;
+        } else if (element.lat && element.lon) {
+          parkLat = element.lat;
+          parkLon = element.lon;
+        } else {
+          continue;
+        }
+        
+        const tags = element.tags || {};
+        const type = getParkType(tags);
+        const name = getParkName(tags, type);
+        const id = `${element.type}-${element.id}`;
+        
+        if (seenIds.has(id)) continue;
+        seenIds.add(id);
+        
+        if (tags.access === 'private') continue;
+        
+        const distance = calculateDistance(lat, lon, parkLat, parkLon);
+        const amenities = parseAmenities(tags);
+        
+        parks.push({
+          id,
+          name,
+          type,
+          distance,
+          lat: parkLat,
+          lon: parkLon,
+          amenities,
+        });
+      }
+      
+      parks.sort((a, b) => a.distance - b.distance);
+      const nearestParks = parks.slice(0, 10);
+      
+      console.log('[Parks] Found', nearestParks.length, 'parks:', 
+        nearestParks.map(p => `${p.name} (${Math.round(p.distance)}m)`).join(', '));
+      
+      return {
+        parks: nearestParks,
+        fetchedAt: new Date(),
+        location: { lat, lon },
+      };
+      
+    } catch (error) {
+      console.error('[Parks] Server failed:', server, error);
+      lastError = error instanceof Error ? error : new Error(String(error));
       continue;
     }
-    
-    const tags = element.tags || {};
-    const type = getParkType(tags);
-    const name = getParkName(tags, type);
-    const id = `${element.type}-${element.id}`;
-    
-    // Skip duplicates (same location might appear as node and way)
-    if (seenIds.has(id)) continue;
-    seenIds.add(id);
-    
-    // Skip private parks
-    if (tags.access === 'private') continue;
-    
-    const distance = calculateDistance(lat, lon, parkLat, parkLon);
-    const amenities = parseAmenities(tags);
-    
-    parks.push({
-      id,
-      name,
-      type,
-      distance,
-      lat: parkLat,
-      lon: parkLon,
-      amenities,
-    });
   }
   
-  // Sort by distance
-  parks.sort((a, b) => a.distance - b.distance);
-  
-  // Limit to nearest 10 parks
-  const nearestParks = parks.slice(0, 10);
-  
-  return {
-    parks: nearestParks,
-    fetchedAt: new Date(),
-    location: { lat, lon },
-  };
+  // All servers failed
+  throw lastError || new Error('All Overpass servers failed');
 }
 
 // Get outdoor play recommendation based on weather
