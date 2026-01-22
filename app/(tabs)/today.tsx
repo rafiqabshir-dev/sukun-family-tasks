@@ -958,12 +958,6 @@ export default function TodayScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Page Header with Location */}
-      <View style={styles.pageHeader}>
-        <Text style={styles.pageTitle}>Today</Text>
-        <LocationBadge location={location} />
-      </View>
-      
       <ScrollView 
         contentContainerStyle={[
           styles.content,
@@ -997,9 +991,12 @@ export default function TodayScreen() {
               </Text>
             </View>
           </View>
-          <View style={styles.starsDisplay}>
-            <Ionicons name="star" size={18} color={colors.secondary} />
-            <Text style={styles.starsCount}>{currentMember.starsTotal}</Text>
+          <View style={styles.userBarRight}>
+            <LocationBadge location={location} />
+            <View style={styles.starsDisplay}>
+              <Ionicons name="star" size={18} color={colors.secondary} />
+              <Text style={styles.starsCount}>{currentMember.starsTotal}</Text>
+            </View>
           </View>
         </View>
 
@@ -1494,19 +1491,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  pageHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    backgroundColor: colors.primary,
-  },
-  pageTitle: {
-    fontSize: fontSize.xl,
-    fontWeight: "700",
-    color: "#FFFFFF",
-  },
   content: {
     padding: spacing.lg,
     paddingBottom: spacing.xxl,
@@ -1548,6 +1532,11 @@ const styles = StyleSheet.create({
   actingAsRole: {
     fontSize: fontSize.sm,
     color: colors.textSecondary,
+  },
+  userBarRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
   },
   starsDisplay: {
     flexDirection: "row",
