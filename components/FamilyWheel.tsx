@@ -122,10 +122,10 @@ export function FamilyWheel({
     const angle = 360 / total;
     const startAngle = index * angle - 90;
     const endAngle = startAngle + angle;
-    const textArcRadius = radius * 0.72; // Arc for curved text (outer area)
+    const textArcRadius = radius * 0.82; // Arc for curved text (pushed to outer edge)
     
     // Add padding from edges
-    const padding = angle * 0.15;
+    const padding = angle * 0.12;
     const paddedStart = startAngle + padding;
     const paddedEnd = endAngle - padding;
     
@@ -219,8 +219,8 @@ export function FamilyWheel({
                 
                 // Full first name (curved text gives more space)
                 const firstName = segment.label.split(' ')[0];
-                const baseFontSize = segments.length > 6 ? 10 : segments.length > 4 ? 11 : 12;
-                const avatarSize = segments.length > 6 ? 22 : segments.length > 4 ? 26 : 30;
+                const baseFontSize = segments.length > 6 ? 9 : segments.length > 4 ? 10 : 11;
+                const avatarSize = segments.length > 6 ? 32 : segments.length > 4 ? 38 : 44;
                 
                 return (
                   <G key={`content-${segment.id}`}>
