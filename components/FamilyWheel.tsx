@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, Animated, Easing } from "react-native";
 import { useRef, useEffect, useState } from "react";
-import Svg, { G, Path, Text as SvgText, Circle, Defs, LinearGradient, Stop } from "react-native-svg";
+import Svg, { G, Path, Text as SvgText, Circle, Defs, LinearGradient, Stop, TextPath } from "react-native-svg";
 import { colors } from "@/lib/theme";
 
 interface WheelSegment {
@@ -95,13 +95,12 @@ export function FamilyWheel({
     const angle = 360 / total;
     const midAngle = index * angle + angle / 2 - 90;
     const midRad = (midAngle * Math.PI) / 180;
-    const textRadius = radius * 0.52; // Move inward for better centering
+    const avatarRadius = radius * 0.48; // Avatar position (more inward)
     
     // Base tangential rotation
     let rotation = midAngle + 90;
     
     // Check if segment is in bottom half (between 90° and 270° in standard coords)
-    // This corresponds to midAngle between 0° and 180° (after -90 offset)
     const normalizedAngle = ((midAngle + 90) % 360 + 360) % 360;
     const isBottomHalf = normalizedAngle > 90 && normalizedAngle < 270;
     
@@ -111,11 +110,38 @@ export function FamilyWheel({
     }
     
     return {
-      x: centerX + textRadius * Math.cos(midRad),
-      y: centerY + textRadius * Math.sin(midRad),
+      x: centerX + avatarRadius * Math.cos(midRad),
+      y: centerY + avatarRadius * Math.sin(midRad),
       rotation,
       isFlipped: isBottomHalf,
     };
+  };
+
+  // Create arc path for curved text
+  const createTextArcPath = (index: number, total: number, isBottomHalf: boolean): string => {
+    const angle = 360 / total;
+    const startAngle = index * angle - 90;
+    const endAngle = startAngle + angle;
+    const textArcRadius = radius * 0.72; // Arc for curved text (outer area)
+    
+    // Add padding from edges
+    const padding = angle * 0.15;
+    const paddedStart = startAngle + padding;
+    const paddedEnd = endAngle - padding;
+    
+    const startRad = (paddedStart * Math.PI) / 180;
+    const endRad = (paddedEnd * Math.PI) / 180;
+    
+    const x1 = centerX + textArcRadius * Math.cos(startRad);
+    const y1 = centerY + textArcRadius * Math.sin(startRad);
+    const x2 = centerX + textArcRadius * Math.cos(endRad);
+    const y2 = centerY + textArcRadius * Math.sin(endRad);
+    
+    // For bottom half, reverse the arc direction so text reads correctly
+    if (isBottomHalf) {
+      return `M ${x2} ${y2} A ${textArcRadius} ${textArcRadius} 0 0 0 ${x1} ${y1}`;
+    }
+    return `M ${x1} ${y1} A ${textArcRadius} ${textArcRadius} 0 0 1 ${x2} ${y2}`;
   };
 
   const rotation = rotateAnim.interpolate({
@@ -171,92 +197,105 @@ export function FamilyWheel({
               ))}
             </G>
             
+            {/* Define curved text paths */}
+            <Defs>
+              {segments.map((segment, index) => {
+                const pos = getTextPosition(index, segments.length);
+                return (
+                  <Path
+                    key={`textpath-${segment.id}`}
+                    id={`textarc-${index}`}
+                    d={createTextArcPath(index, segments.length, pos.isFlipped)}
+                    fill="none"
+                  />
+                );
+              })}
+            </Defs>
+            
             <G>
               {segments.map((segment, index) => {
                 const pos = getTextPosition(index, segments.length);
                 const hasAvatar = !!segment.avatar;
                 
-                // Abbreviate to first name only, with length limit
+                // Full first name (curved text gives more space)
                 const firstName = segment.label.split(' ')[0];
-                const maxLen = segments.length > 6 ? 5 : segments.length > 4 ? 7 : 8;
-                const displayLabel = firstName.length > maxLen 
-                  ? firstName.substring(0, maxLen - 1) + "…" 
-                  : firstName;
                 const baseFontSize = segments.length > 6 ? 10 : segments.length > 4 ? 11 : 12;
-                
-                // When flipped (bottom half), reverse the stack order
-                // Avatar on top, name below when reading upright
-                // Larger avatar offset for bigger emoji
-                const avatarOffset = pos.isFlipped ? 14 : -14;
-                const nameOffset = pos.isFlipped ? -10 : 12;
+                const avatarSize = segments.length > 6 ? 22 : segments.length > 4 ? 26 : 30;
                 
                 return (
-                  <G 
-                    key={`content-${segment.id}`}
-                    transform={`rotate(${pos.rotation}, ${pos.x}, ${pos.y})`}
-                  >
+                  <G key={`content-${segment.id}`}>
                     {hasAvatar ? (
                       <>
+                        {/* Big centered avatar */}
                         <SvgText
                           x={pos.x}
-                          y={pos.y + avatarOffset}
+                          y={pos.y}
                           fill="#5D4037"
-                          fontSize={baseFontSize + 14}
+                          fontSize={avatarSize}
                           textAnchor="middle"
                           alignmentBaseline="middle"
                         >
                           {segment.avatar}
                         </SvgText>
+                        {/* Curved name along arc */}
                         <SvgText
-                          x={pos.x}
-                          y={pos.y + nameOffset}
                           fill="#5D4037"
                           fontSize={baseFontSize}
                           fontWeight="bold"
-                          textAnchor="middle"
-                          alignmentBaseline="middle"
                         >
-                          {displayLabel}
+                          <TextPath
+                            href={`#textarc-${index}`}
+                            startOffset="50%"
+                            textAnchor="middle"
+                          >
+                            {firstName}
+                          </TextPath>
                         </SvgText>
                       </>
                     ) : segment.value !== undefined ? (
                       <>
+                        {/* Star value centered */}
                         <SvgText
                           x={pos.x}
-                          y={pos.y + (pos.isFlipped ? 8 : -8)}
+                          y={pos.y}
                           fill="#FFD700"
-                          fontSize={baseFontSize + 10}
+                          fontSize={baseFontSize + 14}
                           fontWeight="bold"
                           textAnchor="middle"
                           alignmentBaseline="middle"
                           stroke="#5D4037"
-                          strokeWidth={1}
+                          strokeWidth={1.5}
                         >
                           {segment.value}
                         </SvgText>
+                        {/* Curved name along arc */}
                         <SvgText
-                          x={pos.x}
-                          y={pos.y + (pos.isFlipped ? -10 : 10)}
                           fill="#5D4037"
-                          fontSize={baseFontSize - 3}
+                          fontSize={baseFontSize - 2}
                           fontWeight="bold"
-                          textAnchor="middle"
-                          alignmentBaseline="middle"
                         >
-                          {displayLabel}
+                          <TextPath
+                            href={`#textarc-${index}`}
+                            startOffset="50%"
+                            textAnchor="middle"
+                          >
+                            {firstName}
+                          </TextPath>
                         </SvgText>
                       </>
                     ) : (
                       <SvgText
-                        x={pos.x}
-                        y={pos.y}
                         fill="#5D4037"
                         fontSize={baseFontSize}
                         fontWeight="bold"
-                        textAnchor="middle"
-                        alignmentBaseline="middle"
                       >
-                        {displayLabel}
+                        <TextPath
+                          href={`#textarc-${index}`}
+                          startOffset="50%"
+                          textAnchor="middle"
+                        >
+                          {firstName}
+                        </TextPath>
                       </SvgText>
                     )}
                   </G>
