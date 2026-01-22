@@ -116,11 +116,11 @@ export function templateToTask(template: TaskTemplate, familyId: string): Partia
 }
 
 export function cloudInstanceToLocal(instance: CloudTaskInstance): TaskInstance {
-  const statusMap: Record<string, 'open' | 'pending_approval' | 'done' | 'expired'> = {
+  const statusMap: Record<string, 'open' | 'pending_approval' | 'done' | 'expired' | 'rejected'> = {
     'open': 'open',
     'pending_approval': 'pending_approval',
     'approved': 'done',
-    'rejected': 'open',
+    'rejected': 'rejected',
     'expired': 'expired'
   };
 

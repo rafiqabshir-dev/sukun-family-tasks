@@ -53,7 +53,7 @@ export interface TaskTemplate {
   tags?: string[];
 }
 
-export type TaskStatus = "open" | "pending_approval" | "done" | "expired";
+export type TaskStatus = "open" | "pending_approval" | "done" | "expired" | "rejected";
 
 export interface TaskInstance {
   id: string;
