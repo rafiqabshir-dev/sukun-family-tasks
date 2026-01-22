@@ -859,7 +859,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Build the update object for Supabase
       const supabaseUpdates: Record<string, any> = {};
       if (updates.avatar !== undefined) {
-        supabaseUpdates.avatar = updates.avatar;
+        // Empty string means clear the avatar (set to null in DB)
+        supabaseUpdates.avatar = updates.avatar || null;
       }
       if (updates.age !== undefined) {
         supabaseUpdates.age = updates.age;

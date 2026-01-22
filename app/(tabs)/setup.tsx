@@ -493,7 +493,7 @@ export default function SetupScreen() {
     setSavingMember(true);
     
     const { error } = await updateMemberProfile(editingMember.id, {
-      avatar: editMemberAvatar || undefined,
+      avatar: editMemberAvatar,
       age: age,
     });
 
