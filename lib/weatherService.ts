@@ -333,6 +333,161 @@ async function cacheWeather(data: WeatherData, latitude: number, longitude: numb
   }
 }
 
+// Fresh fetch - never uses cache, throws on error instead of returning stale data
+export async function getWeatherFresh(latitude: number, longitude: number): Promise<WeatherData> {
+  const response = await fetch(
+    `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,wind_gusts_10m,precipitation,precipitation_probability&hourly=uv_index,visibility&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto&forecast_days=1`
+  );
+
+  if (!response.ok) {
+    throw new Error("Weather API request failed");
+  }
+
+  const data = await response.json();
+  const current = data.current;
+  const hourly = data.hourly;
+  
+  const weatherCode = current.weather_code || 0;
+  const weatherInfo = WEATHER_CODE_MAP[weatherCode] || WEATHER_CODE_MAP[0];
+  
+  const temp = Math.round(current.temperature_2m);
+  const feelsLike = Math.round(current.apparent_temperature);
+  const windSpeed = Math.round(current.wind_speed_10m);
+  const windGust = Math.round(current.wind_gusts_10m || 0);
+  const precipProb = current.precipitation_probability || 0;
+  
+  const currentHour = new Date().getHours();
+  const uvIndex = hourly?.uv_index?.[currentHour] || 0;
+  const visibility = hourly?.visibility?.[currentHour] || 10000;
+  
+  const isExtremeCold = feelsLike <= 10;
+  const isVeryCold = feelsLike <= 32;
+  const isCold = feelsLike <= 45;
+  const isExtremeHeat = feelsLike >= 100;
+  const isHot = feelsLike >= 90;
+  const isHighWind = windSpeed >= 25 || windGust >= 35;
+  const isLowVisibility = visibility < 1000;
+  const hasWeatherSevere = weatherInfo.isSevere;
+  
+  const isSevere = hasWeatherSevere || isHighWind || isExtremeCold || isExtremeHeat || isLowVisibility;
+  
+  const alerts: WeatherAlert[] = [];
+  
+  if (weatherCode >= 95) {
+    alerts.push({
+      event: "Thunderstorm Warning",
+      headline: "Thunderstorm Warning in Effect",
+      description: `Active ${weatherInfo.condition.toLowerCase()} in your area. Lightning, heavy rain, and ${windGust > 40 ? "damaging winds up to " + windGust + " mph" : "gusty winds"} expected.`,
+      severity: weatherCode >= 99 ? "extreme" : "severe",
+      urgency: "immediate",
+      start: new Date().toISOString(),
+      end: new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString(),
+    });
+  }
+  
+  if (isExtremeCold) {
+    const frostbiteTime = feelsLike <= 0 ? "10-15 minutes" : feelsLike <= 10 ? "15-30 minutes" : "30+ minutes";
+    alerts.push({
+      event: "Extreme Cold Warning",
+      headline: `Dangerously Cold: Feels like ${feelsLike}°F`,
+      description: `Frostbite can occur on exposed skin in ${frostbiteTime}. Limit outdoor exposure and cover all exposed skin.`,
+      severity: feelsLike <= 0 ? "extreme" : "severe",
+      urgency: "immediate",
+      start: new Date().toISOString(),
+      end: new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString(),
+    });
+  }
+  
+  if (isExtremeHeat) {
+    alerts.push({
+      event: "Extreme Heat Warning",
+      headline: `Dangerously Hot: Feels like ${feelsLike}°F`,
+      description: `Heat exhaustion and heat stroke are possible. Stay hydrated, avoid direct sun, and limit outdoor activities.`,
+      severity: feelsLike >= 110 ? "extreme" : "severe",
+      urgency: "immediate",
+      start: new Date().toISOString(),
+      end: new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString(),
+    });
+  }
+  
+  if (isHighWind) {
+    alerts.push({
+      event: "High Wind Warning",
+      headline: `High Winds: ${windSpeed} mph, gusts to ${windGust} mph`,
+      description: `Strong winds may make outdoor play difficult and potentially dangerous. Watch for flying debris.`,
+      severity: windGust >= 50 ? "severe" : "moderate",
+      urgency: "expected",
+      start: new Date().toISOString(),
+      end: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString(),
+    });
+  }
+  
+  if ((weatherCode >= 65 || weatherCode >= 82) && !alerts.find(a => a.event.includes("Thunderstorm"))) {
+    const precipType = weatherInfo.isSnowing ? "Heavy Snow" : "Heavy Rain";
+    alerts.push({
+      event: `${precipType} Warning`,
+      headline: `${precipType} in Your Area`,
+      description: `${precipType.toLowerCase()} may reduce visibility and make travel hazardous. Plan indoor activities.`,
+      severity: "severe",
+      urgency: "immediate",
+      start: new Date().toISOString(),
+      end: new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString(),
+    });
+  }
+  
+  if (uvIndex >= 8) {
+    alerts.push({
+      event: uvIndex >= 11 ? "Extreme UV Alert" : "High UV Index",
+      headline: `UV Index: ${Math.round(uvIndex)} (${uvIndex >= 11 ? "Extreme" : "Very High"})`,
+      description: `Strong sun exposure. ${uvIndex >= 11 ? "Avoid sun during midday hours." : "Apply sunscreen SPF 30+, wear hats and sunglasses."}`,
+      severity: uvIndex >= 11 ? "severe" : "moderate",
+      urgency: "expected",
+      start: new Date().toISOString(),
+      end: new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString(),
+    });
+  }
+
+  const weather: WeatherData = {
+    temperature: temp,
+    temperatureUnit: "F",
+    feelsLike: feelsLike,
+    condition: weatherInfo.condition,
+    conditionCode: weatherCode,
+    conditionIcon: weatherInfo.icon,
+    windSpeed: windSpeed,
+    windGust: windGust,
+    humidity: current.relative_humidity_2m,
+    uvIndex: uvIndex,
+    visibility: visibility,
+    precipitationProbability: precipProb,
+    isRaining: weatherInfo.isRaining,
+    isSnowing: weatherInfo.isSnowing,
+    isSevere: isSevere,
+    alerts: alerts,
+    fetchedAt: new Date().toISOString(),
+  };
+
+  if (alerts.length > 0) {
+    const topAlert = alerts.sort((a, b) => {
+      const sevOrder = { extreme: 0, severe: 1, moderate: 2, minor: 3 };
+      return sevOrder[a.severity] - sevOrder[b.severity];
+    })[0];
+    weather.severeType = topAlert.event;
+    weather.severeMessage = topAlert.headline;
+  } else if (!weather.isRaining && !weather.isSnowing && weather.windSpeed < 15 && !isCold && !isHot) {
+    const hour = new Date().getHours();
+    if (hour < 10) {
+      weather.safeOutdoorWindow = "Good for outdoor play after 10 AM";
+    } else if (hour < 17) {
+      weather.safeOutdoorWindow = "Great time for outdoor activities";
+    } else {
+      weather.safeOutdoorWindow = "Evening outdoor play possible";
+    }
+  }
+
+  return weather;
+}
+
 export function getClothingSuggestions(weather: WeatherData): ClothingItem[] {
   const items: ClothingItem[] = [];
   const temp = weather.feelsLike;

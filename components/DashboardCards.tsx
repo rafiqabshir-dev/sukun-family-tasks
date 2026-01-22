@@ -1,14 +1,16 @@
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Linking, ActivityIndicator } from "react-native";
 import { useState, useEffect, useMemo } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import Svg, { Path, Circle, Rect, Ellipse } from "react-native-svg";
 import { colors, spacing, borderRadius, fontSize } from "@/lib/theme";
 import { router } from "expo-router";
-import { WeatherData, getWeather, canPlayOutside } from "@/lib/weatherService";
-import { PrayerTimes, CurrentPrayer, getPrayerTimes, getCurrentPrayer, formatMinutesRemaining } from "@/lib/prayerService";
+import { WeatherData, getWeatherFresh, canPlayOutside } from "@/lib/weatherService";
+import { PrayerTimes, CurrentPrayer, getPrayerTimesFresh, getCurrentPrayer, formatMinutesRemaining } from "@/lib/prayerService";
 import { getCurrentLocation, UserLocation } from "@/lib/locationService";
 import { TaskInstance, TaskTemplate, Member } from "@/lib/types";
 import { isToday, isBefore, startOfDay } from "date-fns";
+
+type LoadingState = 'loading' | 'success' | 'error';
 
 interface DashboardCardsProps {
   taskInstances: TaskInstance[];
@@ -35,6 +37,10 @@ export function SevereWeatherBanner({ weather }: { weather: WeatherData | null }
   const message = topAlert?.headline || weather.severeMessage || "Check conditions before outdoor activities";
   const description = topAlert?.description;
 
+  const openWeatherSource = () => {
+    Linking.openURL('https://open-meteo.com/');
+  };
+
   return (
     <View style={bannerStyle} data-testid="severe-weather-banner">
       <View style={styles.severeHeader}>
@@ -45,6 +51,10 @@ export function SevereWeatherBanner({ weather }: { weather: WeatherData | null }
       {description && (
         <Text style={styles.severeDescription}>{description}</Text>
       )}
+      <TouchableOpacity onPress={openWeatherSource} style={styles.sourceLink}>
+        <Ionicons name="open-outline" size={12} color="rgba(255,255,255,0.7)" />
+        <Text style={styles.sourceLinkText}>Source: Open-Meteo</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -52,13 +62,25 @@ export function SevereWeatherBanner({ weather }: { weather: WeatherData | null }
 export function PrayerCountdownCard({ currentTime, location }: { currentTime: Date; location: UserLocation | null }) {
   const [prayerTimes, setPrayerTimes] = useState<PrayerTimes | null>(null);
   const [currentPrayer, setCurrentPrayer] = useState<CurrentPrayer | null>(null);
+  const [loadState, setLoadState] = useState<LoadingState>('loading');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!location) return;
+    if (!location) {
+      setLoadState('loading');
+      return;
+    }
     const loadPrayerTimes = async () => {
-      const times = await getPrayerTimes(location.latitude, location.longitude);
-      if (times) {
+      setLoadState('loading');
+      setErrorMessage(null);
+      try {
+        const times = await getPrayerTimesFresh(location.latitude, location.longitude);
         setPrayerTimes(times);
+        setLoadState('success');
+      } catch (error) {
+        console.error('[Prayer] Load error:', error);
+        setLoadState('error');
+        setErrorMessage('Unable to load prayer times');
       }
     };
     loadPrayerTimes();
@@ -70,6 +92,40 @@ export function PrayerCountdownCard({ currentTime, location }: { currentTime: Da
       setCurrentPrayer(prayer);
     }
   }, [prayerTimes, currentTime]);
+
+  if (loadState === 'loading') {
+    return (
+      <View style={styles.card} data-testid="prayer-countdown-card-loading">
+        <View style={styles.cardHeader}>
+          <View style={styles.cardIconContainer}>
+            <Ionicons name="moon" size={24} color={colors.primary} />
+          </View>
+          <Text style={styles.cardTitle}>Prayer Times</Text>
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="small" color={colors.primary} />
+          <Text style={styles.loadingText}>Loading prayer times...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (loadState === 'error') {
+    return (
+      <View style={styles.card} data-testid="prayer-countdown-card-error">
+        <View style={styles.cardHeader}>
+          <View style={styles.cardIconContainer}>
+            <Ionicons name="moon" size={24} color={colors.error} />
+          </View>
+          <Text style={styles.cardTitle}>Prayer Times</Text>
+        </View>
+        <View style={styles.errorContainer}>
+          <Ionicons name="alert-circle" size={24} color={colors.error} />
+          <Text style={styles.errorText}>{errorMessage}</Text>
+        </View>
+      </View>
+    );
+  }
 
   if (!currentPrayer) return null;
 
@@ -103,11 +159,51 @@ export function PrayerCountdownCard({ currentTime, location }: { currentTime: Da
   );
 }
 
-export function WeatherCard({ weather }: { weather: WeatherData | null }) {
+interface WeatherCardProps {
+  weather: WeatherData | null;
+  loadState: LoadingState;
+  errorMessage?: string | null;
+}
+
+export function WeatherCard({ weather, loadState, errorMessage }: WeatherCardProps) {
   const outdoorStatus = useMemo(() => {
     if (!weather) return null;
     return canPlayOutside(weather);
   }, [weather]);
+
+  if (loadState === 'loading') {
+    return (
+      <View style={styles.card} data-testid="weather-card-loading">
+        <View style={styles.cardHeader}>
+          <View style={styles.cardIconContainer}>
+            <Ionicons name="cloudy" size={24} color={colors.primary} />
+          </View>
+          <Text style={styles.cardTitle}>Today's Weather</Text>
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="small" color={colors.primary} />
+          <Text style={styles.loadingText}>Loading weather data...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (loadState === 'error') {
+    return (
+      <View style={styles.card} data-testid="weather-card-error">
+        <View style={styles.cardHeader}>
+          <View style={styles.cardIconContainer}>
+            <Ionicons name="cloudy" size={24} color={colors.error} />
+          </View>
+          <Text style={styles.cardTitle}>Today's Weather</Text>
+        </View>
+        <View style={styles.errorContainer}>
+          <Ionicons name="alert-circle" size={24} color={colors.error} />
+          <Text style={styles.errorText}>{errorMessage || 'Unable to load weather'}</Text>
+        </View>
+      </View>
+    );
+  }
 
   if (!weather) return null;
 
@@ -370,13 +466,35 @@ function DressedFigure({ outfit }: { outfit: OutfitConfig }) {
   );
 }
 
-export function WhatToWearCard({ weather }: { weather: WeatherData | null }) {
+interface WhatToWearCardProps {
+  weather: WeatherData | null;
+  loadState: LoadingState;
+}
+
+export function WhatToWearCard({ weather, loadState }: WhatToWearCardProps) {
   const outfit = useMemo(() => {
     if (!weather) return null;
     return getOutfitForWeather(weather);
   }, [weather]);
 
-  if (!weather || !outfit) return null;
+  if (loadState === 'loading') {
+    return (
+      <View style={styles.card} data-testid="what-to-wear-card-loading">
+        <View style={styles.cardHeader}>
+          <View style={styles.cardIconContainer}>
+            <Ionicons name="shirt" size={24} color={colors.primary} />
+          </View>
+          <Text style={styles.cardTitle}>What to Wear</Text>
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="small" color={colors.primary} />
+          <Text style={styles.loadingText}>Loading outfit suggestions...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (loadState === 'error' || !weather || !outfit) return null;
 
   const accessories: string[] = [];
   if (outfit.hasHat) accessories.push("Hat");
@@ -607,13 +725,27 @@ export function LocationBadge({ location }: { location: UserLocation | null }) {
 
 export function DashboardCards({ taskInstances, taskTemplates, members, currentTime }: DashboardCardsProps) {
   const [weather, setWeather] = useState<WeatherData | null>(null);
+  const [weatherLoadState, setWeatherLoadState] = useState<LoadingState>('loading');
+  const [weatherError, setWeatherError] = useState<string | null>(null);
   const { location } = useLocation();
 
   useEffect(() => {
-    if (!location) return;
+    if (!location) {
+      setWeatherLoadState('loading');
+      return;
+    }
     const loadWeather = async () => {
-      const data = await getWeather(location.latitude, location.longitude);
-      setWeather(data);
+      setWeatherLoadState('loading');
+      setWeatherError(null);
+      try {
+        const data = await getWeatherFresh(location.latitude, location.longitude);
+        setWeather(data);
+        setWeatherLoadState('success');
+      } catch (error) {
+        console.error('[Weather] Load error:', error);
+        setWeatherLoadState('error');
+        setWeatherError('Unable to load weather data');
+      }
     };
     loadWeather();
   }, [location]);
@@ -622,8 +754,8 @@ export function DashboardCards({ taskInstances, taskTemplates, members, currentT
     <View style={styles.dashboardContainer}>
       <SevereWeatherBanner weather={weather} />
       <PrayerCountdownCard currentTime={currentTime} location={location} />
-      <WeatherCard weather={weather} />
-      <WhatToWearCard weather={weather} />
+      <WeatherCard weather={weather} loadState={weatherLoadState} errorMessage={weatherError} />
+      <WhatToWearCard weather={weather} loadState={weatherLoadState} />
       <TodayTasksSummary 
         taskInstances={taskInstances}
         taskTemplates={taskTemplates}
@@ -685,6 +817,40 @@ const styles = StyleSheet.create({
     opacity: 0.85,
     marginTop: spacing.xs,
     lineHeight: 18,
+  },
+  sourceLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: spacing.sm,
+    alignSelf: "flex-end",
+  },
+  sourceLinkText: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.7)",
+    textDecorationLine: "underline",
+  },
+  loadingContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    paddingVertical: spacing.md,
+  },
+  loadingText: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+  },
+  errorContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    paddingVertical: spacing.md,
+  },
+  errorText: {
+    fontSize: fontSize.sm,
+    color: colors.error,
   },
   card: {
     backgroundColor: colors.surface,

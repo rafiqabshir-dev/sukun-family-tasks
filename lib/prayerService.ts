@@ -97,6 +97,34 @@ export async function getPrayerTimes(latitude: number, longitude: number): Promi
   }
 }
 
+// Fresh fetch - never uses cache, throws on error
+export async function getPrayerTimesFresh(latitude: number, longitude: number): Promise<PrayerTimes> {
+  const response = await fetch(
+    `https://api.aladhan.com/v1/timings?latitude=${latitude}&longitude=${longitude}&method=2`
+  );
+
+  if (!response.ok) {
+    throw new Error("Prayer API request failed");
+  }
+
+  const data = await response.json();
+  const timings = data.data.timings;
+  const dateInfo = data.data.date;
+  
+  const prayerTimes: PrayerTimes = {
+    fajr: timings.Fajr,
+    sunrise: timings.Sunrise,
+    dhuhr: timings.Dhuhr,
+    asr: timings.Asr,
+    maghrib: timings.Maghrib,
+    isha: timings.Isha,
+    date: dateInfo.gregorian.date,
+    fetchedAt: new Date().toISOString(),
+  };
+
+  return prayerTimes;
+}
+
 async function getCachedPrayer(ignoreExpiry = false): Promise<PrayerTimes | null> {
   try {
     const cached = await AsyncStorage.getItem(PRAYER_CACHE_KEY);
