@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, borderRadius, fontSize } from "@/lib/theme";
 import { router } from "expo-router";
-import { WeatherData, getWeather, canPlayOutside, getWearSuggestions, WearSuggestion } from "@/lib/weatherService";
+import { WeatherData, getWeather, canPlayOutside, getClothingSuggestions, ClothingItem } from "@/lib/weatherService";
 import { PrayerTimes, CurrentPrayer, getPrayerTimes, getCurrentPrayer, formatMinutesRemaining } from "@/lib/prayerService";
 import { getCurrentLocation, UserLocation } from "@/lib/locationService";
 import { TaskInstance, TaskTemplate, Member } from "@/lib/types";
@@ -19,23 +19,31 @@ interface DashboardCardsProps {
 export function SevereWeatherBanner({ weather }: { weather: WeatherData | null }) {
   if (!weather) return null;
   
-  // Show banner for severe weather OR cold weather advisory
-  const showBanner = weather.isSevere || weather.severeType;
+  const hasAlerts = weather.alerts && weather.alerts.length > 0;
+  const showBanner = hasAlerts || weather.isSevere || weather.severeType;
   if (!showBanner) return null;
   
-  const isSevere = weather.isSevere;
-  const bannerStyle = isSevere ? styles.severeBanner : styles.advisoryBanner;
-  const iconName = isSevere ? "warning" : "information-circle";
+  const topAlert = hasAlerts ? weather.alerts[0] : null;
+  const severity = topAlert?.severity || (weather.isSevere ? "severe" : "moderate");
+  const isSevereOrExtreme = severity === "severe" || severity === "extreme";
+  
+  const bannerStyle = isSevereOrExtreme ? styles.severeBanner : styles.advisoryBanner;
+  const iconName = isSevereOrExtreme ? "warning" : "information-circle";
+  
+  const title = topAlert?.event || weather.severeType || "Weather Advisory";
+  const message = topAlert?.headline || weather.severeMessage || "Check conditions before outdoor activities";
+  const description = topAlert?.description;
 
   return (
     <View style={bannerStyle} data-testid="severe-weather-banner">
       <View style={styles.severeHeader}>
         <Ionicons name={iconName} size={22} color="#FFFFFF" />
-        <Text style={styles.severeTitle}>{weather.severeType || "Weather Advisory"}</Text>
+        <Text style={styles.severeTitle}>{title}</Text>
       </View>
-      <Text style={styles.severeMessage}>
-        {weather.severeMessage || "Check conditions before outdoor activities"}
-      </Text>
+      <Text style={styles.severeMessage}>{message}</Text>
+      {description && (
+        <Text style={styles.severeDescription}>{description}</Text>
+      )}
     </View>
   );
 }
@@ -133,15 +141,32 @@ export function WeatherCard({ weather }: { weather: WeatherData | null }) {
   );
 }
 
-export function WhatToWearCard({ weather }: { weather: WeatherData | null }) {
-  const [showKids, setShowKids] = useState(true);
+const CLOTHING_ICONS: Record<string, { icon: string; color: string }> = {
+  "body": { icon: "body", color: "#5C9EAD" },
+  "footsteps": { icon: "footsteps", color: "#8B4513" },
+  "umbrella": { icon: "umbrella", color: "#4169E1" },
+  "water": { icon: "water", color: "#4169E1" },
+  "snow": { icon: "snow", color: "#87CEEB" },
+  "hand-left": { icon: "hand-left", color: "#D2691E" },
+  "help-circle": { icon: "radio-button-on", color: "#9370DB" },
+  "ribbon": { icon: "ribbon", color: "#DC143C" },
+  "sunny": { icon: "sunny", color: "#FFD700" },
+  "glasses": { icon: "glasses", color: "#2F4F4F" },
+  "navigate": { icon: "navigate", color: "#708090" },
+  "game-controller": { icon: "game-controller", color: "#FF69B4" },
+};
 
+export function WhatToWearCard({ weather }: { weather: WeatherData | null }) {
   const suggestions = useMemo(() => {
     if (!weather) return [];
-    return getWearSuggestions(weather);
+    return getClothingSuggestions(weather);
   }, [weather]);
 
   if (!weather || suggestions.length === 0) return null;
+
+  const getIconInfo = (iconKey: string) => {
+    return CLOTHING_ICONS[iconKey] || { icon: "checkmark-circle", color: colors.success };
+  };
 
   return (
     <View style={styles.card} data-testid="what-to-wear-card">
@@ -150,23 +175,26 @@ export function WhatToWearCard({ weather }: { weather: WeatherData | null }) {
           <Ionicons name="shirt" size={24} color={colors.primary} />
         </View>
         <Text style={styles.cardTitle}>What to Wear Today</Text>
-        <TouchableOpacity 
-          style={[styles.togglePill, showKids && styles.togglePillActive]}
-          onPress={() => setShowKids(!showKids)}
-        >
-          <Ionicons name="person" size={14} color={showKids ? "#FFFFFF" : colors.text} />
-          <Text style={[styles.togglePillText, showKids && styles.togglePillTextActive]}>
-            Kids
-          </Text>
-        </TouchableOpacity>
+        <View style={[styles.togglePill, styles.togglePillActive]}>
+          <Ionicons name="person" size={14} color="#FFFFFF" />
+          <Text style={[styles.togglePillText, styles.togglePillTextActive]}>Kids</Text>
+        </View>
       </View>
-      <View style={styles.wearList}>
-        {suggestions.map((item, index) => (
-          <View key={index} style={styles.wearItem}>
-            <Ionicons name="checkmark" size={16} color={colors.success} />
-            <Text style={styles.wearItemText}>{item.item}</Text>
-          </View>
-        ))}
+      <Text style={styles.wearSubtitle}>
+        Based on {weather.feelsLike}°F feels-like temperature
+      </Text>
+      <View style={styles.clothingGrid}>
+        {suggestions.map((item, index) => {
+          const iconInfo = getIconInfo(item.icon);
+          return (
+            <View key={index} style={styles.clothingItem}>
+              <View style={[styles.clothingIconCircle, { backgroundColor: iconInfo.color + "20" }]}>
+                <Ionicons name={iconInfo.icon as any} size={22} color={iconInfo.color} />
+              </View>
+              <Text style={styles.clothingItemText} numberOfLines={2}>{item.name}</Text>
+            </View>
+          );
+        })}
       </View>
     </View>
   );
@@ -429,7 +457,15 @@ const styles = StyleSheet.create({
   severeMessage: {
     fontSize: fontSize.sm,
     color: "#FFFFFF",
-    opacity: 0.9,
+    fontWeight: "500",
+    opacity: 0.95,
+  },
+  severeDescription: {
+    fontSize: fontSize.xs,
+    color: "#FFFFFF",
+    opacity: 0.85,
+    marginTop: spacing.xs,
+    lineHeight: 18,
   },
   card: {
     backgroundColor: colors.surface,
@@ -564,6 +600,34 @@ const styles = StyleSheet.create({
   },
   togglePillTextActive: {
     color: "#FFFFFF",
+  },
+  wearSubtitle: {
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    marginBottom: spacing.sm,
+  },
+  clothingGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+  clothingItem: {
+    alignItems: "center",
+    width: 80,
+    paddingVertical: spacing.xs,
+  },
+  clothingIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: spacing.xs,
+  },
+  clothingItemText: {
+    fontSize: fontSize.xs,
+    color: colors.text,
+    textAlign: "center",
   },
   wearList: {
     gap: spacing.xs,
