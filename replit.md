@@ -133,6 +133,29 @@ Preferred communication style: Simple, everyday language.
 - **Implementation**: Creates a hidden template (enabled: false) in Supabase that doesn't appear in the template picker
 - **Error Handling**: If all assignments fail, the orphan template is archived in cloud; only added to local store on success
 
+### Sound System
+- **Implementation**: Uses expo-av for audio playback with `lib/soundService.ts` module
+- **Sound Files**: Located in `assets/sounds/` - spin.wav, winner.wav, click.wav, success.wav
+- **Toggle Control**: Sound on/off toggle in Setup page, persisted to local store
+- **Integration Points**: Spin wheel animation, winner celebration, button clicks, task completion
+- **Note**: expo-av shows deprecation warning in SDK 54; migrate to expo-audio in future
+
+### Family Wheel
+- **Location**: `app/(tabs)/spin.tsx` and `components/FamilyWheel.tsx`
+- **Modes**: Two guardian-only modes accessible via tab selector:
+  1. **Assign a Task**: Spins member wheel, then shows task picker to assign tasks
+  2. **Family Game**: Turn-based star-collection game with scoreboard and winner detection
+- **Wheel Component**: SVG-based with pastel segment colors, gold decorative frame, smooth spring animation
+- **Family Game Features**:
+  - Selectable target scores (5, 10, 15 stars)
+  - Turn-based gameplay tracking current player
+  - Real-time scoreboard with star totals
+  - Winner celebration with confetti animation and sound
+- **Restrictions**: Participants see "Guardians Only" message - wheel is guardian-exclusive
+
+## Design Constraints
+- **No Emojis**: UI must use Ionicons or @expo/vector-icons exclusively. Emojis are forbidden in all UI elements, buttons, and displays.
+
 ## External Dependencies
 
 - expo (expo, expo-router, expo-constants, expo-linking, expo-status-bar)
