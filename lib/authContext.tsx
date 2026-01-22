@@ -32,6 +32,7 @@ type AuthContextType = {
   joinFamily: (inviteCode: string) => Promise<{ error: Error | null }>;
   refreshProfile: () => Promise<void>;
   updateProfileName: (newName: string) => Promise<{ error: Error | null }>;
+  updateMemberProfile: (memberId: string, updates: { avatar?: string; age?: number }) => Promise<{ error: Error | null }>;
   cancelJoinRequest: () => Promise<{ error: Error | null }>;
   getPendingJoinRequests: () => Promise<JoinRequestWithProfile[]>;
   approveJoinRequest: (requestId: string) => Promise<{ error: Error | null }>;
@@ -848,6 +849,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  async function updateMemberProfile(memberId: string, updates: { avatar?: string; age?: number }): Promise<{ error: Error | null }> {
+    if (!user || !profile) {
+      return { error: new Error('Not authenticated') };
+    }
+
+    try {
+      // Build the update object for Supabase
+      const supabaseUpdates: Record<string, any> = {};
+      if (updates.avatar !== undefined) {
+        supabaseUpdates.avatar = updates.avatar;
+      }
+      if (updates.age !== undefined) {
+        supabaseUpdates.age = updates.age;
+      }
+
+      // Update in Supabase if there are cloud updates
+      if (Object.keys(supabaseUpdates).length > 0) {
+        const { error } = await supabase
+          .from('profiles')
+          .update(supabaseUpdates)
+          .eq('id', memberId);
+
+        if (error) {
+          console.error('[Auth] Error updating member profile:', error);
+          // Don't fail entirely - still update local store
+        }
+      }
+
+      // Update local store
+      const updateMember = useStore.getState().updateMember;
+      updateMember(memberId, updates);
+
+      return { error: null };
+    } catch (error) {
+      return { error: error as Error };
+    }
+  }
+
   async function getPendingJoinRequests(): Promise<JoinRequestWithProfile[]> {
     if (!family) return [];
 
@@ -1048,7 +1087,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         pendingJoinRequest, requestedFamily,
         pendingRequestsCount, refreshPendingRequestsCount,
         signUp, signIn, signUpParticipant, signInWithPasscode, signOut, 
-        createFamily, joinFamily, refreshProfile, updateProfileName,
+        createFamily, joinFamily, refreshProfile, updateProfileName, updateMemberProfile,
         cancelJoinRequest, getPendingJoinRequests, approveJoinRequest, rejectJoinRequest,
       }}
     >

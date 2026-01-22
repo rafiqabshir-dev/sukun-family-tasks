@@ -99,6 +99,7 @@ export type Profile = {
   requires_login: boolean;
   passcode: string | null;
   push_token: string | null;
+  avatar: string | null;
   created_at: string;
 };
 

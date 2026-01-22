@@ -21,6 +21,7 @@ export interface Member {
   powers: Power[];
   profileId?: string; // Supabase profile UUID - used to link local member to cloud profile
   passcode?: string; // 4-digit passcode for participants (kids)
+  avatar?: string; // Emoji avatar for display in wheel and profiles
 }
 
 export type TaskCategory = 

@@ -16,7 +16,7 @@ const STORAGE_KEY = "barakah-kids-race:v1";
 export default function SetupScreen() {
   const router = useRouter();
   const responsive = useResponsive();
-  const { profile, family, signOut, isConfigured, getPendingJoinRequests, approveJoinRequest, rejectJoinRequest, updateProfileName, refreshPendingRequestsCount, refreshProfile } = useAuth();
+  const { profile, family, signOut, isConfigured, getPendingJoinRequests, approveJoinRequest, rejectJoinRequest, updateProfileName, updateMemberProfile, refreshPendingRequestsCount, refreshProfile } = useAuth();
   const members = useStore((s) => s.members);
   const taskTemplates = useStore((s) => s.taskTemplates);
   const taskInstances = useStore((s) => s.taskInstances);
@@ -50,6 +50,13 @@ export default function SetupScreen() {
   const [removeTarget, setRemoveTarget] = useState<{memberId: string, memberName: string, profileId?: string, passcode?: string} | null>(null);
   const [removePasscodeInput, setRemovePasscodeInput] = useState("");
   const [removeError, setRemoveError] = useState("");
+  
+  // Member edit modal state (for avatar and age)
+  const [showEditMemberModal, setShowEditMemberModal] = useState(false);
+  const [editingMember, setEditingMember] = useState<{id: string, name: string, avatar?: string, age: number} | null>(null);
+  const [editMemberAvatar, setEditMemberAvatar] = useState("");
+  const [editMemberAge, setEditMemberAge] = useState("");
+  const [savingMember, setSavingMember] = useState(false);
   const [copiedPasscode, setCopiedPasscode] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -460,6 +467,49 @@ export default function SetupScreen() {
     setEditingName("");
   };
 
+  // Common emoji options for avatars
+  const emojiOptions = [
+    "👦", "👧", "👨", "👩", "👴", "👵", "🧒", "🧑", "👶", "🧔",
+    "🦸", "🦹", "🧙", "🧚", "🦊", "🐱", "🐶", "🐰", "🦁", "🐻",
+    "🌟", "⭐", "🌈", "🎨", "🎮", "⚽", "🏀", "🎸", "📚", "🎯"
+  ];
+
+  const handleOpenEditMember = (member: { id: string; name: string; avatar?: string; age: number }) => {
+    setEditingMember(member);
+    setEditMemberAvatar(member.avatar || "");
+    setEditMemberAge(member.age.toString());
+    setShowEditMemberModal(true);
+  };
+
+  const handleSaveEditedMember = async () => {
+    if (!editingMember) return;
+    
+    const age = parseInt(editMemberAge);
+    if (isNaN(age) || age <= 0) {
+      Alert.alert("Error", "Please enter a valid age");
+      return;
+    }
+
+    setSavingMember(true);
+    
+    const { error } = await updateMemberProfile(editingMember.id, {
+      avatar: editMemberAvatar || undefined,
+      age: age,
+    });
+
+    if (error) {
+      Alert.alert("Error", error.message);
+      setSavingMember(false);
+      return;
+    }
+
+    setSavingMember(false);
+    setShowEditMemberModal(false);
+    setEditingMember(null);
+    setEditMemberAvatar("");
+    setEditMemberAge("");
+  };
+
   // Find current user member for edit button - use the flexible matching function
   const currentUserMember = findCurrentUserMember();
 
@@ -538,9 +588,13 @@ export default function SetupScreen() {
                   data-testid={`button-member-${kid.id}`}
                 >
                   <View style={styles.memberAvatar}>
-                    <Text style={styles.memberInitial}>
-                      {kid.name.charAt(0).toUpperCase()}
-                    </Text>
+                    {kid.avatar ? (
+                      <Text style={styles.memberAvatarEmoji}>{kid.avatar}</Text>
+                    ) : (
+                      <Text style={styles.memberInitial}>
+                        {kid.name.charAt(0).toUpperCase()}
+                      </Text>
+                    )}
                   </View>
                   <View style={styles.memberInfo}>
                     <Text style={styles.memberName}>{kid.name}</Text>
@@ -580,13 +634,22 @@ export default function SetupScreen() {
                   </View>
                 </TouchableOpacity>
                 {isOwner && (
-                  <TouchableOpacity
-                    style={styles.removeButton}
-                    onPress={() => handleRemoveParticipant(kid.id, kid.name, kid.profileId, kid.passcode)}
-                    data-testid={`button-remove-${kid.id}`}
-                  >
-                    <Ionicons name="close-circle" size={20} color={colors.error} />
-                  </TouchableOpacity>
+                  <View style={styles.memberActions}>
+                    <TouchableOpacity
+                      style={styles.editMemberButton}
+                      onPress={() => handleOpenEditMember({ id: kid.id, name: kid.name, avatar: kid.avatar, age: kid.age })}
+                      data-testid={`button-edit-${kid.id}`}
+                    >
+                      <Ionicons name="pencil" size={16} color={colors.primary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.removeButton}
+                      onPress={() => handleRemoveParticipant(kid.id, kid.name, kid.profileId, kid.passcode)}
+                      data-testid={`button-remove-${kid.id}`}
+                    >
+                      <Ionicons name="close-circle" size={20} color={colors.error} />
+                    </TouchableOpacity>
+                  </View>
                 )}
               </View>
             ))}
@@ -607,18 +670,31 @@ export default function SetupScreen() {
                     data-testid={`button-member-${guardian.id}`}
                   >
                     <View style={[styles.memberAvatar, styles.guardianAvatar]}>
-                      <Text style={styles.memberInitial}>
-                        {guardian.name.charAt(0).toUpperCase()}
-                      </Text>
+                      {guardian.avatar ? (
+                        <Text style={styles.memberAvatarEmoji}>{guardian.avatar}</Text>
+                      ) : (
+                        <Text style={styles.memberInitial}>
+                          {guardian.name.charAt(0).toUpperCase()}
+                        </Text>
+                      )}
                     </View>
                     <View style={styles.memberInfo}>
                       <Text style={styles.memberName}>{guardian.name}</Text>
                       <Text style={styles.memberAge}>
-                        Guardian{isCurrentUser ? " (You)" : ""}
+                        Guardian{guardian.age ? `, Age ${guardian.age}` : ""}{isCurrentUser ? " (You)" : ""}
                       </Text>
                     </View>
                   </TouchableOpacity>
-                  {isCurrentUser && (
+                  {isOwner && (
+                    <TouchableOpacity
+                      style={styles.editMemberButton}
+                      onPress={() => handleOpenEditMember({ id: guardian.id, name: guardian.name, avatar: guardian.avatar, age: guardian.age })}
+                      data-testid={`button-edit-${guardian.id}`}
+                    >
+                      <Ionicons name="pencil" size={16} color={colors.primary} />
+                    </TouchableOpacity>
+                  )}
+                  {isCurrentUser && !isOwner && (
                     <TouchableOpacity
                       style={styles.editNameButton}
                       onPress={handleOpenEditName}
@@ -1071,6 +1147,92 @@ export default function SetupScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
+      <Modal visible={showEditMemberModal} animationType="slide" transparent>
+        <KeyboardAvoidingView 
+          style={styles.modalOverlay}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Edit {editingMember?.name}</Text>
+              <TouchableOpacity onPress={() => {
+                setShowEditMemberModal(false);
+                setEditingMember(null);
+              }}>
+                <Ionicons name="close" size={28} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Avatar Emoji</Text>
+              <View style={styles.currentAvatarRow}>
+                <View style={styles.avatarPreview}>
+                  {editMemberAvatar ? (
+                    <Text style={styles.avatarPreviewEmoji}>{editMemberAvatar}</Text>
+                  ) : (
+                    <Text style={styles.avatarPreviewInitial}>
+                      {editingMember?.name.charAt(0).toUpperCase() || "?"}
+                    </Text>
+                  )}
+                </View>
+                {editMemberAvatar && (
+                  <TouchableOpacity 
+                    style={styles.clearAvatarButton}
+                    onPress={() => setEditMemberAvatar("")}
+                  >
+                    <Ionicons name="close-circle" size={20} color={colors.error} />
+                    <Text style={styles.clearAvatarText}>Clear</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.emojiScroll}>
+                <View style={styles.emojiGrid}>
+                  {emojiOptions.map((emoji) => (
+                    <TouchableOpacity
+                      key={emoji}
+                      style={[
+                        styles.emojiOption,
+                        editMemberAvatar === emoji && styles.emojiOptionSelected
+                      ]}
+                      onPress={() => setEditMemberAvatar(emoji)}
+                    >
+                      <Text style={styles.emojiOptionText}>{emoji}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Age</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="Enter age"
+                placeholderTextColor={colors.textMuted}
+                value={editMemberAge}
+                onChangeText={setEditMemberAge}
+                keyboardType="number-pad"
+                data-testid="input-edit-age"
+              />
+            </View>
+
+            <TouchableOpacity
+              style={[
+                styles.confirmButton,
+                savingMember && styles.confirmButtonDisabled,
+              ]}
+              onPress={handleSaveEditedMember}
+              disabled={savingMember}
+              data-testid="button-save-member"
+            >
+              <Text style={styles.confirmButtonText}>
+                {savingMember ? "Saving..." : "Save Changes"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
       <Modal visible={showRemoveModal} animationType="slide" transparent>
         <KeyboardAvoidingView 
           style={styles.modalOverlay}
@@ -1266,6 +1428,9 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#FFFFFF",
   },
+  memberAvatarEmoji: {
+    fontSize: 28,
+  },
   memberInfo: {
     flex: 1,
   },
@@ -1297,6 +1462,80 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginLeft: spacing.sm,
+  },
+  memberActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  editMemberButton: {
+    width: 32,
+    height: 32,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.surfaceSecondary,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  currentAvatarRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    marginBottom: spacing.md,
+  },
+  avatarPreview: {
+    width: 64,
+    height: 64,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 3,
+    borderColor: colors.primaryLight,
+  },
+  avatarPreviewEmoji: {
+    fontSize: 32,
+  },
+  avatarPreviewInitial: {
+    fontSize: 28,
+    fontWeight: "600",
+    color: "#FFFFFF",
+  },
+  clearAvatarButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+  },
+  clearAvatarText: {
+    fontSize: fontSize.sm,
+    color: colors.error,
+  },
+  emojiScroll: {
+    maxHeight: 120,
+  },
+  emojiGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+  },
+  emojiOption: {
+    width: 44,
+    height: 44,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.surface,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  emojiOptionSelected: {
+    backgroundColor: colors.primaryLight,
+    borderColor: colors.primary,
+  },
+  emojiOptionText: {
+    fontSize: 24,
   },
   memberStars: {
     flexDirection: "row",
