@@ -54,9 +54,10 @@ Preferred communication style: Simple, everyday language.
 
 ### Family Day Dashboard (Today Page)
 - Located in `app/(tabs)/today.tsx`, provides a personalized greeting.
-- **Weather Service**: Uses Open-Meteo API for 30-minute cached weather, severe weather detection, outdoor play safety, and "what to wear" suggestions.
-- **Prayer Service**: Uses AlAdhan API for 6-hour cached prayer times, countdowns, and urgency indicators.
-- **Dashboard Cards**: Displays `SevereWeatherBanner`, `PrayerCountdownCard`, `WeatherCard`, `WhatToWearCard`, and `TodayTasksSummary`.
+- **Location Service** (`lib/locationService.ts`): Uses expo-location for device GPS, requests foreground permissions on first use, 1-hour caching, reverse geocoding to display city name. Falls back to San Francisco if permission denied.
+- **Weather Service**: Uses Open-Meteo API for 30-minute cached weather, severe weather detection, outdoor play safety, and "what to wear" suggestions. Uses user's actual GPS location.
+- **Prayer Service**: Uses AlAdhan API for 6-hour cached prayer times, countdowns, and urgency indicators. Uses user's actual GPS location.
+- **Dashboard Cards**: Displays location badge with city name, `SevereWeatherBanner`, `PrayerCountdownCard`, `WeatherCard`, `WhatToWearCard`, and `TodayTasksSummary`.
 - **Deep-link Navigation**: Tasks summary links to the Tasks page with pre-applied filters.
 
 ### Enhanced Tasks Page

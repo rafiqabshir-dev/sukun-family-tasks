@@ -5,6 +5,7 @@ import { colors, spacing, borderRadius, fontSize } from "@/lib/theme";
 import { router } from "expo-router";
 import { WeatherData, getWeather, canPlayOutside, getWearSuggestions, WearSuggestion } from "@/lib/weatherService";
 import { PrayerTimes, CurrentPrayer, getPrayerTimes, getCurrentPrayer, formatMinutesRemaining } from "@/lib/prayerService";
+import { getCurrentLocation, UserLocation } from "@/lib/locationService";
 import { TaskInstance, TaskTemplate, Member } from "@/lib/types";
 import { isToday, isBefore, startOfDay } from "date-fns";
 
@@ -14,8 +15,6 @@ interface DashboardCardsProps {
   members: Member[];
   currentTime: Date;
 }
-
-const DEFAULT_LOCATION = { lat: 37.7749, lng: -122.4194 }; // San Francisco default
 
 export function SevereWeatherBanner({ weather }: { weather: WeatherData | null }) {
   if (!weather?.isSevere) return null;
@@ -33,19 +32,20 @@ export function SevereWeatherBanner({ weather }: { weather: WeatherData | null }
   );
 }
 
-export function PrayerCountdownCard({ currentTime }: { currentTime: Date }) {
+export function PrayerCountdownCard({ currentTime, location }: { currentTime: Date; location: UserLocation | null }) {
   const [prayerTimes, setPrayerTimes] = useState<PrayerTimes | null>(null);
   const [currentPrayer, setCurrentPrayer] = useState<CurrentPrayer | null>(null);
 
   useEffect(() => {
+    if (!location) return;
     const loadPrayerTimes = async () => {
-      const times = await getPrayerTimes(DEFAULT_LOCATION.lat, DEFAULT_LOCATION.lng);
+      const times = await getPrayerTimes(location.latitude, location.longitude);
       if (times) {
         setPrayerTimes(times);
       }
     };
     loadPrayerTimes();
-  }, []);
+  }, [location]);
 
   useEffect(() => {
     if (prayerTimes) {
@@ -271,19 +271,42 @@ export function TodayTasksSummary({ taskInstances, taskTemplates, members }: Omi
 
 export function DashboardCards({ taskInstances, taskTemplates, members, currentTime }: DashboardCardsProps) {
   const [weather, setWeather] = useState<WeatherData | null>(null);
+  const [location, setLocation] = useState<UserLocation | null>(null);
+  const [locationLoading, setLocationLoading] = useState(true);
 
   useEffect(() => {
+    const loadLocation = async () => {
+      try {
+        const userLocation = await getCurrentLocation();
+        setLocation(userLocation);
+      } catch (error) {
+        console.log('[Dashboard] Failed to get location:', error);
+      } finally {
+        setLocationLoading(false);
+      }
+    };
+    loadLocation();
+  }, []);
+
+  useEffect(() => {
+    if (!location) return;
     const loadWeather = async () => {
-      const data = await getWeather(DEFAULT_LOCATION.lat, DEFAULT_LOCATION.lng);
+      const data = await getWeather(location.latitude, location.longitude);
       setWeather(data);
     };
     loadWeather();
-  }, []);
+  }, [location]);
 
   return (
     <View style={styles.dashboardContainer}>
+      {location?.city && (
+        <View style={styles.locationBadge}>
+          <Ionicons name="location" size={14} color={colors.primary} />
+          <Text style={styles.locationText}>{location.city}</Text>
+        </View>
+      )}
       <SevereWeatherBanner weather={weather} />
-      <PrayerCountdownCard currentTime={currentTime} />
+      <PrayerCountdownCard currentTime={currentTime} location={location} />
       <WeatherCard weather={weather} />
       <WhatToWearCard weather={weather} />
       <TodayTasksSummary 
@@ -298,7 +321,21 @@ export function DashboardCards({ taskInstances, taskTemplates, members, currentT
 const styles = StyleSheet.create({
   dashboardContainer: {
     gap: spacing.md,
-    marginBottom: spacing.lg,
+  },
+  locationBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    alignSelf: "flex-start",
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    backgroundColor: colors.primaryLight,
+    borderRadius: borderRadius.full,
+  },
+  locationText: {
+    fontSize: fontSize.sm,
+    color: colors.primary,
+    fontWeight: "500",
   },
   severeBanner: {
     backgroundColor: colors.error,
