@@ -121,6 +121,7 @@ export default function TasksScreen() {
   
   const [expandedCategories, setExpandedCategories] = useState<Set<TaskCategory>>(new Set());
   const [expandedMembers, setExpandedMembers] = useState<Set<string>>(new Set(members.map(m => m.id)));
+  const [isClearingOverdue, setIsClearingOverdue] = useState(false);
   
   const toggleCategoryExpanded = (category: TaskCategory) => {
     setExpandedCategories((prev) => {
@@ -271,6 +272,51 @@ export default function TasksScreen() {
     
     return { today: todayCount, overdue: overdueCount, all: activeInstances.length };
   }, [activeInstances]);
+
+  // Get overdue task instances for clear button
+  const overdueTasks = useMemo(() => {
+    return activeInstances.filter(instance => {
+      const status = getTaskDueStatus(instance);
+      return status === "overdue";
+    });
+  }, [activeInstances]);
+
+  // Handle clearing all overdue tasks (marks as done without awarding stars)
+  const handleClearAllOverdueTasks = async () => {
+    if (!isGuardian || overdueTasks.length === 0) return;
+    
+    Alert.alert(
+      "Clear All Overdue Tasks",
+      `This will mark ${overdueTasks.length} overdue task${overdueTasks.length > 1 ? 's' : ''} as done WITHOUT awarding stars. This action cannot be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Clear All",
+          style: "destructive",
+          onPress: async () => {
+            setIsClearingOverdue(true);
+            try {
+              for (const task of overdueTasks) {
+                if (isSupabaseConfigured()) {
+                  await updateCloudTaskInstance(task.id, { 
+                    status: "done", 
+                    completedAt: new Date().toISOString() 
+                  });
+                }
+                completeTask(task.id, false);
+              }
+              await refreshProfile();
+            } catch (error) {
+              console.error("[Tasks] Error clearing overdue tasks:", error);
+              Alert.alert("Error", "Failed to clear some tasks. Please try again.");
+            } finally {
+              setIsClearingOverdue(false);
+            }
+          }
+        }
+      ]
+    );
+  };
 
   const handleAddTask = () => {
     if (!newTitle.trim()) return;
@@ -713,6 +759,23 @@ export default function TasksScreen() {
           )}
         </TouchableOpacity>
       </View>
+
+      {/* Clear All Overdue Button - Guardians Only */}
+      {isGuardian && overdueTasks.length > 0 && (
+        <TouchableOpacity
+          style={styles.clearAllOverdueButton}
+          onPress={handleClearAllOverdueTasks}
+          disabled={isClearingOverdue}
+          data-testid="button-clear-all-overdue"
+        >
+          <Ionicons name="trash-outline" size={18} color={colors.error} />
+          <Text style={styles.clearAllOverdueText}>
+            {isClearingOverdue 
+              ? "Clearing..." 
+              : `Clear All ${overdueTasks.length} Overdue Task${overdueTasks.length > 1 ? 's' : ''}`}
+          </Text>
+        </TouchableOpacity>
+      )}
 
       {/* Members with their tasks */}
       {members.map((member) => {
@@ -1218,6 +1281,24 @@ const styles = StyleSheet.create({
   filterBadgeTextOverdue: {
     color: "#FFFFFF",
     fontSize: 10,
+    fontWeight: "600",
+  },
+  clearAllOverdueButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.xs,
+    backgroundColor: colors.errorLight,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.md,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.error,
+  },
+  clearAllOverdueText: {
+    color: colors.error,
+    fontSize: fontSize.sm,
     fontWeight: "600",
   },
   categoryGroup: {
