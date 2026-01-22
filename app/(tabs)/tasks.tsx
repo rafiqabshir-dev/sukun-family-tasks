@@ -16,6 +16,26 @@ const CATEGORY_ICONS: Record<TaskCategory, string> = {
   personal: "person",
 };
 
+const CATEGORY_LABELS: Record<TaskCategory, string> = {
+  cleaning: "Cleaning",
+  kitchen: "Kitchen",
+  learning: "Learning",
+  kindness: "Kindness",
+  prayer: "Prayer",
+  outdoor: "Outdoor",
+  personal: "Personal",
+};
+
+const CATEGORY_ORDER: TaskCategory[] = [
+  "cleaning",
+  "kitchen", 
+  "learning",
+  "kindness",
+  "prayer",
+  "outdoor",
+  "personal",
+];
+
 const SCHEDULE_TYPE_INFO: Record<TaskScheduleType, { label: string; icon: string; description: string }> = {
   one_time: { label: "One-Time", icon: "checkbox-outline", description: "Complete once" },
   recurring_daily: { label: "Daily", icon: "refresh", description: "Repeats each day" },
@@ -46,9 +66,54 @@ export default function TasksScreen() {
   const [newScheduleType, setNewScheduleType] = useState<TaskScheduleType>("one_time");
   const [newTimeWindow, setNewTimeWindow] = useState(15);
 
-  const enabledTasks = taskTemplates.filter((t) => t.enabled && !t.isArchived);
+  const activeTasks = taskTemplates.filter((t) => !t.isArchived);
   const archivedTasks = taskTemplates.filter((t) => t.isArchived);
-  const disabledTasks = taskTemplates.filter((t) => !t.enabled && !t.isArchived);
+  const enabledTasks = activeTasks.filter((t) => t.enabled);
+  const disabledTasks = activeTasks.filter((t) => !t.enabled);
+
+  // Group tasks by category
+  const groupTasksByCategory = (tasks: TaskTemplate[]) => {
+    const groups: Record<TaskCategory, TaskTemplate[]> = {
+      cleaning: [],
+      kitchen: [],
+      learning: [],
+      kindness: [],
+      prayer: [],
+      outdoor: [],
+      personal: [],
+    };
+    
+    tasks.forEach((task) => {
+      groups[task.category].push(task);
+    });
+    
+    return groups;
+  };
+
+  const taskGroups = groupTasksByCategory(activeTasks);
+
+  // Toggle all tasks in a category
+  const toggleCategoryTasks = (category: TaskCategory, enabled: boolean) => {
+    const tasksInCategory = taskGroups[category];
+    tasksInCategory.forEach((task) => {
+      if (task.enabled !== enabled) {
+        toggleTaskTemplate(task.id);
+      }
+    });
+  };
+
+  // Check if all tasks in category are enabled
+  const isCategoryFullyEnabled = (category: TaskCategory) => {
+    const tasks = taskGroups[category];
+    return tasks.length > 0 && tasks.every((t) => t.enabled);
+  };
+
+  // Check if some (but not all) tasks in category are enabled
+  const isCategoryPartiallyEnabled = (category: TaskCategory) => {
+    const tasks = taskGroups[category];
+    const enabledCount = tasks.filter((t) => t.enabled).length;
+    return enabledCount > 0 && enabledCount < tasks.length;
+  };
 
   const handleAddTask = () => {
     if (!newTitle.trim()) return;
@@ -207,23 +272,59 @@ export default function TasksScreen() {
         )}
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Active Tasks ({enabledTasks.length})</Text>
-          {enabledTasks.length === 0 ? (
+          <Text style={styles.sectionTitle}>Tasks ({activeTasks.length})</Text>
+          {activeTasks.length === 0 ? (
             <View style={styles.emptyState}>
               <Ionicons name="list-outline" size={48} color={colors.textMuted} />
-              <Text style={styles.emptyText}>No active tasks. Add one above!</Text>
+              <Text style={styles.emptyText}>No tasks. Add one above!</Text>
             </View>
           ) : (
-            enabledTasks.map((task) => renderTaskItem(task))
+            CATEGORY_ORDER.map((category) => {
+              const tasksInCategory = taskGroups[category];
+              if (tasksInCategory.length === 0) return null;
+              
+              const isFullyEnabled = isCategoryFullyEnabled(category);
+              const isPartiallyEnabled = isCategoryPartiallyEnabled(category);
+              const enabledCount = tasksInCategory.filter((t) => t.enabled).length;
+              
+              return (
+                <View key={category} style={styles.categoryGroup}>
+                  <View style={styles.categoryHeader}>
+                    {isGuardian ? (
+                      <TouchableOpacity
+                        style={styles.categoryToggle}
+                        onPress={() => toggleCategoryTasks(category, !isFullyEnabled)}
+                        data-testid={`toggle-category-${category}`}
+                      >
+                        <Ionicons
+                          name={isFullyEnabled ? "checkbox" : isPartiallyEnabled ? "remove-circle" : "square-outline"}
+                          size={22}
+                          color={isFullyEnabled ? colors.primary : isPartiallyEnabled ? colors.primaryLight : colors.textMuted}
+                        />
+                      </TouchableOpacity>
+                    ) : (
+                      <View style={styles.categoryToggle}>
+                        <Ionicons
+                          name={isFullyEnabled ? "checkbox" : isPartiallyEnabled ? "remove-circle" : "square-outline"}
+                          size={22}
+                          color={isFullyEnabled ? colors.primary : isPartiallyEnabled ? colors.primaryLight : colors.textMuted}
+                        />
+                      </View>
+                    )}
+                    <Ionicons name={CATEGORY_ICONS[category] as any} size={18} color={colors.primary} />
+                    <Text style={styles.categoryTitle}>{CATEGORY_LABELS[category]}</Text>
+                    <Text style={styles.categoryCount}>
+                      {enabledCount}/{tasksInCategory.length}
+                    </Text>
+                  </View>
+                  <View style={styles.categoryTasks}>
+                    {tasksInCategory.map((task) => renderTaskItem(task))}
+                  </View>
+                </View>
+              );
+            })
           )}
         </View>
-
-        {showTemplates && disabledTasks.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Disabled Templates ({disabledTasks.length})</Text>
-            {disabledTasks.map((task) => renderTaskItem(task))}
-          </View>
-        )}
 
         {archivedTasks.length > 0 && (
           <TouchableOpacity 
@@ -579,6 +680,36 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: colors.text,
     marginBottom: spacing.md,
+  },
+  categoryGroup: {
+    marginBottom: spacing.lg,
+  },
+  categoryHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.xs,
+    backgroundColor: colors.surfaceSecondary,
+    borderRadius: borderRadius.sm,
+    marginBottom: spacing.sm,
+    gap: spacing.sm,
+  },
+  categoryToggle: {
+    marginRight: spacing.xs,
+  },
+  categoryTitle: {
+    flex: 1,
+    fontSize: fontSize.md,
+    fontWeight: "600",
+    color: colors.text,
+  },
+  categoryCount: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    fontWeight: "500",
+  },
+  categoryTasks: {
+    paddingLeft: spacing.sm,
   },
   taskItem: {
     flexDirection: "row",
