@@ -243,11 +243,12 @@ export function FamilyWheel({
                         >
                           {segment.avatar}
                         </SvgText>
-                        {/* Curved name along arc */}
+                        {/* Curved name along arc - offset inward */}
                         <SvgText
                           fill="#5D4037"
                           fontSize={baseFontSize}
                           fontWeight="bold"
+                          dy={pos.isFlipped ? -4 : 12}
                         >
                           <TextPath
                             href={`#textarc-${index}`}
@@ -274,11 +275,12 @@ export function FamilyWheel({
                         >
                           {segment.value}
                         </SvgText>
-                        {/* Curved name along arc */}
+                        {/* Curved name along arc - offset inward */}
                         <SvgText
                           fill="#5D4037"
                           fontSize={baseFontSize - 2}
                           fontWeight="bold"
+                          dy={pos.isFlipped ? -4 : 12}
                         >
                           <TextPath
                             href={`#textarc-${index}`}
@@ -294,6 +296,7 @@ export function FamilyWheel({
                         fill="#5D4037"
                         fontSize={baseFontSize}
                         fontWeight="bold"
+                        dy={pos.isFlipped ? -4 : 12}
                       >
                         <TextPath
                           href={`#textarc-${index}`}
