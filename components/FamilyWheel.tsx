@@ -95,12 +95,26 @@ export function FamilyWheel({
     const angle = 360 / total;
     const midAngle = index * angle + angle / 2 - 90;
     const midRad = (midAngle * Math.PI) / 180;
-    const textRadius = radius * 0.6;
+    const textRadius = radius * 0.52; // Move inward for better centering
+    
+    // Base tangential rotation
+    let rotation = midAngle + 90;
+    
+    // Check if segment is in bottom half (between 90° and 270° in standard coords)
+    // This corresponds to midAngle between 0° and 180° (after -90 offset)
+    const normalizedAngle = ((midAngle + 90) % 360 + 360) % 360;
+    const isBottomHalf = normalizedAngle > 90 && normalizedAngle < 270;
+    
+    // Flip text 180° if in bottom half so it reads upright
+    if (isBottomHalf) {
+      rotation += 180;
+    }
     
     return {
       x: centerX + textRadius * Math.cos(midRad),
       y: centerY + textRadius * Math.sin(midRad),
-      rotation: midAngle + 90,
+      rotation,
+      isFlipped: isBottomHalf,
     };
   };
 
@@ -161,35 +175,44 @@ export function FamilyWheel({
               {segments.map((segment, index) => {
                 const pos = getTextPosition(index, segments.length);
                 const hasAvatar = !!segment.avatar;
-                const displayLabel = segment.label.length > 8 
-                  ? segment.label.substring(0, 7) + "…" 
+                
+                // Dynamic truncation based on segment count
+                const maxLen = segments.length > 6 ? 6 : segments.length > 4 ? 8 : 10;
+                const displayLabel = segment.label.length > maxLen 
+                  ? segment.label.substring(0, maxLen - 1) + "…" 
                   : segment.label;
-                const baseFontSize = segments.length > 6 ? 12 : 14;
+                const baseFontSize = segments.length > 6 ? 11 : segments.length > 4 ? 13 : 14;
+                
+                // When flipped (bottom half), reverse the stack order
+                // Avatar on top, name below when reading upright
+                const avatarOffset = pos.isFlipped ? 10 : -10;
+                const nameOffset = pos.isFlipped ? -8 : 8;
                 
                 return (
-                  <G key={`content-${segment.id}`}>
+                  <G 
+                    key={`content-${segment.id}`}
+                    transform={`rotate(${pos.rotation}, ${pos.x}, ${pos.y})`}
+                  >
                     {hasAvatar ? (
                       <>
                         <SvgText
                           x={pos.x}
-                          y={pos.y - 8}
+                          y={pos.y + avatarOffset}
                           fill="#5D4037"
-                          fontSize={baseFontSize + 8}
+                          fontSize={baseFontSize + 6}
                           textAnchor="middle"
                           alignmentBaseline="middle"
-                          transform={`rotate(${pos.rotation}, ${pos.x}, ${pos.y - 8})`}
                         >
                           {segment.avatar}
                         </SvgText>
                         <SvgText
                           x={pos.x}
-                          y={pos.y + 10}
+                          y={pos.y + nameOffset}
                           fill="#5D4037"
-                          fontSize={baseFontSize - 2}
+                          fontSize={baseFontSize - 1}
                           fontWeight="bold"
                           textAnchor="middle"
                           alignmentBaseline="middle"
-                          transform={`rotate(${pos.rotation}, ${pos.x}, ${pos.y + 10})`}
                         >
                           {displayLabel}
                         </SvgText>
@@ -198,13 +221,12 @@ export function FamilyWheel({
                       <>
                         <SvgText
                           x={pos.x}
-                          y={pos.y - 4}
+                          y={pos.y + (pos.isFlipped ? 8 : -8)}
                           fill="#FFD700"
-                          fontSize={baseFontSize + 12}
+                          fontSize={baseFontSize + 10}
                           fontWeight="bold"
                           textAnchor="middle"
                           alignmentBaseline="middle"
-                          transform={`rotate(${pos.rotation}, ${pos.x}, ${pos.y - 4})`}
                           stroke="#5D4037"
                           strokeWidth={1}
                         >
@@ -212,13 +234,12 @@ export function FamilyWheel({
                         </SvgText>
                         <SvgText
                           x={pos.x}
-                          y={pos.y + 14}
+                          y={pos.y + (pos.isFlipped ? -10 : 10)}
                           fill="#5D4037"
-                          fontSize={baseFontSize - 4}
+                          fontSize={baseFontSize - 3}
                           fontWeight="bold"
                           textAnchor="middle"
                           alignmentBaseline="middle"
-                          transform={`rotate(${pos.rotation}, ${pos.x}, ${pos.y + 14})`}
                         >
                           {displayLabel}
                         </SvgText>
@@ -232,7 +253,6 @@ export function FamilyWheel({
                         fontWeight="bold"
                         textAnchor="middle"
                         alignmentBaseline="middle"
-                        transform={`rotate(${pos.rotation}, ${pos.x}, ${pos.y})`}
                       >
                         {displayLabel}
                       </SvgText>
