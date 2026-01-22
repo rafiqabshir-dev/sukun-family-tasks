@@ -218,6 +218,51 @@ export function TodayTasksSummary({ taskInstances, taskTemplates, members }: Omi
 
   const isEmpty = taskStats.dueToday === 0 && taskStats.overdue === 0;
 
+  // Generate smart, context-aware tip based on time and task status
+  const getSmartTip = (): string | null => {
+    const hour = new Date().getHours();
+    const hasOverdue = taskStats.overdue > 0;
+    const hasDueTasks = taskStats.dueToday > 0;
+    
+    // Priority: Address overdue tasks first
+    if (hasOverdue) {
+      if (hour < 12) {
+        return "Start the day by tackling overdue tasks first";
+      } else if (hour < 17) {
+        return "Clear overdue tasks before the day winds down";
+      } else {
+        return "Try to complete overdue tasks before bedtime";
+      }
+    }
+    
+    // Time-based tips when tasks are due
+    if (hasDueTasks) {
+      if (hour >= 5 && hour < 9) {
+        // Early morning
+        return "Great time for morning chores before school";
+      } else if (hour >= 9 && hour < 12) {
+        // Morning
+        return "Complete tasks before lunch for a productive day";
+      } else if (hour >= 12 && hour < 14) {
+        // Midday
+        return "Finish up any tasks before afternoon activities";
+      } else if (hour >= 14 && hour < 17) {
+        // Afternoon
+        return "Wrap up tasks before dinner time";
+      } else if (hour >= 17 && hour < 20) {
+        // Evening
+        return "Evening is a good time for quick household tasks";
+      } else {
+        // Night
+        return "Remember to check off completed tasks";
+      }
+    }
+    
+    return null;
+  };
+
+  const smartTip = getSmartTip();
+
   return (
     <TouchableOpacity 
       style={styles.card} 
@@ -264,9 +309,11 @@ export function TodayTasksSummary({ taskInstances, taskTemplates, members }: Omi
             </View>
           )}
 
-          <Text style={styles.taskTip}>
-            Tip: Have the kids tidy up before dinner
-          </Text>
+          {smartTip && (
+            <Text style={styles.taskTip}>
+              Tip: {smartTip}
+            </Text>
+          )}
         </View>
       )}
 
