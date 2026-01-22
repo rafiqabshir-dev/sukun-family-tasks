@@ -1039,17 +1039,6 @@ export default function TodayScreen() {
           </View>
         )}
 
-        {pendingApprovalTasks.length === 0 && (
-          <View style={styles.emptyState}>
-            <Ionicons name="sunny-outline" size={64} color={colors.primary} />
-            <Text style={styles.emptyTitle}>All Clear!</Text>
-            <Text style={styles.emptyText}>
-              {isCurrentUserGuardian
-                ? "Assign tasks to family members using the button above."
-                : "No tasks right now. Great job!"}
-            </Text>
-          </View>
-        )}
       </ScrollView>
 
       <Modal visible={showAssignModal} animationType="slide" transparent>

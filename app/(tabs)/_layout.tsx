@@ -488,16 +488,16 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   headerAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: "rgba(255, 255, 255, 0.25)",
     justifyContent: "center",
     alignItems: "center",
     marginRight: spacing.md,
   },
   headerAvatarEmoji: {
-    fontSize: 18,
+    fontSize: 22,
   },
   headerAvatarInitial: {
     color: "#FFFFFF",
@@ -572,7 +572,7 @@ const styles = StyleSheet.create({
   dropdownStarsCount: {
     fontSize: fontSize.xl,
     fontWeight: "700",
-    color: colors.secondary,
+    color: "#92400E",
   },
   dropdownStarsLabel: {
     fontSize: fontSize.sm,
