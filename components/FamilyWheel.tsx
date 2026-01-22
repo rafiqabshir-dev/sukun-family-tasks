@@ -176,17 +176,19 @@ export function FamilyWheel({
                 const pos = getTextPosition(index, segments.length);
                 const hasAvatar = !!segment.avatar;
                 
-                // Dynamic truncation based on segment count
-                const maxLen = segments.length > 6 ? 6 : segments.length > 4 ? 8 : 10;
-                const displayLabel = segment.label.length > maxLen 
-                  ? segment.label.substring(0, maxLen - 1) + "…" 
-                  : segment.label;
-                const baseFontSize = segments.length > 6 ? 11 : segments.length > 4 ? 13 : 14;
+                // Abbreviate to first name only, with length limit
+                const firstName = segment.label.split(' ')[0];
+                const maxLen = segments.length > 6 ? 5 : segments.length > 4 ? 7 : 8;
+                const displayLabel = firstName.length > maxLen 
+                  ? firstName.substring(0, maxLen - 1) + "…" 
+                  : firstName;
+                const baseFontSize = segments.length > 6 ? 10 : segments.length > 4 ? 11 : 12;
                 
                 // When flipped (bottom half), reverse the stack order
                 // Avatar on top, name below when reading upright
-                const avatarOffset = pos.isFlipped ? 10 : -10;
-                const nameOffset = pos.isFlipped ? -8 : 8;
+                // Larger avatar offset for bigger emoji
+                const avatarOffset = pos.isFlipped ? 14 : -14;
+                const nameOffset = pos.isFlipped ? -10 : 12;
                 
                 return (
                   <G 
@@ -199,7 +201,7 @@ export function FamilyWheel({
                           x={pos.x}
                           y={pos.y + avatarOffset}
                           fill="#5D4037"
-                          fontSize={baseFontSize + 6}
+                          fontSize={baseFontSize + 14}
                           textAnchor="middle"
                           alignmentBaseline="middle"
                         >
@@ -209,7 +211,7 @@ export function FamilyWheel({
                           x={pos.x}
                           y={pos.y + nameOffset}
                           fill="#5D4037"
-                          fontSize={baseFontSize - 1}
+                          fontSize={baseFontSize}
                           fontWeight="bold"
                           textAnchor="middle"
                           alignmentBaseline="middle"
