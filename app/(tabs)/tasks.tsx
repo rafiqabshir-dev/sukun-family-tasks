@@ -65,6 +65,21 @@ export default function TasksScreen() {
   const [newCategory, setNewCategory] = useState<TaskCategory>("personal");
   const [newScheduleType, setNewScheduleType] = useState<TaskScheduleType>("one_time");
   const [newTimeWindow, setNewTimeWindow] = useState(15);
+  
+  // Track expanded categories (all collapsed by default)
+  const [expandedCategories, setExpandedCategories] = useState<Set<TaskCategory>>(new Set());
+  
+  const toggleCategoryExpanded = (category: TaskCategory) => {
+    setExpandedCategories((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(category)) {
+        newSet.delete(category);
+      } else {
+        newSet.add(category);
+      }
+      return newSet;
+    });
+  };
 
   const activeTasks = taskTemplates.filter((t) => !t.isArchived);
   const archivedTasks = taskTemplates.filter((t) => t.isArchived);
@@ -287,13 +302,28 @@ export default function TasksScreen() {
               const isPartiallyEnabled = isCategoryPartiallyEnabled(category);
               const enabledCount = tasksInCategory.filter((t) => t.enabled).length;
               
+              const isExpanded = expandedCategories.has(category);
+              
               return (
                 <View key={category} style={styles.categoryGroup}>
-                  <View style={styles.categoryHeader}>
+                  <TouchableOpacity 
+                    style={styles.categoryHeader}
+                    onPress={() => toggleCategoryExpanded(category)}
+                    activeOpacity={0.7}
+                    data-testid={`expand-category-${category}`}
+                  >
+                    <Ionicons
+                      name={isExpanded ? "chevron-down" : "chevron-forward"}
+                      size={20}
+                      color={colors.textSecondary}
+                    />
                     {isGuardian ? (
                       <TouchableOpacity
                         style={styles.categoryToggle}
-                        onPress={() => toggleCategoryTasks(category, !isFullyEnabled)}
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          toggleCategoryTasks(category, !isFullyEnabled);
+                        }}
                         data-testid={`toggle-category-${category}`}
                       >
                         <Ionicons
@@ -316,10 +346,12 @@ export default function TasksScreen() {
                     <Text style={styles.categoryCount}>
                       {enabledCount}/{tasksInCategory.length}
                     </Text>
-                  </View>
-                  <View style={styles.categoryTasks}>
-                    {tasksInCategory.map((task) => renderTaskItem(task))}
-                  </View>
+                  </TouchableOpacity>
+                  {isExpanded && (
+                    <View style={styles.categoryTasks}>
+                      {tasksInCategory.map((task) => renderTaskItem(task))}
+                    </View>
+                  )}
                 </View>
               );
             })
