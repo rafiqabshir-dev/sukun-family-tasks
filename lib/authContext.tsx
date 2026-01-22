@@ -192,6 +192,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     })),
                     profileId: p.id,
                     passcode: p.passcode || undefined,
+                    avatar: p.avatar || undefined,
                   }));
                   
                   // Replace members entirely from cloud - no local merging
