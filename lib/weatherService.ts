@@ -84,33 +84,59 @@ export async function getWeather(latitude: number, longitude: number): Promise<W
     const weatherCode = current.weather_code || 0;
     const weatherInfo = WEATHER_CODE_MAP[weatherCode] || WEATHER_CODE_MAP[0];
     
+    const temp = Math.round(current.temperature_2m);
+    const windSpeed = Math.round(current.wind_speed_10m);
+    
+    // Detect extreme conditions
+    const isExtremeCold = temp <= 20; // 20°F or below
+    const isVeryCold = temp <= 32; // Freezing
+    const isExtremeHeat = temp >= 95;
+    const isHighWind = windSpeed > 25;
+    const hasWeatherSevere = weatherInfo.isSevere;
+    
+    const isSevere = hasWeatherSevere || isHighWind || isExtremeCold || isExtremeHeat;
+    
     const weather: WeatherData = {
-      temperature: Math.round(current.temperature_2m),
+      temperature: temp,
       temperatureUnit: "F",
       condition: weatherInfo.condition,
       conditionIcon: weatherInfo.icon,
-      windSpeed: Math.round(current.wind_speed_10m),
+      windSpeed: windSpeed,
       humidity: current.relative_humidity_2m,
       isRaining: weatherInfo.isRaining,
-      isSevere: weatherInfo.isSevere || current.wind_speed_10m > 25,
+      isSevere: isSevere,
       fetchedAt: new Date().toISOString(),
     };
 
-    // Add severe weather details
+    // Add severe weather details - prioritize most dangerous conditions
     if (weather.isSevere) {
       if (weatherCode >= 95) {
         weather.severeType = "Thunderstorm Warning";
-        weather.severeMessage = "Outdoor play not recommended";
+        weather.severeMessage = "Stay indoors - dangerous conditions";
+      } else if (isExtremeCold) {
+        weather.severeType = "Extreme Cold Warning";
+        weather.severeMessage = `${temp}°F - Risk of frostbite. Keep children indoors.`;
+      } else if (isExtremeHeat) {
+        weather.severeType = "Extreme Heat Warning";
+        weather.severeMessage = `${temp}°F - Risk of heat illness. Stay hydrated and indoors.`;
       } else if (weatherCode >= 65 || weatherCode === 56 || weatherCode === 57) {
         weather.severeType = "Heavy Precipitation";
         weather.severeMessage = "Stay indoors if possible";
-      } else if (current.wind_speed_10m > 25) {
-        weather.severeType = "High Winds";
-        weather.severeMessage = "Strong winds expected";
+      } else if (isHighWind) {
+        weather.severeType = "High Wind Advisory";
+        weather.severeMessage = `Winds ${windSpeed} mph - outdoor play not recommended`;
+      } else if (weatherCode >= 71 && weatherCode <= 77) {
+        weather.severeType = "Snow Advisory";
+        weather.severeMessage = "Snowy conditions - dress warmly if going out";
       } else {
         weather.severeType = "Weather Advisory";
         weather.severeMessage = "Outdoor activities may be affected";
       }
+    } else if (isVeryCold) {
+      // Not severe but worth noting
+      weather.severeType = "Cold Weather";
+      weather.severeMessage = `${temp}°F - Bundle up warmly before going outside`;
+      weather.isSevere = false; // Keep as advisory, not severe
     } else if (!weather.isRaining && weather.windSpeed < 15) {
       // Good outdoor conditions
       const hour = new Date().getHours();

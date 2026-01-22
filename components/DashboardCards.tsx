@@ -17,16 +17,24 @@ interface DashboardCardsProps {
 }
 
 export function SevereWeatherBanner({ weather }: { weather: WeatherData | null }) {
-  if (!weather?.isSevere) return null;
+  if (!weather) return null;
+  
+  // Show banner for severe weather OR cold weather advisory
+  const showBanner = weather.isSevere || weather.severeType;
+  if (!showBanner) return null;
+  
+  const isSevere = weather.isSevere;
+  const bannerStyle = isSevere ? styles.severeBanner : styles.advisoryBanner;
+  const iconName = isSevere ? "warning" : "information-circle";
 
   return (
-    <View style={styles.severeBanner} data-testid="severe-weather-banner">
+    <View style={bannerStyle} data-testid="severe-weather-banner">
       <View style={styles.severeHeader}>
-        <Ionicons name="warning" size={20} color="#FFFFFF" />
-        <Text style={styles.severeTitle}>Severe Weather Advisory</Text>
+        <Ionicons name={iconName} size={22} color="#FFFFFF" />
+        <Text style={styles.severeTitle}>{weather.severeType || "Weather Advisory"}</Text>
       </View>
       <Text style={styles.severeMessage}>
-        {weather.severeMessage || "Outdoor play not recommended"}
+        {weather.severeMessage || "Check conditions before outdoor activities"}
       </Text>
     </View>
   );
@@ -339,6 +347,11 @@ const styles = StyleSheet.create({
   },
   severeBanner: {
     backgroundColor: colors.error,
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+  },
+  advisoryBanner: {
+    backgroundColor: colors.warning,
     borderRadius: borderRadius.lg,
     padding: spacing.md,
   },
