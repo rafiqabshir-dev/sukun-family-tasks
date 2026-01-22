@@ -980,20 +980,6 @@ export default function TodayScreen() {
           </View>
         )}
 
-        {isCurrentUserGuardian && dueTodayTasks.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Due Today</Text>
-            {dueTodayTasks.map((task) => renderTaskCard(task, true))}
-          </View>
-        )}
-
-        {isCurrentUserGuardian && overdueTasks.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Overdue</Text>
-            {overdueTasks.map((task) => renderTaskCard(task, true))}
-          </View>
-        )}
-
         {pendingApprovalTasks.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Needs Approval</Text>
@@ -1005,7 +991,7 @@ export default function TodayScreen() {
         )}
 
         {(isCurrentUserGuardian 
-          ? myTasks.length === 0 && dueTodayTasks.length === 0 && overdueTasks.length === 0 && pendingApprovalTasks.length === 0
+          ? myTasks.length === 0 && pendingApprovalTasks.length === 0
           : myTasks.length === 0 && pendingApprovalTasks.length === 0
         ) && (
           <View style={styles.emptyState}>
@@ -1879,6 +1865,7 @@ const styles = StyleSheet.create({
   guardianActions: {
     flexDirection: "row",
     gap: spacing.sm,
+    marginTop: spacing.lg,
     marginBottom: spacing.lg,
   },
   deductButton: {
