@@ -10,6 +10,14 @@ import { isSupabaseConfigured } from "@/lib/supabase";
 import { addStarsLedgerEntry, createCloudTask, createCloudTaskInstance, updateCloudTaskInstance, cloudInstanceToLocal, taskToTemplate, archiveCloudTask } from "@/lib/cloudSync";
 import { notifyTaskAssigned, notifyTaskPendingApproval, notifyTaskApproved, notifyTaskRejected } from "@/lib/pushNotificationService";
 import { useResponsive } from "@/lib/useResponsive";
+import { DashboardCards } from "@/components/DashboardCards";
+
+function getTimeOfDay(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Morning";
+  if (hour < 17) return "Afternoon";
+  return "Evening";
+}
 
 function getTaskStatus(task: TaskInstance): "open" | "pending_approval" | "done" | "overdue" | "expired" {
   if (task.status === "done") return "done";
@@ -944,6 +952,15 @@ export default function TodayScreen() {
           </View>
         </View>
 
+        <Text style={styles.greetingText}>Good {getTimeOfDay()}, {currentMember.name.split(' ')[0]}!</Text>
+
+        <DashboardCards 
+          taskInstances={taskInstances}
+          taskTemplates={taskTemplates}
+          members={members}
+          currentTime={currentTime}
+        />
+
         {isCurrentUserGuardian && (
           <View style={styles.guardianActions}>
             <TouchableOpacity
@@ -1648,6 +1665,13 @@ const styles = StyleSheet.create({
   },
   expiredIndicator: {
     padding: spacing.sm,
+  },
+  greetingText: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: colors.text,
+    marginBottom: spacing.lg,
+    marginTop: spacing.sm,
   },
   noActorState: {
     flex: 1,
