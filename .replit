@@ -46,3 +46,6 @@ waitForPort = 5000
 
 [userenv.shared]
 EXPO_PROJECT_ID = "ab5d3ebb-111b-4cad-abc9-d5dd98efe390"
+
+[agent]
+integrations = ["github:1.0.0"]
