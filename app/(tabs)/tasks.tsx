@@ -445,6 +445,12 @@ export default function TasksScreen() {
     const template = taskTemplates.find(t => t.id === instance.templateId);
     const assignedMember = members.find(m => m.id === instance.assignedToMemberId);
     if (!template || !assignedMember) return;
+    
+    // Guard: Only approve tasks that are pending approval
+    if (instance.status !== 'pending_approval') {
+      console.log('[Tasks] Task not pending approval, skipping:', instance.status);
+      return;
+    }
 
     approveTask(instance.id);
     
@@ -456,7 +462,15 @@ export default function TasksScreen() {
 
       // Award stars - correct param order: familyId, profileId, delta, reason, createdById, taskInstanceId
       if (assignedMember.profileId && profile?.id) {
-        await addStarsLedgerEntry(family.id, assignedMember.profileId, template.defaultStars, 'task_completion', profile.id, instance.id);
+        try {
+          await addStarsLedgerEntry(family.id, assignedMember.profileId, template.defaultStars, 'task_completion', profile.id, instance.id);
+        } catch (err: any) {
+          // Duplicate key error is OK - means stars were already awarded
+          const isDuplicateError = err?.message?.includes('duplicate key') || err?.message?.includes('unique constraint');
+          if (!isDuplicateError) {
+            console.error('[Tasks] Error awarding stars:', err);
+          }
+        }
         await notifyTaskApproved(family.id, assignedMember.profileId, template.title, template.defaultStars);
       }
     }

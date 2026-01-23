@@ -746,6 +746,12 @@ export default function TodayScreen() {
     const task = taskInstances.find((t) => t.id === taskId);
     if (!task) return;
     
+    // Guard: Only approve tasks that are pending approval
+    if (task.status !== 'pending_approval') {
+      console.log('[Today] Task not pending approval, skipping:', task.status);
+      return;
+    }
+    
     const template = taskTemplates.find((t) => t.id === task.templateId);
     const stars = template?.defaultStars || 1;
     const assigneeId = task.assignedToMemberId;
@@ -777,17 +783,25 @@ export default function TodayScreen() {
           console.error('[Today] Error syncing task status to cloud:', statusResult.error.message);
         }
         if (starsResult.error) {
-          console.error('[Today] Error syncing task approval stars to cloud:', starsResult.error.message);
+          // Duplicate key error is OK - means stars were already awarded for this task
+          const isDuplicateError = starsResult.error.message?.includes('duplicate key') || 
+                                   starsResult.error.message?.includes('unique constraint');
+          if (isDuplicateError) {
+            console.log('[Today] Stars already awarded for this task, continuing');
+          } else {
+            console.error('[Today] Error syncing task approval stars to cloud:', starsResult.error.message);
+          }
         } else {
           console.log('[Today] Task approval synced to cloud, stars:', stars);
-          // Notify assignee of approval
-          notifyTaskApproved(
-            profile.family_id,
-            assigneeId,
-            template?.title || 'Task',
-            stars
-          );
         }
+        
+        // Notify assignee of approval (even if stars already existed)
+        notifyTaskApproved(
+          profile.family_id,
+          assigneeId,
+          template?.title || 'Task',
+          stars
+        );
       } catch (err) {
         console.error('[Today] Cloud sync error:', err);
       }
