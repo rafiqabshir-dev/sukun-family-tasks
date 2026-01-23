@@ -53,7 +53,7 @@ type ViewMode = "templates" | "assigned";
 type TaskFilter = "all" | "today" | "overdue";
 
 function getTaskDueStatus(task: TaskInstance): "today" | "overdue" | "upcoming" | "done" | "expired" {
-  if (task.status === "done") return "done";
+  if (task.status === "approved") return "done"; // Database uses "approved", UI shows "done"
   if (task.status === "expired") return "expired";
   
   const now = new Date();
@@ -150,10 +150,10 @@ export default function TasksScreen() {
   const activeTasks = taskTemplates.filter((t) => !t.isArchived);
   const enabledTasks = activeTasks.filter((t) => t.enabled);
 
-  // Get active task instances (not done/expired)
+  // Get active task instances (not approved/expired)
   const activeInstances = useMemo(() => {
     return taskInstances.filter(i => 
-      i.status !== "done" && i.status !== "expired"
+      i.status !== "approved" && i.status !== "expired"
     );
   }, [taskInstances]);
 
@@ -308,7 +308,7 @@ export default function TasksScreen() {
                 useStore.setState((state) => ({
                   taskInstances: state.taskInstances.map((t) =>
                     t.id === task.id
-                      ? { ...t, status: "done" as const, completedAt: new Date().toISOString() }
+                      ? { ...t, status: "approved" as const, completedAt: new Date().toISOString() }
                       : t
                   ),
                 }));
@@ -426,7 +426,7 @@ export default function TasksScreen() {
       
       if (isSupabaseConfigured() && family?.id) {
         await updateCloudTaskInstance(instance.id, {
-          status: 'done',
+          status: 'approved',
           completed_at: new Date().toISOString(),
           approved_by: profile?.id,
         });
@@ -448,7 +448,7 @@ export default function TasksScreen() {
     
     if (isSupabaseConfigured() && family?.id) {
       await updateCloudTaskInstance(instance.id, {
-        status: 'done',
+        status: 'approved',
         completed_at: new Date().toISOString(),
         approved_by: profile?.id,
       });

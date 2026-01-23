@@ -13,7 +13,7 @@ import { useResponsive } from "@/lib/useResponsive";
 import { DashboardCards } from "@/components/DashboardCards";
 
 function getTaskStatus(task: TaskInstance): "open" | "pending_approval" | "done" | "overdue" | "expired" {
-  if (task.status === "done") return "done";
+  if (task.status === "approved") return "done"; // Database uses "approved", UI shows "done"
   if (task.status === "expired") return "expired";
   if (task.status === "pending_approval") return "pending_approval";
   
@@ -596,11 +596,11 @@ export default function TodayScreen() {
           });
         }
         
-        // Update local state - use "done" for local status
+        // Update local state - use "approved" for database-compatible status
         useStore.setState((state) => ({
           taskInstances: state.taskInstances.map((t) =>
             t.id === task.id
-              ? { ...t, status: "done" as const, completedAt: new Date().toISOString() }
+              ? { ...t, status: "approved" as const, completedAt: new Date().toISOString() }
               : t
           ),
         }));

@@ -475,7 +475,7 @@ export const useStore = create<AppState & StoreActions & { isReady: boolean; aut
         t.id === instanceId
           ? { 
               ...t, 
-              status: "done" as const, 
+              status: "approved" as const, 
               completedAt: new Date().toISOString(),
               completionRequestedBy: requestedBy,
               approvedBy: requestedBy
@@ -529,7 +529,7 @@ export const useStore = create<AppState & StoreActions & { isReady: boolean; aut
       t.id === instanceId
         ? { 
             ...t, 
-            status: "done" as const, 
+            status: "approved" as const, 
             completedAt: new Date().toISOString(),
             approvedBy 
           }

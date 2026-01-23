@@ -50,13 +50,13 @@ export default function MemberDetailScreen() {
   const today = startOfDay(new Date());
   
   const openTasks = memberTasks.filter((t) => {
-    if (t.status === "done") return false;
+    if (t.status === "approved") return false; // Database uses "approved" for completed tasks
     return true;
   });
   
   const overdueTasks = openTasks.filter((t) => isBefore(new Date(t.dueAt), today));
   const upcomingTasks = openTasks.filter((t) => !isBefore(new Date(t.dueAt), today));
-  const completedTasks = memberTasks.filter((t) => t.status === "done").slice(0, 10);
+  const completedTasks = memberTasks.filter((t) => t.status === "approved").slice(0, 10);
 
   const getTemplate = (templateId: string) => 
     taskTemplates.find((t) => t.id === templateId);

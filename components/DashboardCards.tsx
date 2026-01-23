@@ -548,7 +548,7 @@ export function TodayTasksSummary({ taskInstances, taskTemplates, members }: Omi
     let nextUp: NextUpTask = null;
 
     for (const instance of taskInstances) {
-      if (instance.status === "done" || instance.status === "expired") continue;
+      if (instance.status === "approved" || instance.status === "expired") continue;
       
       const dueDate = new Date(instance.dueAt);
       const isOverdueTask = isBefore(dueDate, today);
