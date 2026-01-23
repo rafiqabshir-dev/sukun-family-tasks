@@ -1,5 +1,5 @@
 import { supabase, Profile, Family, Task, TaskInstance as CloudTaskInstance, StarsLedgerEntry, Reward as CloudReward } from './supabase';
-import { Member, TaskTemplate, TaskInstance, Reward, StarDeduction, PowerKey, Power, TaskCategory } from './types';
+import { Member, TaskTemplate, TaskInstance, TaskStatus, Reward, StarDeduction, PowerKey, Power, TaskCategory } from './types';
 import { generateStarterTasks } from './starterTasks';
 
 // Generate a UUID v4
@@ -117,10 +117,10 @@ export function templateToTask(template: TaskTemplate, familyId: string): Partia
 }
 
 export function cloudInstanceToLocal(instance: CloudTaskInstance): TaskInstance {
-  const statusMap: Record<string, 'open' | 'pending_approval' | 'done' | 'expired' | 'rejected'> = {
+  const statusMap: Record<string, TaskStatus> = {
     'open': 'open',
     'pending_approval': 'pending_approval',
-    'approved': 'done',
+    'approved': 'approved',
     'rejected': 'rejected',
     'expired': 'expired'
   };
@@ -130,7 +130,7 @@ export function cloudInstanceToLocal(instance: CloudTaskInstance): TaskInstance 
     templateId: instance.task_id,
     assignedToMemberId: instance.assignee_profile_id,
     dueAt: instance.due_at || new Date().toISOString(),
-    status: statusMap[instance.status] || 'open',
+    status: statusMap[instance.status as keyof typeof statusMap] || 'open',
     createdAt: instance.created_at,
     createdById: instance.created_by_profile_id || undefined,
     completedAt: instance.completed_at || undefined,

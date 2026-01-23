@@ -556,7 +556,7 @@ export const useStore = create<AppState & StoreActions & { isReady: boolean; aut
       t.id === instanceId
         ? { 
             ...t, 
-            status: "open" as const, 
+            status: "rejected" as const, 
             completionRequestedAt: undefined,
             completionRequestedBy: undefined
           }

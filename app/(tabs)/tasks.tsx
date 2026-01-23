@@ -408,16 +408,19 @@ export default function TasksScreen() {
       if (isSupabaseConfigured()) {
         await updateCloudTaskInstance(instance.id, {
           status: 'pending_approval',
-          completion_requested_at: new Date().toISOString(),
-          completion_requested_by: profile.id,
+          completionRequestedAt: new Date().toISOString(),
+          completionRequestedBy: profile.id,
         });
         
-        // Notify guardians
-        const guardians = members.filter(m => m.role === 'guardian' && m.profileId !== profile.id);
-        for (const guardian of guardians) {
-          if (guardian.profileId) {
-            await notifyTaskPendingApproval(guardian.profileId, template.title, assignedMember?.name || 'Someone');
-          }
+        // Notify guardians - use family_id, completer name, task title, completer profile id
+        if (family?.id) {
+          const completerName = assignedMember?.name || 'Someone';
+          await notifyTaskPendingApproval(
+            family.id,
+            completerName,
+            template.title,
+            profile.id
+          );
         }
       }
     } else {
@@ -427,8 +430,7 @@ export default function TasksScreen() {
       if (isSupabaseConfigured() && family?.id) {
         await updateCloudTaskInstance(instance.id, {
           status: 'approved',
-          completed_at: new Date().toISOString(),
-          approved_by: profile?.id,
+          completedAt: new Date().toISOString(),
         });
         
         // Award stars - correct param order: familyId, profileId, delta, reason, createdById, taskInstanceId
@@ -449,14 +451,13 @@ export default function TasksScreen() {
     if (isSupabaseConfigured() && family?.id) {
       await updateCloudTaskInstance(instance.id, {
         status: 'approved',
-        completed_at: new Date().toISOString(),
-        approved_by: profile?.id,
+        completedAt: new Date().toISOString(),
       });
 
       // Award stars - correct param order: familyId, profileId, delta, reason, createdById, taskInstanceId
       if (assignedMember.profileId && profile?.id) {
         await addStarsLedgerEntry(family.id, assignedMember.profileId, template.defaultStars, 'task_completion', profile.id, instance.id);
-        await notifyTaskApproved(assignedMember.profileId, template.title, template.defaultStars);
+        await notifyTaskApproved(family.id, assignedMember.profileId, template.title, template.defaultStars);
       }
     }
 
@@ -470,15 +471,15 @@ export default function TasksScreen() {
 
     rejectTask(instance.id);
     
-    if (isSupabaseConfigured()) {
+    if (isSupabaseConfigured() && family?.id) {
       await updateCloudTaskInstance(instance.id, {
-        status: 'open',
-        completion_requested_at: null,
-        completion_requested_by: null,
+        status: 'rejected',
+        completionRequestedAt: null,
+        completionRequestedBy: null,
       });
 
       if (assignedMember?.profileId) {
-        await notifyTaskRejected(assignedMember.profileId, template.title);
+        await notifyTaskRejected(family.id, assignedMember.profileId, template.title);
       }
     }
   };
