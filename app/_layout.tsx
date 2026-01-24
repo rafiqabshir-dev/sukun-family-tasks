@@ -1,18 +1,21 @@
 import { useEffect, useRef } from "react";
 import { Stack, useRootNavigationState, router, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { View, ActivityIndicator, StyleSheet, Text } from "react-native";
+import { View, ActivityIndicator, StyleSheet, Text, AppState, AppStateStatus } from "react-native";
 import { useStore } from "@/lib/store";
 import { colors } from "@/lib/theme";
 import { AuthProvider, useAuth } from "@/lib/authContext";
 import { PushNotificationProvider } from "@/lib/pushNotificationContext";
 import { resolveRoute, shouldNavigate, AuthState, UNPROTECTED_ROUTES } from "@/lib/navigation";
 import { initSounds } from "@/lib/soundService";
+import { initializeAnalytics, trackScreen, identifyUser, resetUser, flushAnalytics } from "@/lib/analyticsService";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 function NavigationController() {
   const navigationState = useRootNavigationState();
   const pathname = usePathname();
   const lastNavigatedPath = useRef<string | null>(null);
+  const lastTrackedPath = useRef<string | null>(null);
   
   const isReady = useStore((s) => s.isReady);
   const storeAuthReady = useStore((s) => s.authReady);
@@ -24,6 +27,25 @@ function NavigationController() {
     isConfigured,
     pendingJoinRequest
   } = useAuth();
+
+  useEffect(() => {
+    if (pathname && pathname !== lastTrackedPath.current) {
+      lastTrackedPath.current = pathname;
+      trackScreen(pathname);
+    }
+  }, [pathname]);
+
+  useEffect(() => {
+    if (profile) {
+      identifyUser({
+        userId: profile.id,
+        role: profile.role as 'guardian' | 'kid',
+        familyId: profile.family_id || undefined,
+      });
+    } else if (!session) {
+      resetUser();
+    }
+  }, [profile, session]);
 
   useEffect(() => {
     if (!navigationState?.key) return;
@@ -90,6 +112,16 @@ function RootLayoutContent() {
   useEffect(() => {
     initialize();
     initSounds();
+    initializeAnalytics();
+    
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'background' || nextAppState === 'inactive') {
+        flushAnalytics();
+      }
+    };
+    
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription.remove();
   }, []);
 
   // Use store's authReady (persists across remounts) but also gate on authLoading
@@ -125,11 +157,13 @@ function RootLayoutContent() {
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <PushNotificationProvider>
-        <RootLayoutContent />
-      </PushNotificationProvider>
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <PushNotificationProvider>
+          <RootLayoutContent />
+        </PushNotificationProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }
 

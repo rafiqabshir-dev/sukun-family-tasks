@@ -67,6 +67,14 @@ Preferred communication style: Simple, everyday language.
 - **Browse Templates**: Categorized templates with assignee chips. Full template management for guardians.
 - **Assigned Tasks**: Tasks grouped by family member, with due/overdue indicators and inline actions. Supports deep-linking with `view` and `filter` parameters.
 
+### Analytics & Error Tracking (Beta Prep)
+- **Sentry**: Error and crash tracking via `@sentry/react-native`. Auto-captures JS exceptions, breadcrumbs, and user context.
+- **PostHog**: Product analytics via `posthog-react-native`. Tracks screen views, custom events, and user behavior.
+- **ErrorBoundary**: React component wrapping the app to catch and report unhandled JS errors gracefully.
+- **Screen Tracking**: Automatic tracking via `usePathname` in Expo Router.
+- **Event Tracking**: Key user actions tracked: `task_assigned`, `task_completed`, etc.
+- **Configuration**: Set `EXPO_PUBLIC_SENTRY_DSN` and `EXPO_PUBLIC_POSTHOG_API_KEY` environment variables to enable.
+
 ## External Dependencies
 - `expo` (core, router, constants, linking, status-bar)
 - `react-native` (core, web, screens, safe-area-context, gesture-handler, reanimated)
@@ -79,3 +87,5 @@ Preferred communication style: Simple, everyday language.
 - `expo-secure-store`
 - `expo-notifications`
 - `expo-device`
+- `@sentry/react-native`
+- `posthog-react-native`

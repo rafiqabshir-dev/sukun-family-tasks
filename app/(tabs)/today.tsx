@@ -11,6 +11,7 @@ import { addStarsLedgerEntry, createCloudTask, createCloudTaskInstance, updateCl
 import { notifyTaskAssigned, notifyTaskPendingApproval, notifyTaskApproved, notifyTaskRejected } from "@/lib/pushNotificationService";
 import { useResponsive } from "@/lib/useResponsive";
 import { DashboardCards } from "@/components/DashboardCards";
+import { trackEvent, captureError } from "@/lib/analyticsService";
 
 function getTaskStatus(task: TaskInstance): "open" | "pending_approval" | "done" | "overdue" | "expired" {
   if (task.status === "approved") return "done"; // Database uses "approved", UI shows "done"
@@ -405,10 +406,19 @@ export default function TodayScreen() {
       }
     } catch (err) {
       console.error('[Today] Unexpected error during assignment:', err);
+      captureError(err as Error, { action: 'task_assignment' });
       errorCount = totalAssignments - successCount;
     } finally {
       setIsAssigning(false);
     }
+    
+    trackEvent('task_assigned', {
+      success_count: successCount,
+      error_count: errorCount,
+      total_assignments: totalAssignments,
+      template_count: templateIds.length,
+      assignee_count: kidIds.length,
+    });
     
     // Show result and dismiss modal
     if (errorCount > 0) {
@@ -728,8 +738,15 @@ export default function TodayScreen() {
         }
       } catch (err) {
         console.error('[Today] Cloud sync error:', err);
+        captureError(err as Error, { action: 'task_completion' });
       }
     }
+    
+    trackEvent('task_completed', {
+      task_id: taskId,
+      is_single_guardian: isSingleGuardian,
+      stars_awarded: isSingleGuardian ? stars : 0,
+    });
   };
 
   // Reject task with cloud sync
