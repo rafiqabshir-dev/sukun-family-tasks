@@ -151,11 +151,19 @@ export default function TasksScreen() {
   const enabledTasks = activeTasks.filter((t) => t.enabled);
 
   // Get active task instances (not approved/expired)
+  // Participants only see their own tasks, guardians see all
   const activeInstances = useMemo(() => {
-    return taskInstances.filter(i => 
-      i.status !== "approved" && i.status !== "expired"
-    );
-  }, [taskInstances]);
+    return taskInstances.filter(i => {
+      // Exclude completed/expired tasks
+      if (i.status === "approved" || i.status === "expired") return false;
+      
+      // Guardians see all tasks
+      if (isGuardian) return true;
+      
+      // Participants only see their own tasks
+      return i.assignedToMemberId === profile?.id;
+    });
+  }, [taskInstances, isGuardian, profile?.id]);
 
   // Count tasks assigned today per category
   const categoryAssignedToday = useMemo(() => {
@@ -237,10 +245,16 @@ export default function TasksScreen() {
   };
 
   // Group instances by member for Assigned Tasks view
+  // Participants only see their own section
   const instancesByMember = useMemo(() => {
     const grouped: Record<string, TaskInstance[]> = {};
     
-    members.forEach((member) => {
+    // Guardians see all members, participants only see themselves
+    const visibleMembers = isGuardian 
+      ? members 
+      : members.filter(m => m.id === profile?.id);
+    
+    visibleMembers.forEach((member) => {
       grouped[member.id] = [];
     });
     
@@ -257,7 +271,7 @@ export default function TasksScreen() {
     });
     
     return grouped;
-  }, [activeInstances, members, taskFilter]);
+  }, [activeInstances, members, taskFilter, isGuardian, profile?.id]);
 
   // Count for filter badges
   const filterCounts = useMemo(() => {
