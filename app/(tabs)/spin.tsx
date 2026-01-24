@@ -11,7 +11,17 @@ import { createCloudTaskInstance, createCloudTask, taskToTemplate } from "@/lib/
 import { playSpinSound, playWinnerSound, playClickSound, stopAllSounds, playSuccessSound } from "@/lib/soundService";
 import { FamilyWheel } from "@/components/FamilyWheel";
 import { useResponsive } from "@/lib/useResponsive";
+import { GameCard } from "@/components/GameCard";
+import { CATEGORIES, getGamesByCategory, GameCategory } from "@/lib/gamesRegistry";
 
+/**
+ * HOW TO ADD A NEW GAME:
+ * 1. Add an entry to GAMES array in lib/gamesRegistry.ts
+ * 2. Create the game screen in app/games/[your-game].tsx
+ * 3. The Games Hub will automatically show the new game in its category
+ */
+
+type HubView = "hub" | "assign" | "game";
 type WheelMode = "assign" | "game";
 type GamePhase = "setup" | "playing" | "winner";
 
@@ -60,6 +70,8 @@ export default function SpinScreen() {
   const addTaskInstance = useStore((s) => s.addTaskInstance);
   const addTaskTemplate = useStore((s) => s.addTaskTemplate);
 
+  const [hubView, setHubView] = useState<HubView>("hub");
+  const [selectedCategory, setSelectedCategory] = useState<GameCategory>("spin");
   const [mode, setMode] = useState<WheelMode>("assign");
   const [spinning, setSpinning] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -142,6 +154,32 @@ export default function SpinScreen() {
     setWinner(null);
     setSelectedPlayers(new Set(members.map(m => m.id)));
     playClickSound();
+  };
+
+  const handleGameSelect = (gameId: string) => {
+    playClickSound();
+    if (gameId === 'assign-task') {
+      setMode('assign');
+      setHubView('assign');
+    } else if (gameId === 'family-game') {
+      setMode('game');
+      setHubView('game');
+      setGamePhase('setup');
+      setSelectedPlayers(new Set(members.map(m => m.id)));
+    } else if (gameId === 'charades-mini') {
+      router.push('/games/charades-mini');
+    }
+  };
+
+  const handleBackToHub = () => {
+    if (spinning) return;
+    playClickSound();
+    setHubView('hub');
+    setMode('assign');
+    setSelectedMember(null);
+    setGamePhase('setup');
+    setWinner(null);
+    stopAllSounds();
   };
 
   const togglePlayerSelection = (memberId: string) => {
@@ -353,6 +391,97 @@ export default function SpinScreen() {
     );
   }
 
+  if (hubView === "hub") {
+    const categoryGames = getGamesByCategory(selectedCategory);
+    
+    return (
+      <ScrollView 
+        style={styles.container}
+        contentContainerStyle={[
+          styles.content,
+          responsive.isTablet && {
+            paddingHorizontal: responsive.horizontalPadding,
+            alignSelf: 'center',
+            width: '100%',
+            maxWidth: responsive.contentMaxWidth,
+          }
+        ]}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+          />
+        }
+      >
+        <View style={styles.hubHeader}>
+          <Ionicons name="game-controller" size={28} color={colors.primary} />
+          <Text style={styles.hubTitle}>Games</Text>
+        </View>
+
+        <View style={styles.categorySelector}>
+          {CATEGORIES.map(category => (
+            <TouchableOpacity
+              key={category.id}
+              style={[
+                styles.categoryTab,
+                selectedCategory === category.id && styles.categoryTabActive
+              ]}
+              onPress={() => {
+                setSelectedCategory(category.id);
+                playClickSound();
+              }}
+            >
+              <Ionicons 
+                name={category.icon as any} 
+                size={18} 
+                color={selectedCategory === category.id ? colors.primary : colors.textMuted} 
+              />
+              <Text style={[
+                styles.categoryTabText,
+                selectedCategory === category.id && styles.categoryTabTextActive
+              ]}>
+                {category.title}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <View style={styles.gamesList}>
+          {categoryGames.map(game => (
+            <GameCard
+              key={game.id}
+              title={game.title}
+              subtitle={game.subtitle}
+              icon={game.icon}
+              iconColor={game.iconColor}
+              isNew={game.isNew}
+              onPress={() => handleGameSelect(game.id)}
+              disabled={game.requiresGuardian && !isGuardian}
+            />
+          ))}
+          
+          {categoryGames.length === 0 && (
+            <View style={styles.emptyCategory}>
+              <Ionicons name="construct-outline" size={48} color={colors.textMuted} />
+              <Text style={styles.emptyCategoryText}>More games coming soon!</Text>
+            </View>
+          )}
+        </View>
+
+        {!isGuardian && selectedCategory === 'spin' && (
+          <View style={styles.guardianNote}>
+            <Ionicons name="information-circle-outline" size={18} color={colors.textMuted} />
+            <Text style={styles.guardianNoteText}>
+              Spin games require a guardian to start
+            </Text>
+          </View>
+        )}
+      </ScrollView>
+    );
+  }
+
   return (
     <ScrollView 
       style={styles.container}
@@ -374,35 +503,19 @@ export default function SpinScreen() {
         />
       }
     >
-      <View style={styles.modeSelector}>
-        <TouchableOpacity
-          style={[styles.modeTab, mode === "assign" && styles.modeTabActive]}
-          onPress={() => handleModeChange("assign")}
+      <View style={styles.gameHeader}>
+        <TouchableOpacity 
+          style={styles.backToHubButton} 
+          onPress={handleBackToHub}
           disabled={spinning}
         >
-          <Ionicons name="clipboard-outline" size={16} color={mode === "assign" ? colors.primary : colors.textMuted} />
-          <Text style={[styles.modeTabText, mode === "assign" && styles.modeTabTextActive]}>
-            Assign a Task
-          </Text>
+          <Ionicons name="arrow-back" size={20} color={colors.primary} />
+          <Text style={styles.backToHubText}>Games</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.modeTab, mode === "game" && styles.modeTabActive]}
-          onPress={() => handleModeChange("game")}
-          disabled={spinning}
-        >
-          <Ionicons name="game-controller-outline" size={16} color={mode === "game" ? colors.primary : colors.textMuted} />
-          <Text style={[styles.modeTabText, mode === "game" && styles.modeTabTextActive]}>
-            Family Game
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.header}>
-        <Ionicons name={mode === "assign" ? "clipboard" : "game-controller"} size={24} color="#5D4037" />
-        <Text style={styles.headerTitle}>
+        <Text style={styles.gameHeaderTitle}>
           {mode === "assign" ? "Assign a Task" : "Family Game"}
         </Text>
-        <Ionicons name="star" size={20} color="#FFD700" />
+        <View style={styles.gameHeaderSpacer} />
       </View>
 
       <View style={styles.wheelContainer}>
@@ -723,6 +836,95 @@ const styles = StyleSheet.create({
   modeTabTextActive: {
     color: colors.primary,
     fontWeight: "600",
+  },
+  hubHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  hubTitle: {
+    fontSize: 28,
+    fontWeight: "700",
+    color: colors.text,
+  },
+  categorySelector: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: spacing.sm,
+    marginBottom: spacing.xl,
+  },
+  categoryTab: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    borderRadius: borderRadius.full,
+    backgroundColor: "#F5F5F5",
+  },
+  categoryTabActive: {
+    backgroundColor: "#E8F5E9",
+  },
+  categoryTabText: {
+    fontSize: fontSize.sm,
+    color: colors.textMuted,
+    fontWeight: "500",
+  },
+  categoryTabTextActive: {
+    color: colors.primary,
+    fontWeight: "600",
+  },
+  gamesList: {
+    gap: spacing.sm,
+  },
+  emptyCategory: {
+    alignItems: "center",
+    paddingVertical: spacing.xxl,
+  },
+  emptyCategoryText: {
+    fontSize: fontSize.md,
+    color: colors.textMuted,
+    marginTop: spacing.md,
+  },
+  guardianNote: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.xs,
+    marginTop: spacing.lg,
+    paddingVertical: spacing.sm,
+  },
+  guardianNoteText: {
+    fontSize: fontSize.sm,
+    color: colors.textMuted,
+  },
+  gameHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: spacing.lg,
+  },
+  backToHubButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: spacing.xs,
+    paddingRight: spacing.sm,
+  },
+  backToHubText: {
+    fontSize: fontSize.md,
+    color: colors.primary,
+    fontWeight: "500",
+  },
+  gameHeaderTitle: {
+    fontSize: fontSize.xl,
+    fontWeight: "bold",
+    color: colors.text,
+  },
+  gameHeaderSpacer: {
+    width: 70,
   },
   header: {
     flexDirection: "row",
