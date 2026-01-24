@@ -94,9 +94,11 @@ export function resolveRoute(state: AuthState): RouteResult | null {
   const persona = derivePersona(state);
 
   // Has family - go to main app
+  // Participants go to tasks, guardians go to today
   if (state.family) {
+    const isParticipant = persona === 'participant_code' || persona === 'participant_email';
     return {
-      path: '/(tabs)/today',
+      path: isParticipant ? '/(tabs)/tasks' : '/(tabs)/today',
       reason: `${persona} with family access`
     };
   }

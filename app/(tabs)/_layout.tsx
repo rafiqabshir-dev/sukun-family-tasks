@@ -209,8 +209,13 @@ function HeaderMenuButton({ onPress }: { onPress: () => void }) {
 
 export default function TabLayout() {
   const router = useRouter();
-  const { pendingRequestsCount, refreshPendingRequestsCount, signOut } = useAuth();
+  const { profile, pendingRequestsCount, refreshPendingRequestsCount, signOut } = useAuth();
+  const members = useStore((s) => s.members);
   const [showMenu, setShowMenu] = useState(false);
+
+  // Determine if user is a participant (not a guardian)
+  const currentMember = members.find((m) => m.id === profile?.id);
+  const isParticipant = currentMember?.role === "kid";
 
   const handleSignOut = () => {
     setShowMenu(false);
@@ -276,6 +281,7 @@ export default function TabLayout() {
             title: "Today",
             headerLeft: () => <HeaderLocationLeft />,
             headerRight: () => <HeaderAvatarDropdown />,
+            tabBarItemStyle: isParticipant ? { display: "none" } : undefined,
             tabBarIcon: ({ color, focused }) => (
               <Ionicons
                 name={focused ? "today" : "today-outline"}
@@ -329,6 +335,7 @@ export default function TabLayout() {
           name="spin"
           options={{
             title: "Games",
+            tabBarItemStyle: isParticipant ? { display: "none" } : undefined,
             tabBarIcon: ({ color, focused }) => (
               <Ionicons
                 name={focused ? "game-controller" : "game-controller-outline"}
@@ -342,6 +349,7 @@ export default function TabLayout() {
           name="setup"
           options={{
             title: "Setup",
+            tabBarItemStyle: isParticipant ? { display: "none" } : undefined,
             tabBarIcon: ({ color, focused }) => (
               <View style={{ position: 'relative' }}>
                 <Ionicons
