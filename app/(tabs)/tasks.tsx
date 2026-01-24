@@ -814,8 +814,8 @@ export default function TasksScreen() {
         </TouchableOpacity>
       )}
 
-      {/* Members with their tasks */}
-      {members.map((member) => {
+      {/* Members with their tasks - only show members in instancesByMember */}
+      {members.filter(m => m.id in instancesByMember).map((member) => {
         const memberInstances = instancesByMember[member.id] || [];
         const isExpanded = expandedMembers.has(member.id);
         
