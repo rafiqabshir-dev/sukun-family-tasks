@@ -1,0 +1,158 @@
+You are working inside my EXISTING React Native / Expo family app. The “Spin” tab has been refactored into a scalable “Games” hub using a games registry (e.g., src/games/registry.ts) with categories like “Spin Games” and “Party Games”, and Game Cards that navigate to game routes.
+
+NOW implement the first Party Game: “Charades Mini” and wire it into the Games hub + registry. This is a SINGLE-DEVICE pass-and-play game (no multiplayer phones). Keep it simple, fast, and kid-friendly (ages 5, 6, 10).
+
+NON-NEGOTIABLE UX RULES
+- One device.
+- Actor is trusted: after acting, the actor taps “✅ Guessed” or “❌ Skipped”.
+- Fast flow: pass -> reveal (2s) -> act timer -> result -> next pass.
+- Big font, big buttons, safe-area friendly (iPhone notch).
+
+TASKS
+1) Add the game to the registry
+- Ensure registry contains an entry:
+  id: 'charades-mini'
+  title: 'Charades Mini'
+  subtitle: 'Act it out. No talking.'
+  category: 'party'
+  icon: '🎭'
+  routeName: 'CharadesMini'
+  isNew: true
+  isEnabled: true
+
+2) Navigation
+- Add a navigation route for CharadesMini:
+  route name: 'CharadesMini'
+  component: CharadesMiniScreen
+- Tapping the Charades Mini card in Games hub should navigate correctly.
+
+3) Implement CharadesMiniScreen (MVP)
+Use a small reducer/state machine with useReducer.
+
+STATE MODEL
+Types:
+- Player { id: string; name: string; }
+- Settings {
+    roundTimeSec: 20 | 30 | 45;   // default 30
+    roundsPerPlayer: number;      // default 3
+    category: 'all'|'animals'|'food'|'actions'|'objects'; // default 'all'
+  }
+- Turn {
+    turnIndex: number;
+    playerId: string;
+    wordId: string;
+    wordText: string;
+    category: string;
+    result: 'guessed'|'skipped'|null;
+  }
+
+Game State:
+- status: 'SETUP' | 'PASS' | 'REVEAL' | 'ACT' | 'RESULT' | 'SUMMARY'
+- players: Player[]
+- settings: Settings
+- turns: Turn[] (precomputed or built on the fly)
+- currentTurnIndex: number
+- usedWordIds: Set<string>
+
+FLOW
+A) SETUP
+- Show title + “How to play” (very short).
+- Player selection:
+  - If the app already has participants/family members accessible, default to them.
+  - Otherwise allow quick local player list:
+    - show 3 rows by default (Player 1/2/3) editable names
+    - “+ Add player”
+    - Validate at least 1 player with non-empty name
+- Settings controls:
+  - Round time: segmented buttons 20/30/45 (default 30)
+  - Rounds per player: stepper (1–5, default 3)
+  - Category: pills (All/Animals/Food/Actions/Objects)
+- “Start” button transitions to PASS
+
+B) PASS
+- Big text: “Pass to: <PlayerName>”
+- Button: “I’m ready”
+- On tap: choose a new word (no-repeat) -> go to REVEAL
+
+C) REVEAL
+- Show word in HUGE font
+- Show “No talking” note
+- Auto-hide after 2 seconds
+- Then transition automatically to ACT
+
+D) ACT
+- Screen: “ACT NOW!” + large countdown timer (settings.roundTimeSec)
+- Buttons: Pause/Resume, End Early
+- When time ends or End Early -> go to RESULT
+
+E) RESULT
+- Show the word again (so the actor can confirm)
+- Two big buttons:
+  - “✅ Guessed” -> award point to the actor (current player)
+  - “❌ Skipped”
+- After selection:
+  - Save result in the current turn
+  - Advance currentTurnIndex
+  - If more turns remain -> PASS with next player
+  - Else -> SUMMARY
+
+F) SUMMARY
+- Show scoreboard table: Player | Points
+- Buttons:
+  - “Play again” (same players/settings, reshuffle words, reset scores)
+  - “Change settings” (go back to SETUP)
+
+SCORING
+- Points are per player: +1 for each “guessed”.
+- No negative points.
+
+WORD BANK (NO API)
+- Create src/games/charades/wordBank.ts
+- At least 160 items total (40+ per category, “all” is combined).
+- Format:
+  type Word = { id: string; text: string; category: 'animals'|'food'|'actions'|'objects' };
+- Words must be kid-friendly and easy to act.
+- Avoid repeats within the same game session until bank exhausted. If exhausted, allow repeats but try to avoid immediate repeats.
+
+WORD SELECTION
+- Implement a pure function:
+  selectNextWord({ category, usedWordIds, wordBank }) -> Word
+- Category filtering:
+  - 'all' uses the entire bank
+  - otherwise filter by category
+- If filtered list is empty (shouldn’t happen), fallback to all.
+- If used list covers all available, reset used list for that category (or allow repeats).
+
+UI / COMPONENTS
+Create these components under src/games/charades/:
+- CharadesMiniScreen.tsx
+- SetupView.tsx
+- PassView.tsx
+- RevealView.tsx
+- ActView.tsx
+- ResultView.tsx
+- SummaryView.tsx
+
+Use existing app primitives (spacing, colors, typography, buttons) so it matches the app style.
+
+ACCESSIBILITY / SAFETY
+- Respect SafeAreaInsets
+- Large touch targets
+- Prevent accidental taps during REVEAL: disable buttons except maybe a “Hide now” (optional)
+- Provide a small “Undo (3s)” after result selection (optional but nice). If you implement Undo, keep it very simple.
+
+TESTS (LIGHTWEIGHT)
+- Add unit tests for:
+  - selectNextWord no-repeat behavior
+  - reducer transitions for the main flow
+Use Jest (project already uses Jest).
+
+FINAL CHECKS
+- Ensure the Games hub card opens Charades Mini.
+- Ensure existing spin games are NOT changed or broken.
+- App builds for iOS + Android.
+
+When done, summarize:
+- New files added
+- How to add more charades words
+- How to add a new game entry to the registry
