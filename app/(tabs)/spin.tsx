@@ -370,27 +370,6 @@ export default function SpinScreen() {
 
   const currentPlayer = gamePhase === "playing" ? gameScores[currentPlayerIndex] : null;
 
-  if (!isGuardian) {
-    return (
-      <View style={styles.container}>
-        <View style={styles.restrictedContainer}>
-          <Ionicons name="lock-closed" size={64} color={colors.textMuted} />
-          <Text style={styles.restrictedTitle}>Guardians Only</Text>
-          <Text style={styles.restrictedText}>
-            The Family Wheel is only available to guardians.
-          </Text>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.replace("/(tabs)/today")}
-          >
-            <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
-            <Text style={styles.backButtonText}>Go to Today</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
-
   if (hubView === "hub") {
     const categoryGames = getGamesByCategory(selectedCategory);
     
@@ -480,6 +459,13 @@ export default function SpinScreen() {
         )}
       </ScrollView>
     );
+  }
+
+  // Guard: Non-guardians cannot access spin games directly
+  if (!isGuardian && (hubView === "assign" || hubView === "game")) {
+    // Redirect back to hub
+    setHubView("hub");
+    return null;
   }
 
   return (
