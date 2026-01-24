@@ -409,11 +409,6 @@ export default function SpinScreen() {
           />
         }
       >
-        <View style={styles.hubHeader}>
-          <Ionicons name="game-controller" size={28} color={colors.primary} />
-          <Text style={styles.hubTitle}>Games</Text>
-        </View>
-
         <ScrollView 
           horizontal 
           showsHorizontalScrollIndicator={false}

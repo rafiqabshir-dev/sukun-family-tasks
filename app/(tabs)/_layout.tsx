@@ -288,10 +288,10 @@ export default function TabLayout() {
         <Tabs.Screen
           name="leaderboard"
           options={{
-            title: "Leaderboard",
+            title: "Stars",
             tabBarIcon: ({ color, focused }) => (
               <Ionicons
-                name={focused ? "trophy" : "trophy-outline"}
+                name={focused ? "star" : "star-outline"}
                 size={24}
                 color={color}
               />
@@ -328,10 +328,10 @@ export default function TabLayout() {
         <Tabs.Screen
           name="spin"
           options={{
-            title: "Spin",
+            title: "Games",
             tabBarIcon: ({ color, focused }) => (
               <Ionicons
-                name={focused ? "sync" : "sync-outline"}
+                name={focused ? "game-controller" : "game-controller-outline"}
                 size={24}
                 color={color}
               />
