@@ -50,9 +50,16 @@ Preferred communication style: Simple, everyday language.
 ### Sound System
 - Uses `expo-av` with `lib/soundService.ts` for audio playback (spin, winner, click, success sounds). Sound toggle is available in Setup, persisted locally.
 
-### Family Wheel
-- Located in `app/(tabs)/spin.tsx`, offers two guardian-only modes: "Assign a Task" and "Family Game".
-- **Family Game**: Turn-based star-collection game with selectable target scores, real-time scoreboard, and winner celebrations.
+### Games Hub
+- Located in `app/(tabs)/spin.tsx`, serves as a central hub for all family games.
+- **Architecture**: Uses `lib/gamesRegistry.ts` for game definitions - add new games by adding entries to the `GAMES` array.
+- **Categories**: Games are organized by category (Spin Games, Party Games, etc.) with pill tabs for switching.
+- **GameCard Component**: Reusable card component in `components/GameCard.tsx` for displaying game options.
+- **Role-Based Access**: Guardian-only games (spin games) show as disabled for non-guardian users with informative messaging.
+- **Current Games**:
+  - **Assign a Task** (Spin): Spin the wheel to pick a family member for task assignment. Guardian-only.
+  - **Family Game** (Spin): Turn-based star-collection game with selectable players, target scores, scoreboard, and winner celebrations. Guardian-only.
+  - **Charades Mini** (Party): Coming soon placeholder in `app/games/charades-mini.tsx`.
 
 ### Family Day Dashboard (Today Page)
 - Located in `app/(tabs)/today.tsx`, provides a personalized greeting.
