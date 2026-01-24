@@ -37,6 +37,7 @@ export type GameAction =
   | { type: 'UPDATE_SETTINGS'; settings: Partial<Settings> }
   | { type: 'START_GAME' }
   | { type: 'PLAYER_READY'; wordId: string; wordText: string; wordCategory: string }
+  | { type: 'CHANGE_WORD'; wordId: string; wordText: string; wordCategory: string }
   | { type: 'REVEAL_COMPLETE' }
   | { type: 'TICK' }
   | { type: 'TOGGLE_PAUSE' }

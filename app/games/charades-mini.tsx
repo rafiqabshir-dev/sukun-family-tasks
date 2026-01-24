@@ -340,6 +340,20 @@ function RevealView({ state, dispatch }: ViewProps) {
     playClickSound();
   };
 
+  const handleChangeWord = () => {
+    const newWord = selectNextWord({
+      category: state.settings.category,
+      usedWordIds: state.usedWordIds,
+    });
+    dispatch({
+      type: 'CHANGE_WORD',
+      wordId: newWord.id,
+      wordText: newWord.text,
+      wordCategory: newWord.category,
+    });
+    playClickSound();
+  };
+
   return (
     <View style={styles.centeredView}>
       <View style={styles.revealContainer}>
@@ -352,6 +366,11 @@ function RevealView({ state, dispatch }: ViewProps) {
         <TouchableOpacity onPress={handleStartActing} style={styles.startActingButton}>
           <Ionicons name="play" size={24} color="#FFFFFF" />
           <Text style={styles.startActingButtonText}>Start Acting</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity onPress={handleChangeWord} style={styles.changeWordButton}>
+          <Ionicons name="refresh" size={18} color={colors.textSecondary} />
+          <Text style={styles.changeWordButtonText}>Get Another Word</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -944,6 +963,18 @@ const styles = StyleSheet.create({
     fontSize: fontSize.lg,
     fontWeight: "600",
     color: "#FFFFFF",
+  },
+  changeWordButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    marginTop: spacing.lg,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+  },
+  changeWordButtonText: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
   },
 
   // Act View

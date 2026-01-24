@@ -75,6 +75,30 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       };
     }
 
+    case 'CHANGE_WORD': {
+      // Replace the current word with a new one (kid doesn't know the word)
+      const updatedTurns = [...state.turns];
+      const lastTurnIndex = updatedTurns.length - 1;
+      
+      if (lastTurnIndex >= 0) {
+        updatedTurns[lastTurnIndex] = {
+          ...updatedTurns[lastTurnIndex],
+          wordId: action.wordId,
+          wordText: action.wordText,
+          category: action.wordCategory,
+        };
+      }
+
+      const newUsedWordIds = new Set(state.usedWordIds);
+      newUsedWordIds.add(action.wordId);
+
+      return {
+        ...state,
+        turns: updatedTurns,
+        usedWordIds: newUsedWordIds,
+      };
+    }
+
     case 'REVEAL_COMPLETE':
       return {
         ...state,
