@@ -103,7 +103,7 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
   },
   comingSoonBadge: {
-    backgroundColor: colors.secondary,
+    backgroundColor: colors.textMuted,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: borderRadius.sm,
