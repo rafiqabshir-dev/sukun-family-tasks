@@ -414,7 +414,11 @@ export default function SpinScreen() {
           <Text style={styles.hubTitle}>Games</Text>
         </View>
 
-        <View style={styles.categorySelector}>
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.categorySelector}
+        >
           {CATEGORIES.map(category => (
             <TouchableOpacity
               key={category.id}
@@ -429,7 +433,7 @@ export default function SpinScreen() {
             >
               <Ionicons 
                 name={category.icon as any} 
-                size={18} 
+                size={16} 
                 color={selectedCategory === category.id ? colors.primary : colors.textMuted} 
               />
               <Text style={[
@@ -440,7 +444,7 @@ export default function SpinScreen() {
               </Text>
             </TouchableOpacity>
           ))}
-        </View>
+        </ScrollView>
 
         <View style={styles.gamesList}>
           {categoryGames.map(game => (
@@ -853,9 +857,9 @@ const styles = StyleSheet.create({
   },
   categorySelector: {
     flexDirection: "row",
-    justifyContent: "center",
     gap: spacing.sm,
     marginBottom: spacing.xl,
+    paddingHorizontal: spacing.md,
   },
   categoryTab: {
     flexDirection: "row",
