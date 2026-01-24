@@ -132,12 +132,33 @@ export default function TodayScreen() {
   const currentMember = profile ? members.find((m) => m.id === profile.id || m.profileId === profile.id) : null;
   const isCurrentUserGuardian = currentMember?.role === "guardian";
   
+  // Debug logging for ID matching
+  useEffect(() => {
+    if (profile) {
+      console.log('[Today Debug] === ID MATCHING CHECK ===');
+      console.log('[Today Debug] profile.id:', profile.id);
+      console.log('[Today Debug] members count:', members.length);
+      members.forEach((m, idx) => {
+        console.log(`[Today Debug] member[${idx}]: id=${m.id}, profileId=${m.profileId}, name=${m.name}, role=${m.role}`);
+      });
+      console.log('[Today Debug] currentMember found:', currentMember?.name, currentMember?.id);
+      console.log('[Today Debug] taskInstances count:', taskInstances.length);
+      taskInstances.forEach((t, idx) => {
+        console.log(`[Today Debug] task[${idx}]: id=${t.id.slice(-8)}, assignedToMemberId=${t.assignedToMemberId}, status=${t.status}`);
+      });
+    }
+  }, [profile, members, taskInstances, currentMember]);
+  
   // Count guardians for approval logic
   const guardianCount = members.filter((m) => m.role === "guardian").length;
 
   const openAssignModal = () => {
-    // Auto-select all family members by default (guardians + kids)
-    setSelectedKidIds(new Set(members.map(m => m.id)));
+    // Auto-select all cloud-synced family members by default (guardians + kids)
+    // Filter out local-only members that don't have cloud profiles
+    const cloudMemberIds = members
+      .filter(m => m.profileId || !m.id.startsWith('member-'))
+      .map(m => m.id);
+    setSelectedKidIds(new Set(cloudMemberIds));
     setSelectedTemplateIds(new Set());
     setTaskSearchQuery("");
     setExpandedTags(new Set(["all"]));
@@ -148,10 +169,12 @@ export default function TodayScreen() {
     setShowAssignModal(true);
   };
 
-  // All family members can be assigned tasks (guardians and kids)
-  const assignees = members;
-  // Kids only (for deducting stars)
-  const kids = members.filter((m) => m.role === "kid");
+  // Only cloud-synced members can be assigned tasks (those with valid profile IDs)
+  // Filter out local-only members (those with IDs starting with 'member-')
+  const cloudMembers = members.filter((m) => m.profileId || !m.id.startsWith('member-'));
+  const assignees = cloudMembers;
+  // Kids only (for deducting stars) - also filter for cloud members
+  const kids = cloudMembers.filter((m) => m.role === "kid");
   const enabledTemplates = taskTemplates.filter((t) => t.enabled);
 
   // Predefined tags for grouping tasks
@@ -320,9 +343,12 @@ export default function TodayScreen() {
     try {
       // Sync to cloud first if configured - cloud is the source of truth
       if (isSupabaseConfigured() && profile?.family_id) {
+        console.log('[Today] Starting assignment - familyId:', profile.family_id, 'assignments:', assignments.length);
+        
         // Batch create with Promise.allSettled for efficiency
         const results = await Promise.allSettled(
           assignments.map(async ({ templateId, kidId }) => {
+            console.log('[Today] Creating instance - templateId:', templateId, 'kidId:', kidId, 'createdBy:', currentMember.id);
             const { data, error } = await createCloudTaskInstance(
               profile.family_id!,
               templateId,
@@ -330,6 +356,7 @@ export default function TodayScreen() {
               currentMember.id,
               dueAt
             );
+            console.log('[Today] Create result - data:', data?.id, 'error:', error?.message);
             if (error) throw error;
             return data;
           })
@@ -340,6 +367,7 @@ export default function TodayScreen() {
         results.forEach((result, index) => {
           if (result.status === 'fulfilled' && result.value) {
             const localInstance = cloudInstanceToLocal(result.value);
+            console.log('[Today] Adding to local store - instanceId:', localInstance.id, 'assignedTo:', localInstance.assignedToMemberId);
             addTaskInstanceFromCloud(localInstance);
             successCount++;
             

@@ -30,6 +30,8 @@ Preferred communication style: Simple, everyday language.
 - **Authentication**: Supports email/password for guardians and a simplified 4-digit passcode system for kids. Kids' passcodes are auto-generated with a unique email format `participant{passcode}@sukun.app`.
 - **Security**: Utilizes Row Level Security (RLS) for data access and an immutable `stars_ledger` for audit trails.
 - **Data Flow**: `setMembersFromCloud()` replaces local data entirely from Supabase. Supabase Auth manages sessions with SecureStore for token persistence.
+- **Member ID Matching**: Task assignments use cloud profile IDs (UUIDs). Only members with valid cloud profiles can be assigned tasks. Local-only members (legacy `member-*` IDs) are filtered out from task assignment.
+- **Member Onboarding**: New family members must join via invite code flow (`signUpParticipant`), which creates a Supabase profile. The legacy local "Add Member" function is deprecated in cloud mode.
 
 ### Centralized Navigation System
 - All navigation is handled by `NavigationController` in `app/_layout.tsx` using `lib/navigation.ts` for logic.

@@ -540,14 +540,14 @@ export default function SetupScreen() {
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Family Members</Text>
-          {isOwner && (
+          {isOwner && inviteCode && (
             <TouchableOpacity
               style={styles.addMemberButton}
-              onPress={() => setShowAddModal(true)}
-              data-testid="button-add-member"
+              onPress={() => setShowInviteDrawer(true)}
+              data-testid="button-invite-member"
             >
-              <Ionicons name="add-circle" size={20} color="#FFFFFF" />
-              <Text style={styles.addMemberButtonText}>Add</Text>
+              <Ionicons name="person-add" size={20} color="#FFFFFF" />
+              <Text style={styles.addMemberButtonText}>Invite</Text>
             </TouchableOpacity>
           )}
         </View>
