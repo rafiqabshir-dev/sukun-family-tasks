@@ -263,6 +263,7 @@ function PassView({ state, dispatch }: ViewProps) {
       type: 'PLAYER_READY',
       wordId: word.id,
       wordText: word.text,
+      wordIcon: word.icon,
       wordCategory: word.category,
     });
     playClickSound();
@@ -349,6 +350,7 @@ function RevealView({ state, dispatch }: ViewProps) {
       type: 'CHANGE_WORD',
       wordId: newWord.id,
       wordText: newWord.text,
+      wordIcon: newWord.icon,
       wordCategory: newWord.category,
     });
     playClickSound();
@@ -358,7 +360,10 @@ function RevealView({ state, dispatch }: ViewProps) {
     <View style={styles.centeredView}>
       <View style={styles.revealContainer}>
         <Text style={styles.revealLabel}>Your word is:</Text>
-        <Text style={styles.revealWord}>{currentTurn?.wordText}</Text>
+        <View style={styles.wordWithIcon}>
+          <Ionicons name={(currentTurn?.wordIcon || 'help') as any} size={48} color={GAME_COLOR} />
+          <Text style={styles.revealWord}>{currentTurn?.wordText}</Text>
+        </View>
         <View style={styles.revealWarning}>
           <Ionicons name="volume-mute" size={28} color={colors.error} />
           <Text style={styles.revealWarningText}>No talking!</Text>
@@ -505,7 +510,10 @@ function ResultView({ state, dispatch }: ViewProps) {
     <View style={styles.centeredView}>
       <View style={styles.resultContainer}>
         <Text style={styles.resultLabel}>The word was:</Text>
-        <Text style={styles.resultWord}>{currentTurn?.wordText}</Text>
+        <View style={styles.wordWithIcon}>
+          <Ionicons name={(currentTurn?.wordIcon || 'help') as any} size={40} color={GAME_COLOR} />
+          <Text style={styles.resultWord}>{currentTurn?.wordText}</Text>
+        </View>
         <Text style={styles.resultPlayerLabel}>{currentPlayer?.name}'s turn</Text>
 
         <View style={styles.resultButtons}>
@@ -925,12 +933,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     width: "100%",
   },
+  wordWithIcon: {
+    flexDirection: "column",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+  },
   revealWord: {
     fontSize: 48,
     fontWeight: "700",
     color: colors.text,
     textAlign: "center",
-    marginBottom: spacing.lg,
   },
   revealWarning: {
     flexDirection: "row",

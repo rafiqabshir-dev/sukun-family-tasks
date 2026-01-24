@@ -14,6 +14,7 @@ export interface Turn {
   playerId: string;
   wordId: string;
   wordText: string;
+  wordIcon: string;
   category: string;
   result: 'guessed' | 'skipped' | null;
   guesserId: string | null;
@@ -36,14 +37,14 @@ export type GameAction =
   | { type: 'SET_PLAYERS'; players: Player[] }
   | { type: 'UPDATE_SETTINGS'; settings: Partial<Settings> }
   | { type: 'START_GAME' }
-  | { type: 'PLAYER_READY'; wordId: string; wordText: string; wordCategory: string }
-  | { type: 'CHANGE_WORD'; wordId: string; wordText: string; wordCategory: string }
+  | { type: 'PLAYER_READY'; wordId: string; wordText: string; wordIcon: string; wordCategory: string }
+  | { type: 'CHANGE_WORD'; wordId: string; wordText: string; wordIcon: string; wordCategory: string }
   | { type: 'REVEAL_COMPLETE' }
   | { type: 'TICK' }
   | { type: 'TOGGLE_PAUSE' }
   | { type: 'END_EARLY' }
   | { type: 'RECORD_RESULT'; result: 'guessed' | 'skipped'; guesserId?: string }
-  | { type: 'NEXT_TURN'; wordId: string; wordText: string; wordCategory: string }
+  | { type: 'NEXT_TURN'; wordId: string; wordText: string; wordIcon: string; wordCategory: string }
   | { type: 'PLAY_AGAIN' }
   | { type: 'CHANGE_SETTINGS' }
   | { type: 'RESET' };
