@@ -93,12 +93,31 @@ function HeaderLocationLeft() {
 // Avatar dropdown component for header RIGHT side
 function HeaderAvatarDropdown() {
   const [showDropdown, setShowDropdown] = useState(false);
-  const { profile } = useAuth();
+  const { profile, signOut } = useAuth();
   const members = useStore((s) => s.members);
   
   // Find current member from store
   const currentMember = members.find((m) => m.id === profile?.id);
   const isGuardian = currentMember?.role === "guardian";
+  const isParticipant = currentMember?.role === "kid";
+  
+  const handleSignOut = () => {
+    setShowDropdown(false);
+    if (Platform.OS === 'web') {
+      if (window.confirm('Are you sure you want to sign out?')) {
+        signOut();
+      }
+    } else {
+      Alert.alert(
+        'Sign Out',
+        'Are you sure you want to sign out?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Sign Out', style: 'destructive', onPress: () => signOut() }
+        ]
+      );
+    }
+  };
   
   if (!currentMember) return null;
 
@@ -154,6 +173,17 @@ function HeaderAvatarDropdown() {
                 <Text style={styles.dropdownStarsLabel}>stars</Text>
               </View>
             </View>
+
+            {isParticipant && (
+              <TouchableOpacity 
+                style={styles.dropdownSignOutButton}
+                onPress={handleSignOut}
+                data-testid="button-participant-sign-out"
+              >
+                <Ionicons name="log-out-outline" size={20} color={colors.error} />
+                <Text style={styles.dropdownSignOutText}>Sign Out</Text>
+              </TouchableOpacity>
+            )}
 
             <TouchableOpacity 
               style={styles.dropdownCloseButton}
@@ -649,6 +679,21 @@ const styles = StyleSheet.create({
   dropdownStarsLabel: {
     fontSize: fontSize.sm,
     color: colors.textSecondary,
+  },
+  dropdownSignOutButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    backgroundColor: "rgba(239, 68, 68, 0.1)",
+    borderRadius: borderRadius.md,
+    padding: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  dropdownSignOutText: {
+    fontSize: fontSize.md,
+    color: colors.error,
+    fontWeight: "600",
   },
   dropdownCloseButton: {
     backgroundColor: colors.background,
