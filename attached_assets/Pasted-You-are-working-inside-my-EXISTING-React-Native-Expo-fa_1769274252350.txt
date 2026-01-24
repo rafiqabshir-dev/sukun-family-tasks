@@ -1,0 +1,92 @@
+You are working inside my EXISTING React Native / Expo family app. There is already a screen/page called “Spin” that currently contains TWO spin-based games (Assign a Task, and Family Game spin to earn points). I want you to REFACTOR and IMPROVE this screen so it becomes a scalable “Games Hub” where we can add more games later (including Charades Mini), without rewriting the screen each time.
+
+PRIMARY GOAL
+Turn the current “Spin” page into a generic “Games” page that:
+- still supports the two existing spin games exactly as they work today
+- looks cleaner and more intentional
+- makes adding new games trivial (just add a config entry + screen)
+
+HIGH-LEVEL UX
+1) Rename the top title from “Spin” to “Games” (or keep route name Spin but show header title “Games”).
+2) At the top, show a simple category switch:
+   - “Spin Games”
+   - “Party Games”
+   - (future: “Learning”, “Rewards”, etc.)
+3) Under the selected category, show a list/grid of “Game Cards”.
+   Each card has:
+   - icon/emoji
+   - title
+   - short subtitle (1 line)
+   - optional “New” badge
+   - on tap, navigates to that game screen
+
+4) Keep the current two spin games under “Spin Games” category:
+   - Assign a Task (existing experience)
+   - Family Game (existing experience)
+
+5) Add a placeholder/new entry under “Party Games”:
+   - Charades Mini (we will implement the screen next; for now you can route to a stub screen that says “Coming soon” OR implement the basic Charades Mini screen if it’s already in scope)
+
+ARCHITECTURE (IMPORTANT)
+Create a “games registry” so we can add future games by configuration, not by editing UI logic everywhere.
+
+- Create a file like: src/games/registry.ts
+- Define a type:
+
+type GameCategory = 'spin' | 'party';
+
+type GameDefinition = {
+  id: string;
+  title: string;
+  subtitle: string;
+  category: GameCategory;
+  icon: string;        // emoji is fine
+  routeName: string;   // navigation route
+  isNew?: boolean;
+  isEnabled?: boolean; // future gating
+};
+
+- Export a constant array: GAMES: GameDefinition[] with at least:
+  1) assign-task (spin) -> existing route/screen
+  2) spin-race (spin) -> existing route/screen
+  3) charades-mini (party) -> CharadesMiniScreen or stub route
+
+SPIN-SPECIFIC DETAIL
+The existing “Assign a Task” experience currently shows the wheel UI (as in the screenshot) and a big “Spin to Choose” button.
+Do NOT break this. Keep it as-is. The Games hub should just route into it.
+
+IMPLEMENTATION STEPS
+1) Keep the existing navigation route name (Spin) to avoid breaking tabs, but change internal UI to a Games hub.
+2) Build a new screen component:
+   - GamesHubScreen (or refactor SpinScreen into a hub)
+3) Inside the hub:
+   - Read GAMES registry
+   - Filter by selected category
+   - Render cards
+   - Navigate to game route on tap
+4) Keep the current look/feel (colors, spacing, rounded cards) consistent with the app.
+5) Ensure safe area / notch spacing (the screenshot shows close-to-notch header).
+
+ROUTING
+- Ensure navigation has routes for the games:
+  - Existing routes for the two spin games remain unchanged.
+  - Add “CharadesMini” route:
+    - If CharadesMiniScreen exists, route to it.
+    - If not, create a simple stub screen “Charades Mini (Coming soon)” so the hub flow works.
+
+QUALITY BAR
+- No regressions on existing spin games.
+- The hub should feel fast: minimal animations, big tap targets.
+- Code should be clean and easy to extend.
+
+DELIVERABLES
+- Updated Spin tab screen to act as a Games hub
+- New registry file with game definitions
+- GameCard component (reusable)
+- Category switch UI (simple segmented control or pill tabs)
+- Navigation routes wired up for all game entries
+
+After implementing, add a short developer note in comments:
+“How to add a new game: add an entry to GAMES registry + add a route/screen.”
+
+DO NOT ask me questions. Make reasonable assumptions and implement.
