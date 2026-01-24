@@ -12,7 +12,7 @@ import { playSpinSound, playWinnerSound, playClickSound, stopAllSounds, playSucc
 import { FamilyWheel } from "@/components/FamilyWheel";
 import { useResponsive } from "@/lib/useResponsive";
 import { GameCard } from "@/components/GameCard";
-import { CATEGORIES, getGamesByCategory, GameCategory } from "@/lib/gamesRegistry";
+import { CATEGORIES, getGamesByCategory, getGameById, GameCategory } from "@/lib/gamesRegistry";
 
 /**
  * HOW TO ADD A NEW GAME:
@@ -158,6 +158,21 @@ export default function SpinScreen() {
 
   const handleGameSelect = (gameId: string) => {
     playClickSound();
+    const game = getGameById(gameId);
+    
+    if (game?.isComingSoon) {
+      router.push({
+        pathname: '/games/coming-soon',
+        params: {
+          title: game.title,
+          description: game.comingSoonNote || '',
+          icon: game.icon,
+          iconColor: game.iconColor,
+        },
+      });
+      return;
+    }
+    
     if (gameId === 'assign-task') {
       setMode('assign');
       setHubView('assign');
@@ -436,6 +451,7 @@ export default function SpinScreen() {
               icon={game.icon}
               iconColor={game.iconColor}
               isNew={game.isNew}
+              isComingSoon={game.isComingSoon}
               onPress={() => handleGameSelect(game.id)}
               disabled={game.requiresGuardian && !isGuardian}
             />

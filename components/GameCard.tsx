@@ -8,14 +8,15 @@ interface GameCardProps {
   icon: string;
   iconColor: string;
   isNew?: boolean;
+  isComingSoon?: boolean;
   onPress: () => void;
   disabled?: boolean;
 }
 
-export function GameCard({ title, subtitle, icon, iconColor, isNew, onPress, disabled }: GameCardProps) {
+export function GameCard({ title, subtitle, icon, iconColor, isNew, isComingSoon, onPress, disabled }: GameCardProps) {
   return (
     <TouchableOpacity 
-      style={[styles.card, disabled && styles.cardDisabled]} 
+      style={[styles.card, disabled && styles.cardDisabled, isComingSoon && styles.cardComingSoon]} 
       onPress={onPress}
       activeOpacity={0.7}
       disabled={disabled}
@@ -26,7 +27,12 @@ export function GameCard({ title, subtitle, icon, iconColor, isNew, onPress, dis
       <View style={styles.content}>
         <View style={styles.titleRow}>
           <Text style={styles.title}>{title}</Text>
-          {isNew && (
+          {isComingSoon && (
+            <View style={styles.comingSoonBadge}>
+              <Text style={styles.comingSoonBadgeText}>COMING SOON</Text>
+            </View>
+          )}
+          {isNew && !isComingSoon && (
             <View style={styles.newBadge}>
               <Text style={styles.newBadgeText}>NEW</Text>
             </View>
@@ -55,6 +61,9 @@ const styles = StyleSheet.create({
   },
   cardDisabled: {
     opacity: 0.5,
+  },
+  cardComingSoon: {
+    opacity: 0.85,
   },
   iconContainer: {
     width: 52,
@@ -90,6 +99,17 @@ const styles = StyleSheet.create({
   },
   newBadgeText: {
     fontSize: 10,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  comingSoonBadge: {
+    backgroundColor: colors.secondary,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: borderRadius.sm,
+  },
+  comingSoonBadgeText: {
+    fontSize: 9,
     fontWeight: "700",
     color: "#FFFFFF",
   },

@@ -1,0 +1,142 @@
+You are working inside my EXISTING React Native / Expo family app that has a “Games” hub screen driven by a games registry (e.g., src/games/registry.ts). The hub shows categories (Spin Games, Party Games, etc.) and renders Game Cards from the registry.
+
+TASK
+Add placeholders for upcoming Learning games and show “Coming Soon” badges on those cards. These cards should be visible in the Games hub, but tapping them should open a simple “Coming Soon” screen that explains the game is not available yet.
+
+WHAT TO ADD
+1) Add a new category to the hub:
+- “Learning Games”
+(Internally can be category id: 'learning')
+
+2) Add these new registry entries (all are placeholders):
+- Dua Detective
+- Seerah Stories
+- Where In The World? (global geography)
+- Somalia Explorer (Somalia-only geography/history)
+
+Each should show:
+- A “Coming Soon” badge on the Game Card
+- Optional subtitle
+- An icon/emoji
+- isEnabled should be true (so it shows up), but mark as comingSoon
+
+REGISTRY MODEL UPDATE
+Update GameDefinition type to include:
+- isComingSoon?: boolean
+- comingSoonNote?: string (optional)
+
+Example:
+type GameCategory = 'spin' | 'party' | 'learning';
+
+type GameDefinition = {
+  id: string;
+  title: string;
+  subtitle: string;
+  category: GameCategory;
+  icon: string;        // emoji OK
+  routeName: string;
+  isNew?: boolean;
+  isEnabled?: boolean;
+  isComingSoon?: boolean;
+  comingSoonNote?: string;
+};
+
+ADD THESE REGISTRY ENTRIES
+Add these to GAMES array:
+
+1) Dua Detective
+{
+  id: 'dua-detective',
+  title: 'Dua Detective',
+  subtitle: 'Match situations to du’as.',
+  category: 'learning',
+  icon: '🕌',
+  routeName: 'ComingSoon',
+  isNew: true,
+  isEnabled: true,
+  isComingSoon: true,
+  comingSoonNote: 'Practice daily du’as with quick multiple-choice questions.'
+}
+
+2) Seerah Stories
+{
+  id: 'seerah-stories',
+  title: 'Seerah Stories',
+  subtitle: 'What happened next?',
+  category: 'learning',
+  icon: '📜',
+  routeName: 'ComingSoon',
+  isEnabled: true,
+  isComingSoon: true,
+  comingSoonNote: 'Short, kid-friendly Seerah questions with lessons.'
+}
+
+3) Where In The World?
+{
+  id: 'world-geography',
+  title: 'Where In The World?',
+  subtitle: 'Flags, countries, capitals.',
+  category: 'learning',
+  icon: '🌍',
+  routeName: 'ComingSoon',
+  isEnabled: true,
+  isComingSoon: true,
+  comingSoonNote: 'Fun geography quizzes: flags, continents, capitals.'
+}
+
+4) Somalia Explorer
+{
+  id: 'somalia-explorer',
+  title: 'Somalia Explorer',
+  subtitle: 'States, cities, and history.',
+  category: 'learning',
+  icon: '🇸🇴',
+  routeName: 'ComingSoon',
+  isEnabled: true,
+  isComingSoon: true,
+  comingSoonNote: 'Somalia-only quiz pack: states, cities, landmarks, basics.'
+}
+
+GAMES HUB UI CHANGES
+3) Add category switch tab for “Learning Games” next to Spin Games / Party Games.
+- Keep the UI consistent with existing segmented control / pill tabs.
+
+4) Update GameCard to visually indicate “Coming Soon”:
+- Show a small badge in the card header: “Coming Soon”
+- When isComingSoon is true:
+  - card still tappable
+  - show a softer/disabled-ish style (slightly reduced opacity) but keep readable
+  - show the badge clearly
+
+COMING SOON SCREEN
+5) Implement a reusable ComingSoon screen:
+- Route name: 'ComingSoon'
+- It should accept params from navigation:
+  - title
+  - description (comingSoonNote)
+  - icon
+- UI:
+  - Big icon
+  - Title
+  - “Coming Soon” badge
+  - 2–3 lines description
+  - Button: “Back to Games”
+- If params are missing, show generic message.
+
+NAVIGATION WIRING
+6) When tapping a Game Card that isComingSoon:
+- Navigate to ComingSoon route with params:
+  - title, description, icon
+- For non-comingSoon games, navigate to their real route normally.
+
+IMPORTANT
+- Do NOT break existing Spin Games or Party Games.
+- Charades Mini should remain playable and NOT show coming soon.
+- Keep changes minimal, clean, and scalable.
+
+DELIVERABLES
+- Updated GameDefinition + registry entries
+- Updated category switch to include Learning Games
+- GameCard shows Coming Soon badge when applicable
+- ComingSoon screen implemented and hooked up
+- Tapping placeholder cards opens ComingSoon with correct title/description/icon

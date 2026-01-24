@@ -19,6 +19,8 @@ export interface GameDefinition {
   isNew?: boolean;
   isEnabled?: boolean;
   requiresGuardian?: boolean;
+  isComingSoon?: boolean;
+  comingSoonNote?: string;
 }
 
 export interface CategoryDefinition {
@@ -30,6 +32,7 @@ export interface CategoryDefinition {
 export const CATEGORIES: CategoryDefinition[] = [
   { id: 'spin', title: 'Spin Games', icon: 'sync-outline' },
   { id: 'party', title: 'Party Games', icon: 'people-outline' },
+  { id: 'learning', title: 'Learning Games', icon: 'school-outline' },
 ];
 
 export const GAMES: GameDefinition[] = [
@@ -63,6 +66,51 @@ export const GAMES: GameDefinition[] = [
     isNew: true,
     isEnabled: true,
     requiresGuardian: false,
+  },
+  {
+    id: 'dua-detective',
+    title: 'Dua Detective',
+    subtitle: "Match situations to du'as",
+    category: 'learning',
+    icon: 'moon-outline',
+    iconColor: '#00897B',
+    isNew: true,
+    isEnabled: true,
+    isComingSoon: true,
+    comingSoonNote: "Practice daily du'as with quick multiple-choice questions.",
+  },
+  {
+    id: 'seerah-stories',
+    title: 'Seerah Stories',
+    subtitle: 'What happened next?',
+    category: 'learning',
+    icon: 'book-outline',
+    iconColor: '#5D4037',
+    isEnabled: true,
+    isComingSoon: true,
+    comingSoonNote: 'Short, kid-friendly Seerah questions with lessons.',
+  },
+  {
+    id: 'world-geography',
+    title: 'Where In The World?',
+    subtitle: 'Flags, countries, capitals',
+    category: 'learning',
+    icon: 'globe-outline',
+    iconColor: '#1976D2',
+    isEnabled: true,
+    isComingSoon: true,
+    comingSoonNote: 'Fun geography quizzes: flags, continents, capitals.',
+  },
+  {
+    id: 'somalia-explorer',
+    title: 'Somalia Explorer',
+    subtitle: 'States, cities, and history',
+    category: 'learning',
+    icon: 'map-outline',
+    iconColor: '#43A047',
+    isEnabled: true,
+    isComingSoon: true,
+    comingSoonNote: 'Somalia-only quiz pack: states, cities, landmarks, basics.',
   },
 ];
 
