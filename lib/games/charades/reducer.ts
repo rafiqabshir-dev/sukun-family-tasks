@@ -59,6 +59,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         wordText: action.wordText,
         category: action.wordCategory,
         result: null as 'guessed' | 'skipped' | null,
+        guesserId: null as string | null,
       };
 
       const newUsedWordIds = new Set(state.usedWordIds);
@@ -117,6 +118,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         updatedTurns[lastTurnIndex] = {
           ...updatedTurns[lastTurnIndex],
           result: action.result,
+          guesserId: action.guesserId || null,
         };
       }
 
@@ -150,6 +152,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         wordText: action.wordText,
         category: action.wordCategory,
         result: null as 'guessed' | 'skipped' | null,
+        guesserId: null as string | null,
       };
 
       const newUsedWordIds = new Set(state.usedWordIds);

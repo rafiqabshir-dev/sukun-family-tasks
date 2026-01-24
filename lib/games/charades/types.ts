@@ -16,6 +16,7 @@ export interface Turn {
   wordText: string;
   category: string;
   result: 'guessed' | 'skipped' | null;
+  guesserId: string | null;
 }
 
 export type GameStatus = 'SETUP' | 'PASS' | 'REVEAL' | 'ACT' | 'RESULT' | 'SUMMARY';
@@ -40,7 +41,7 @@ export type GameAction =
   | { type: 'TICK' }
   | { type: 'TOGGLE_PAUSE' }
   | { type: 'END_EARLY' }
-  | { type: 'RECORD_RESULT'; result: 'guessed' | 'skipped' }
+  | { type: 'RECORD_RESULT'; result: 'guessed' | 'skipped'; guesserId?: string }
   | { type: 'NEXT_TURN'; wordId: string; wordText: string; wordCategory: string }
   | { type: 'PLAY_AGAIN' }
   | { type: 'CHANGE_SETTINGS' }

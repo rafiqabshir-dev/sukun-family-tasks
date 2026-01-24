@@ -8,7 +8,7 @@ import { useStore } from "@/lib/store";
 import { gameReducer, createInitialState } from "@/lib/games/charades/reducer";
 import { selectNextWord } from "@/lib/games/charades/wordSelection";
 import { Player, Settings, GameState } from "@/lib/games/charades/types";
-import { playClickSound, playSuccessSound } from "@/lib/soundService";
+import { playClickSound, playSuccessSound, playTickSound } from "@/lib/soundService";
 
 const GAME_COLOR = "#9C27B0";
 const GAME_COLOR_LIGHT = "#9C27B020";
@@ -322,6 +322,7 @@ function ActView({ state, dispatch }: ViewProps) {
 
   useEffect(() => {
     if (state.timeRemaining <= 5 && state.timeRemaining > 0) {
+      playTickSound();
       Animated.sequence([
         Animated.timing(pulseAnim, { toValue: 1.2, duration: 100, useNativeDriver: true }),
         Animated.timing(pulseAnim, { toValue: 1, duration: 100, useNativeDriver: true }),
@@ -369,18 +370,17 @@ function ResultView({ state, dispatch }: ViewProps) {
   const currentTurn = state.turns[state.turns.length - 1];
   const currentPlayerIndex = (state.currentTurnIndex - 1) % state.players.length;
   const currentPlayer = state.players[currentPlayerIndex >= 0 ? currentPlayerIndex : 0];
+  const [showGuesserPicker, setShowGuesserPicker] = useState(false);
 
-  const handleResult = (result: 'guessed' | 'skipped') => {
-    if (result === 'guessed') {
-      playSuccessSound();
-    } else {
-      playClickSound();
-    }
+  const otherPlayers = state.players.filter(p => p.id !== currentPlayer?.id);
+
+  const handleSkipped = () => {
+    playClickSound();
     
     const totalRoundsNeeded = state.players.length * state.settings.roundsPerPlayer;
     const nextTurnIndex = state.currentTurnIndex + 1;
     
-    dispatch({ type: 'RECORD_RESULT', result });
+    dispatch({ type: 'RECORD_RESULT', result: 'skipped' });
     
     if (nextTurnIndex < totalRoundsNeeded) {
       setTimeout(() => {
@@ -398,6 +398,65 @@ function ResultView({ state, dispatch }: ViewProps) {
     }
   };
 
+  const handleGuessed = () => {
+    playClickSound();
+    setShowGuesserPicker(true);
+  };
+
+  const handleSelectGuesser = (guesserId: string) => {
+    playSuccessSound();
+    
+    const totalRoundsNeeded = state.players.length * state.settings.roundsPerPlayer;
+    const nextTurnIndex = state.currentTurnIndex + 1;
+    
+    dispatch({ type: 'RECORD_RESULT', result: 'guessed', guesserId });
+    
+    if (nextTurnIndex < totalRoundsNeeded) {
+      setTimeout(() => {
+        const word = selectNextWord({
+          category: state.settings.category,
+          usedWordIds: state.usedWordIds,
+        });
+        dispatch({
+          type: 'NEXT_TURN',
+          wordId: word.id,
+          wordText: word.text,
+          wordCategory: word.category,
+        });
+      }, 100);
+    }
+  };
+
+  if (showGuesserPicker) {
+    return (
+      <View style={styles.centeredView}>
+        <View style={styles.resultContainer}>
+          <Ionicons name="checkmark-circle" size={48} color={colors.success} style={styles.guesserIcon} />
+          <Text style={styles.guesserPickerTitle}>Who guessed it?</Text>
+          <Text style={styles.guesserPickerSubtitle}>Both {currentPlayer?.name} (actor) and the guesser earn a point</Text>
+          
+          <View style={styles.guesserList}>
+            {otherPlayers.map(player => (
+              <TouchableOpacity
+                key={player.id}
+                onPress={() => handleSelectGuesser(player.id)}
+                style={styles.guesserOption}
+              >
+                <Text style={styles.guesserOptionText}>{player.name}</Text>
+                <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <TouchableOpacity onPress={() => setShowGuesserPicker(false)} style={styles.guesserBackButton}>
+            <Ionicons name="arrow-back" size={20} color={colors.textSecondary} />
+            <Text style={styles.guesserBackButtonText}>Back</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.centeredView}>
       <View style={styles.resultContainer}>
@@ -407,7 +466,7 @@ function ResultView({ state, dispatch }: ViewProps) {
 
         <View style={styles.resultButtons}>
           <TouchableOpacity
-            onPress={() => handleResult('guessed')}
+            onPress={handleGuessed}
             style={[styles.resultButton, styles.guessedButton]}
           >
             <Ionicons name="checkmark-circle" size={32} color="#FFFFFF" />
@@ -415,7 +474,7 @@ function ResultView({ state, dispatch }: ViewProps) {
           </TouchableOpacity>
           
           <TouchableOpacity
-            onPress={() => handleResult('skipped')}
+            onPress={handleSkipped}
             style={[styles.resultButton, styles.skippedButton]}
           >
             <Ionicons name="close-circle" size={32} color="#FFFFFF" />
@@ -429,9 +488,10 @@ function ResultView({ state, dispatch }: ViewProps) {
 
 function SummaryView({ state, dispatch }: ViewProps) {
   const scores = state.players.map(player => {
-    const playerTurns = state.turns.filter(t => t.playerId === player.id);
-    const points = playerTurns.filter(t => t.result === 'guessed').length;
-    return { player, points };
+    const actorPoints = state.turns.filter(t => t.playerId === player.id && t.result === 'guessed').length;
+    const guesserPoints = state.turns.filter(t => t.guesserId === player.id).length;
+    const points = actorPoints + guesserPoints;
+    return { player, points, actorPoints, guesserPoints };
   });
 
   scores.sort((a, b) => b.points - a.points);
@@ -878,6 +938,54 @@ const styles = StyleSheet.create({
     fontSize: fontSize.lg,
     fontWeight: "600",
     color: "#FFFFFF",
+  },
+  guesserIcon: {
+    marginBottom: spacing.md,
+  },
+  guesserPickerTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: colors.text,
+    textAlign: "center",
+    marginBottom: spacing.xs,
+  },
+  guesserPickerSubtitle: {
+    fontSize: fontSize.md,
+    color: colors.textSecondary,
+    textAlign: "center",
+    marginBottom: spacing.lg,
+    paddingHorizontal: spacing.md,
+  },
+  guesserList: {
+    width: "100%",
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  guesserOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: colors.surface,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  guesserOptionText: {
+    fontSize: fontSize.lg,
+    fontWeight: "500",
+    color: colors.text,
+  },
+  guesserBackButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    paddingVertical: spacing.sm,
+  },
+  guesserBackButtonText: {
+    fontSize: fontSize.md,
+    color: colors.textSecondary,
   },
 
   // Summary View

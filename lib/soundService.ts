@@ -4,12 +4,14 @@ import { useStore } from './store';
 let spinSound: Audio.Sound | null = null;
 let winnerSound: Audio.Sound | null = null;
 let clickSound: Audio.Sound | null = null;
+let tickSound: Audio.Sound | null = null;
 
 const SOUNDS = {
   spin: 'https://assets.mixkit.co/active_storage/sfx/2003/2003-preview.mp3',
   winner: 'https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3',
   click: 'https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3',
   success: 'https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.mp3',
+  tick: 'https://assets.mixkit.co/active_storage/sfx/2569/2569-preview.mp3',
 };
 
 export async function initSounds() {
@@ -106,6 +108,24 @@ export async function playSuccessSound() {
   }
 }
 
+export async function playTickSound() {
+  const settings = useStore.getState().settings;
+  if (!settings.soundsEnabled) return;
+
+  try {
+    if (tickSound) {
+      await tickSound.stopAsync();
+      await tickSound.unloadAsync();
+    }
+    tickSound = await loadSound(SOUNDS.tick);
+    if (tickSound) {
+      await tickSound.playAsync();
+    }
+  } catch (error) {
+    console.log('[Sound] Error playing tick sound:', error);
+  }
+}
+
 export async function stopAllSounds() {
   try {
     if (spinSound) {
@@ -122,6 +142,11 @@ export async function stopAllSounds() {
       await clickSound.stopAsync();
       await clickSound.unloadAsync();
       clickSound = null;
+    }
+    if (tickSound) {
+      await tickSound.stopAsync();
+      await tickSound.unloadAsync();
+      tickSound = null;
     }
   } catch (error) {
     console.log('[Sound] Error stopping sounds:', error);
