@@ -134,10 +134,13 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         };
       }
 
+      // Go back to PASS screen so phone can be handed to next player
       return {
         ...state,
+        status: 'PASS',
         turns: updatedTurns,
         currentTurnIndex: nextTurnIndex,
+        timeRemaining: state.settings.roundTimeSec,
       };
     }
 

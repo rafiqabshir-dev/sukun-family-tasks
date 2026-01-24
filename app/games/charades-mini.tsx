@@ -376,51 +376,15 @@ function ResultView({ state, dispatch }: ViewProps) {
 
   const handleSkipped = () => {
     playClickSound();
-    
-    const totalRoundsNeeded = state.players.length * state.settings.roundsPerPlayer;
-    const nextTurnIndex = state.currentTurnIndex + 1;
-    
     dispatch({ type: 'RECORD_RESULT', result: 'skipped' });
-    
-    if (nextTurnIndex < totalRoundsNeeded) {
-      setTimeout(() => {
-        const word = selectNextWord({
-          category: state.settings.category,
-          usedWordIds: state.usedWordIds,
-        });
-        dispatch({
-          type: 'NEXT_TURN',
-          wordId: word.id,
-          wordText: word.text,
-          wordCategory: word.category,
-        });
-      }, 100);
-    }
   };
 
   const handleGuessed = () => {
     playClickSound();
     if (otherPlayers.length === 0) {
+      // Solo player - no guesser to select
       playSuccessSound();
-      const totalRoundsNeeded = state.players.length * state.settings.roundsPerPlayer;
-      const nextTurnIndex = state.currentTurnIndex + 1;
-      
       dispatch({ type: 'RECORD_RESULT', result: 'guessed' });
-      
-      if (nextTurnIndex < totalRoundsNeeded) {
-        setTimeout(() => {
-          const word = selectNextWord({
-            category: state.settings.category,
-            usedWordIds: state.usedWordIds,
-          });
-          dispatch({
-            type: 'NEXT_TURN',
-            wordId: word.id,
-            wordText: word.text,
-            wordCategory: word.category,
-          });
-        }, 100);
-      }
     } else {
       setShowGuesserPicker(true);
     }
@@ -428,26 +392,8 @@ function ResultView({ state, dispatch }: ViewProps) {
 
   const handleSelectGuesser = (guesserId: string) => {
     playSuccessSound();
-    
-    const totalRoundsNeeded = state.players.length * state.settings.roundsPerPlayer;
-    const nextTurnIndex = state.currentTurnIndex + 1;
-    
+    setShowGuesserPicker(false);
     dispatch({ type: 'RECORD_RESULT', result: 'guessed', guesserId });
-    
-    if (nextTurnIndex < totalRoundsNeeded) {
-      setTimeout(() => {
-        const word = selectNextWord({
-          category: state.settings.category,
-          usedWordIds: state.usedWordIds,
-        });
-        dispatch({
-          type: 'NEXT_TURN',
-          wordId: word.id,
-          wordText: word.text,
-          wordCategory: word.category,
-        });
-      }, 100);
-    }
   };
 
   if (showGuesserPicker) {
