@@ -400,7 +400,30 @@ function ResultView({ state, dispatch }: ViewProps) {
 
   const handleGuessed = () => {
     playClickSound();
-    setShowGuesserPicker(true);
+    if (otherPlayers.length === 0) {
+      playSuccessSound();
+      const totalRoundsNeeded = state.players.length * state.settings.roundsPerPlayer;
+      const nextTurnIndex = state.currentTurnIndex + 1;
+      
+      dispatch({ type: 'RECORD_RESULT', result: 'guessed' });
+      
+      if (nextTurnIndex < totalRoundsNeeded) {
+        setTimeout(() => {
+          const word = selectNextWord({
+            category: state.settings.category,
+            usedWordIds: state.usedWordIds,
+          });
+          dispatch({
+            type: 'NEXT_TURN',
+            wordId: word.id,
+            wordText: word.text,
+            wordCategory: word.category,
+          });
+        }, 100);
+      }
+    } else {
+      setShowGuesserPicker(true);
+    }
   };
 
   const handleSelectGuesser = (guesserId: string) => {
