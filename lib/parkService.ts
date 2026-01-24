@@ -175,7 +175,8 @@ export async function getNearbyParks(radiusMeters: number = 5000): Promise<ParkD
       });
       
       if (!response.ok) {
-        console.error('[Parks] Server error:', server, response.status);
+        // Use warn instead of error for transient server issues (won't trigger Expo error console)
+        console.warn('[Parks] Server unavailable:', server, response.status);
         lastError = new Error(`Failed to fetch parks: ${response.status}`);
         continue;
       }
@@ -184,7 +185,7 @@ export async function getNearbyParks(radiusMeters: number = 5000): Promise<ParkD
       
       // Check if response is HTML error page
       if (text.includes('<!DOCTYPE') || text.includes('<html')) {
-        console.error('[Parks] Server returned HTML error:', server);
+        console.warn('[Parks] Server returned HTML error:', server);
         lastError = new Error('Server busy, returned error page');
         continue;
       }
@@ -247,7 +248,8 @@ export async function getNearbyParks(radiusMeters: number = 5000): Promise<ParkD
       };
       
     } catch (error) {
-      console.error('[Parks] Server failed:', server, error);
+      // Use warn for network errors - these are expected when servers are busy
+      console.warn('[Parks] Server failed:', server, error instanceof Error ? error.message : error);
       lastError = error instanceof Error ? error : new Error(String(error));
       continue;
     }
