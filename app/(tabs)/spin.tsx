@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, KeyboardAvoidingView, Platform, Alert, RefreshControl } from "react-native";
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, borderRadius, fontSize } from "@/lib/theme";
@@ -74,9 +74,45 @@ export default function SpinScreen() {
   const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0);
   const [lastSpinResult, setLastSpinResult] = useState<number | null>(null);
   const [winner, setWinner] = useState<GameScore | null>(null);
+  const [selectedPlayers, setSelectedPlayers] = useState<Set<string>>(new Set(members.map(m => m.id)));
 
   const allMembers = members;
+  const gamePlayers = useMemo(() => 
+    allMembers.filter(m => selectedPlayers.has(m.id)), 
+    [allMembers, selectedPlayers]
+  );
   const enabledTemplates = taskTemplates.filter((t) => t.enabled && !t.isArchived);
+
+  // Sync selectedPlayers when members change (e.g., after refresh/sync)
+  useEffect(() => {
+    setSelectedPlayers(prev => {
+      const memberIds = new Set(members.map(m => m.id));
+      const newSelected = new Set<string>();
+      // Keep existing selections that are still valid
+      prev.forEach(id => {
+        if (memberIds.has(id)) {
+          newSelected.add(id);
+        }
+      });
+      // Add any new members
+      members.forEach(m => {
+        if (!prev.has(m.id)) {
+          newSelected.add(m.id);
+        }
+      });
+      return newSelected;
+    });
+    
+    // Reset game if playing and players changed
+    if (gamePhase === "playing") {
+      const currentPlayerIds = new Set(gameScores.map(s => s.memberId));
+      const memberIds = new Set(members.map(m => m.id));
+      const hasInvalidPlayer = gameScores.some(s => !memberIds.has(s.memberId));
+      if (hasInvalidPlayer) {
+        resetGame();
+      }
+    }
+  }, [members]);
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
@@ -104,6 +140,20 @@ export default function SpinScreen() {
     setSelectedMember(null);
     setGamePhase("setup");
     setWinner(null);
+    setSelectedPlayers(new Set(members.map(m => m.id)));
+    playClickSound();
+  };
+
+  const togglePlayerSelection = (memberId: string) => {
+    setSelectedPlayers(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(memberId)) {
+        newSet.delete(memberId);
+      } else {
+        newSet.add(memberId);
+      }
+      return newSet;
+    });
     playClickSound();
   };
 
@@ -199,12 +249,12 @@ export default function SpinScreen() {
   };
 
   const startGame = () => {
-    if (allMembers.length < 2) {
-      Alert.alert("Need More Players", "You need at least 2 family members to play the game!");
+    if (gamePlayers.length < 2) {
+      Alert.alert("Need More Players", "You need at least 2 players selected to play the game!");
       return;
     }
     
-    const initialScores: GameScore[] = allMembers.map(m => ({
+    const initialScores: GameScore[] = gamePlayers.map(m => ({
       memberId: m.id,
       memberName: m.name,
       score: 0,
@@ -233,8 +283,17 @@ export default function SpinScreen() {
     const starsWon = segment.value || 1;
     setLastSpinResult(starsWon);
     
+    // Guard against empty players (should not happen, but be safe)
+    if (gamePlayers.length === 0) {
+      resetGame();
+      return;
+    }
+    
     setGameScores(prev => {
       const updated = [...prev];
+      if (!updated[currentPlayerIndex]) {
+        return prev; // Guard against invalid index
+      }
       updated[currentPlayerIndex].score += starsWon;
       
       if (updated[currentPlayerIndex].score >= targetScore) {
@@ -245,7 +304,10 @@ export default function SpinScreen() {
         }, 1000);
       } else {
         setTimeout(() => {
-          setCurrentPlayerIndex((currentPlayerIndex + 1) % allMembers.length);
+          const nextIndex = gamePlayers.length > 0 
+            ? (currentPlayerIndex + 1) % gamePlayers.length 
+            : 0;
+          setCurrentPlayerIndex(nextIndex);
           setLastSpinResult(null);
         }, 2000);
       }
@@ -260,6 +322,7 @@ export default function SpinScreen() {
     setCurrentPlayerIndex(0);
     setWinner(null);
     setLastSpinResult(null);
+    setSelectedPlayers(new Set(members.map(m => m.id)));
     playClickSound();
   };
 
@@ -373,6 +436,34 @@ export default function SpinScreen() {
 
       {mode === "game" && gamePhase === "setup" && (
         <View style={styles.gameSetup}>
+          <Text style={styles.setupLabel}>Select Players:</Text>
+          <View style={styles.playerSelector}>
+            {allMembers.map((member) => {
+              const isSelected = selectedPlayers.has(member.id);
+              return (
+                <TouchableOpacity
+                  key={member.id}
+                  style={[styles.playerOption, isSelected && styles.playerOptionActive]}
+                  onPress={() => togglePlayerSelection(member.id)}
+                >
+                  {member.avatar ? (
+                    <Text style={styles.playerAvatar}>{member.avatar}</Text>
+                  ) : (
+                    <Ionicons name="person-circle" size={24} color={isSelected ? "#FFFFFF" : colors.textMuted} />
+                  )}
+                  <Text style={[styles.playerName, isSelected && styles.playerNameActive]} numberOfLines={1}>
+                    {member.name.split(' ')[0]}
+                  </Text>
+                  <Ionicons 
+                    name={isSelected ? "checkmark-circle" : "add-circle-outline"} 
+                    size={18} 
+                    color={isSelected ? "#FFFFFF" : colors.textMuted} 
+                  />
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
           <Text style={styles.setupLabel}>Target Score:</Text>
           <View style={styles.targetSelector}>
             {[5, 10, 15, 20].map(score => (
@@ -391,12 +482,14 @@ export default function SpinScreen() {
             ))}
           </View>
           <TouchableOpacity
-            style={[styles.spinButton, allMembers.length < 2 && styles.spinButtonDisabled]}
+            style={[styles.spinButton, gamePlayers.length < 2 && styles.spinButtonDisabled]}
             onPress={startGame}
-            disabled={allMembers.length < 2}
+            disabled={gamePlayers.length < 2}
           >
             <Ionicons name="game-controller" size={20} color="#FFFFFF" />
-            <Text style={styles.spinButtonText}>Start Game</Text>
+            <Text style={styles.spinButtonText}>
+              {gamePlayers.length < 2 ? `Select ${2 - gamePlayers.length} More Player${gamePlayers.length === 1 ? '' : 's'}` : 'Start Game'}
+            </Text>
           </TouchableOpacity>
         </View>
       )}
@@ -420,7 +513,7 @@ export default function SpinScreen() {
               <Text style={styles.scoreboardTitle}>Scoreboard</Text>
             </View>
             {gameScores.map((score, index) => {
-              const member = allMembers.find(m => m.id === score.memberId);
+              const member = gamePlayers.find(m => m.id === score.memberId);
               const isCurrentPlayer = index === currentPlayerIndex;
               return (
                 <View 
@@ -744,6 +837,42 @@ const styles = StyleSheet.create({
   targetOptionTextActive: {
     color: "#5D4037",
     fontWeight: "bold",
+  },
+  playerSelector: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  playerOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.lg,
+    backgroundColor: "#F5F5F5",
+    borderWidth: 2,
+    borderColor: "transparent",
+    minWidth: 100,
+  },
+  playerOptionActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primaryDark,
+  },
+  playerAvatar: {
+    fontSize: 20,
+  },
+  playerName: {
+    fontSize: fontSize.sm,
+    color: colors.textMuted,
+    fontWeight: "500",
+    flex: 1,
+  },
+  playerNameActive: {
+    color: "#FFFFFF",
+    fontWeight: "600",
   },
   scoreboard: {
     backgroundColor: "#FFFFFF",

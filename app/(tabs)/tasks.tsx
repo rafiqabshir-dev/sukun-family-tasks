@@ -1550,26 +1550,27 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    paddingHorizontal: spacing.xs,
-    paddingVertical: 2,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
     borderRadius: borderRadius.sm,
     backgroundColor: colors.surface,
   },
   dueBadgeToday: {
-    backgroundColor: colors.primaryLight,
+    backgroundColor: "#E0F7F5",
   },
   dueBadgeOverdue: {
     backgroundColor: "#FFE5E5",
   },
   dueText: {
-    fontSize: fontSize.xs,
+    fontSize: fontSize.sm,
+    fontWeight: "500",
     color: colors.textMuted,
   },
   dueTextToday: {
-    color: colors.primary,
+    color: "#0D7377",
   },
   dueTextOverdue: {
-    color: colors.error,
+    color: "#DC2626",
   },
   instanceActions: {
     flexDirection: "row",
