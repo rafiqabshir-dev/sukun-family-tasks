@@ -244,6 +244,16 @@ function PassView({ state, dispatch }: ViewProps) {
   const currentRound = Math.floor(state.currentTurnIndex / state.players.length) + 1;
   const totalRounds = state.settings.roundsPerPlayer;
 
+  // Calculate current scores for live ranking
+  const scores = state.players.map(player => {
+    const actorPoints = state.turns.filter(t => t.playerId === player.id && t.result === 'guessed').length;
+    const guesserPoints = state.turns.filter(t => t.guesserId === player.id).length;
+    const points = actorPoints + guesserPoints;
+    return { player, points };
+  }).sort((a, b) => b.points - a.points);
+
+  const hasScores = state.turns.length > 0;
+
   const handleReady = () => {
     const word = selectNextWord({
       category: state.settings.category,
@@ -258,8 +268,13 @@ function PassView({ state, dispatch }: ViewProps) {
     playClickSound();
   };
 
+  const handleRestart = () => {
+    dispatch({ type: 'PLAY_AGAIN' });
+    playClickSound();
+  };
+
   return (
-    <View style={styles.centeredView}>
+    <ScrollView style={styles.passScrollView} contentContainerStyle={styles.passScrollContent}>
       <View style={styles.passContainer}>
         <Text style={styles.roundIndicator}>Round {currentRound} of {totalRounds}</Text>
         <Ionicons name="hand-left-outline" size={64} color={GAME_COLOR} style={styles.passIcon} />
@@ -272,7 +287,48 @@ function PassView({ state, dispatch }: ViewProps) {
           <Text style={styles.readyButtonText}>I'm Ready</Text>
         </TouchableOpacity>
       </View>
-    </View>
+
+      {/* Live Scoreboard */}
+      {hasScores && (
+        <View style={styles.liveScoreSection}>
+          <Text style={styles.liveScoreTitle}>Current Standings</Text>
+          {scores.map((score, index) => (
+            <View 
+              key={score.player.id} 
+              style={[
+                styles.liveScoreRow,
+                score.player.id === currentPlayer.id && styles.liveScoreRowActive,
+              ]}
+            >
+              <View style={styles.liveScoreRank}>
+                {index === 0 && score.points > 0 ? (
+                  <Ionicons name="trophy" size={16} color={colors.secondary} />
+                ) : (
+                  <Text style={styles.liveScoreRankText}>{index + 1}</Text>
+                )}
+              </View>
+              <Text style={[
+                styles.liveScorePlayerName,
+                score.player.id === currentPlayer.id && styles.liveScorePlayerNameActive,
+              ]}>
+                {score.player.name}
+                {score.player.id === currentPlayer.id && " (up next)"}
+              </Text>
+              <View style={styles.liveScorePoints}>
+                <Ionicons name="star" size={14} color={colors.secondary} />
+                <Text style={styles.liveScorePointsText}>{score.points}</Text>
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {/* Restart Option */}
+      <TouchableOpacity onPress={handleRestart} style={styles.restartButton}>
+        <Ionicons name="refresh" size={18} color={colors.textSecondary} />
+        <Text style={styles.restartButtonText}>Restart Game</Text>
+      </TouchableOpacity>
+    </ScrollView>
   );
 }
 
@@ -765,6 +821,84 @@ const styles = StyleSheet.create({
     fontSize: fontSize.lg,
     fontWeight: "600",
     color: "#FFFFFF",
+  },
+  passScrollView: {
+    flex: 1,
+  },
+  passScrollContent: {
+    flexGrow: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: spacing.lg,
+  },
+  liveScoreSection: {
+    width: "100%",
+    marginTop: spacing.xl,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+  },
+  liveScoreTitle: {
+    fontSize: fontSize.md,
+    fontWeight: "600",
+    color: colors.text,
+    marginBottom: spacing.sm,
+    textAlign: "center",
+  },
+  liveScoreRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    borderRadius: borderRadius.md,
+  },
+  liveScoreRowActive: {
+    backgroundColor: `${GAME_COLOR}15`,
+  },
+  liveScoreRank: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.background,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: spacing.sm,
+  },
+  liveScoreRankText: {
+    fontSize: fontSize.sm,
+    fontWeight: "600",
+    color: colors.textSecondary,
+  },
+  liveScorePlayerName: {
+    flex: 1,
+    fontSize: fontSize.md,
+    color: colors.text,
+  },
+  liveScorePlayerNameActive: {
+    fontWeight: "600",
+    color: GAME_COLOR,
+  },
+  liveScorePoints: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  liveScorePointsText: {
+    fontSize: fontSize.md,
+    fontWeight: "600",
+    color: colors.text,
+  },
+  restartButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    marginTop: spacing.lg,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+  },
+  restartButtonText: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
   },
 
   // Reveal View
