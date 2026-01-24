@@ -278,32 +278,25 @@ function PassView({ state, dispatch }: ViewProps) {
 
 function RevealView({ state, dispatch }: ViewProps) {
   const currentTurn = state.turns[state.turns.length - 1];
-  const [countdown, setCountdown] = useState(2);
 
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          dispatch({ type: 'REVEAL_COMPLETE' });
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [dispatch]);
+  const handleStartActing = () => {
+    dispatch({ type: 'REVEAL_COMPLETE' });
+    playClickSound();
+  };
 
   return (
     <View style={styles.centeredView}>
       <View style={styles.revealContainer}>
+        <Text style={styles.revealLabel}>Your word is:</Text>
         <Text style={styles.revealWord}>{currentTurn?.wordText}</Text>
         <View style={styles.revealWarning}>
           <Ionicons name="volume-mute" size={28} color={colors.error} />
           <Text style={styles.revealWarningText}>No talking!</Text>
         </View>
-        <Text style={styles.revealCountdown}>Starting in {countdown}...</Text>
+        <TouchableOpacity onPress={handleStartActing} style={styles.startActingButton}>
+          <Ionicons name="play" size={24} color="#FFFFFF" />
+          <Text style={styles.startActingButtonText}>Start Acting</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -384,10 +377,12 @@ function ResultView({ state, dispatch }: ViewProps) {
       playClickSound();
     }
     
+    const totalRoundsNeeded = state.players.length * state.settings.roundsPerPlayer;
+    const nextTurnIndex = state.currentTurnIndex + 1;
+    
     dispatch({ type: 'RECORD_RESULT', result });
     
-    const totalRoundsNeeded = state.players.length * state.settings.roundsPerPlayer;
-    if (state.currentTurnIndex < totalRoundsNeeded) {
+    if (nextTurnIndex < totalRoundsNeeded) {
       setTimeout(() => {
         const word = selectNextWord({
           category: state.settings.category,
@@ -766,9 +761,26 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: colors.error,
   },
-  revealCountdown: {
-    fontSize: fontSize.md,
+  revealLabel: {
+    fontSize: fontSize.lg,
     color: colors.textSecondary,
+    marginBottom: spacing.xs,
+  },
+  startActingButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    backgroundColor: GAME_COLOR,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.xxl,
+    borderRadius: borderRadius.full,
+    marginTop: spacing.md,
+  },
+  startActingButtonText: {
+    fontSize: fontSize.lg,
+    fontWeight: "600",
+    color: "#FFFFFF",
   },
 
   // Act View
