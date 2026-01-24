@@ -205,8 +205,13 @@ export default function LeaderboardScreen() {
           />
         }
       >
-        {/* Leaderboard Section */}
+        {/* League Rankings Section */}
         <View style={styles.section}>
+          <View style={styles.leagueHeader}>
+            <Ionicons name="trophy" size={28} color="#FFD700" />
+            <Text style={styles.leagueTitle}>Star League</Text>
+          </View>
+          
           {kids.length === 0 ? (
             <View style={styles.emptyState}>
               <View style={styles.emptyIcon}>
@@ -218,45 +223,88 @@ export default function LeaderboardScreen() {
               </Text>
             </View>
           ) : (
-            <View style={styles.tableContainer}>
-              <View style={styles.tableHeader}>
-                <Text style={[styles.headerCell, styles.rankCell]}>Rank</Text>
-                <Text style={[styles.headerCell, styles.nameCell]}>Name</Text>
-                <Text style={[styles.headerCell, styles.starsCell]}>Stars</Text>
-              </View>
-              
+            <View style={styles.leagueContainer}>
               {kids.map((kid, index) => {
                 const rankInfo = getRankDisplay(index);
+                const maxStars = kids[0]?.starsTotal || 1;
+                const progressPercent = maxStars > 0 ? (kid.starsTotal / maxStars) * 100 : 0;
+                
                 return (
                   <TouchableOpacity
                     key={kid.id}
                     style={[
-                      styles.tableRow,
-                      index === 0 && styles.firstPlace,
-                      index % 2 === 1 && styles.alternateRow,
+                      styles.leagueRow,
+                      index === 0 && styles.leagueRowFirst,
+                      index === 1 && styles.leagueRowSecond,
+                      index === 2 && styles.leagueRowThird,
                     ]}
                     onPress={() => router.push(`/member/${kid.id}`)}
                     data-testid={`row-leaderboard-${kid.id}`}
                   >
-                    <View style={[styles.cell, styles.rankCell]}>
+                    {/* Position Badge */}
+                    <View style={[
+                      styles.positionBadge,
+                      index === 0 && styles.positionGold,
+                      index === 1 && styles.positionSilver,
+                      index === 2 && styles.positionBronze,
+                      index > 2 && styles.positionDefault,
+                    ]}>
                       {rankInfo ? (
-                        <Ionicons name={rankInfo.icon} size={20} color={rankInfo.color} />
+                        <Ionicons name="medal" size={18} color="#FFFFFF" />
                       ) : (
-                        <Text style={styles.rankNumber}>{index + 1}</Text>
+                        <Text style={styles.positionNumber}>{index + 1}</Text>
                       )}
                     </View>
-                    <View style={[styles.cell, styles.nameCell]}>
-                      <View style={styles.avatarSmall}>
-                        <Text style={styles.avatarInitial}>
+                    
+                    {/* Avatar */}
+                    <View style={[
+                      styles.leagueAvatar,
+                      index === 0 && styles.leagueAvatarFirst,
+                    ]}>
+                      {kid.avatar ? (
+                        <Text style={styles.leagueAvatarEmoji}>{kid.avatar}</Text>
+                      ) : (
+                        <Text style={styles.leagueAvatarInitial}>
                           {kid.name.charAt(0).toUpperCase()}
                         </Text>
+                      )}
+                    </View>
+                    
+                    {/* Player Info */}
+                    <View style={styles.leaguePlayerInfo}>
+                      <Text style={[
+                        styles.leaguePlayerName,
+                        index === 0 && styles.leaguePlayerNameFirst,
+                      ]}>
+                        {kid.name}
+                      </Text>
+                      
+                      {/* Progress Bar */}
+                      <View style={styles.progressBarContainer}>
+                        <View 
+                          style={[
+                            styles.progressBarFill,
+                            { width: `${progressPercent}%` },
+                            index === 0 && styles.progressBarGold,
+                            index === 1 && styles.progressBarSilver,
+                            index === 2 && styles.progressBarBronze,
+                          ]} 
+                        />
                       </View>
-                      <Text style={styles.nameText}>{kid.name}</Text>
                     </View>
-                    <View style={[styles.cell, styles.starsCell]}>
-                      <Ionicons name="star" size={16} color={colors.secondary} />
-                      <Text style={styles.starsText}>{kid.starsTotal}</Text>
+                    
+                    {/* Stars Count */}
+                    <View style={styles.leagueStarsContainer}>
+                      <Ionicons name="star" size={20} color="#FFD700" />
+                      <Text style={[
+                        styles.leagueStarsCount,
+                        index === 0 && styles.leagueStarsCountFirst,
+                      ]}>
+                        {kid.starsTotal}
+                      </Text>
                     </View>
+                    
+                    <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
                   </TouchableOpacity>
                 );
               })}
@@ -523,6 +571,142 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 2,
+  },
+  leagueHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+    paddingVertical: spacing.md,
+  },
+  leagueTitle: {
+    fontSize: fontSize.xl,
+    fontWeight: "700",
+    color: colors.text,
+  },
+  leagueContainer: {
+    gap: spacing.sm,
+  },
+  leagueRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    gap: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  leagueRowFirst: {
+    backgroundColor: "rgba(255, 215, 0, 0.08)",
+    borderColor: "rgba(255, 215, 0, 0.3)",
+    borderWidth: 2,
+  },
+  leagueRowSecond: {
+    backgroundColor: "rgba(192, 192, 192, 0.08)",
+    borderColor: "rgba(192, 192, 192, 0.3)",
+  },
+  leagueRowThird: {
+    backgroundColor: "rgba(205, 127, 50, 0.08)",
+    borderColor: "rgba(205, 127, 50, 0.3)",
+  },
+  positionBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  positionGold: {
+    backgroundColor: "#FFD700",
+  },
+  positionSilver: {
+    backgroundColor: "#C0C0C0",
+  },
+  positionBronze: {
+    backgroundColor: "#CD7F32",
+  },
+  positionDefault: {
+    backgroundColor: colors.textMuted,
+  },
+  positionNumber: {
+    fontSize: fontSize.sm,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  leagueAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.primary + "20",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  leagueAvatarFirst: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    borderWidth: 2,
+    borderColor: "#FFD700",
+  },
+  leagueAvatarEmoji: {
+    fontSize: 24,
+  },
+  leagueAvatarInitial: {
+    fontSize: fontSize.lg,
+    fontWeight: "600",
+    color: colors.primary,
+  },
+  leaguePlayerInfo: {
+    flex: 1,
+    gap: spacing.xs,
+  },
+  leaguePlayerName: {
+    fontSize: fontSize.md,
+    fontWeight: "600",
+    color: colors.text,
+  },
+  leaguePlayerNameFirst: {
+    fontSize: fontSize.lg,
+    fontWeight: "700",
+  },
+  progressBarContainer: {
+    height: 6,
+    backgroundColor: colors.border,
+    borderRadius: 3,
+    overflow: "hidden",
+  },
+  progressBarFill: {
+    height: "100%",
+    backgroundColor: colors.primary,
+    borderRadius: 3,
+  },
+  progressBarGold: {
+    backgroundColor: "#FFD700",
+  },
+  progressBarSilver: {
+    backgroundColor: "#C0C0C0",
+  },
+  progressBarBronze: {
+    backgroundColor: "#CD7F32",
+  },
+  leagueStarsContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    backgroundColor: "rgba(255, 215, 0, 0.1)",
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.md,
+  },
+  leagueStarsCount: {
+    fontSize: fontSize.lg,
+    fontWeight: "700",
+    color: colors.text,
+  },
+  leagueStarsCountFirst: {
+    fontSize: fontSize.xl,
   },
   tableHeader: {
     flexDirection: "row",
