@@ -325,6 +325,7 @@ export default function TabLayout() {
           name="leaderboard"
           options={{
             title: "Stars",
+            headerRight: () => <HeaderAvatarDropdown />,
             tabBarIcon: ({ color, focused }) => (
               <Ionicons
                 name={focused ? "star" : "star-outline"}
@@ -352,6 +353,7 @@ export default function TabLayout() {
           name="tasks"
           options={{
             title: "Tasks",
+            headerRight: () => <HeaderAvatarDropdown />,
             tabBarIcon: ({ color, focused }) => (
               <Ionicons
                 name={focused ? "list" : "list-outline"}
