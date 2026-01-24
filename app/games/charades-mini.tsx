@@ -310,7 +310,7 @@ function RevealView({ state, dispatch }: ViewProps) {
 }
 
 function ActView({ state, dispatch }: ViewProps) {
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
