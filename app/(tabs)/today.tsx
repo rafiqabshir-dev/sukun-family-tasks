@@ -1244,7 +1244,7 @@ export default function TodayScreen() {
                         }}
                         data-testid="button-select-favorites"
                       >
-                        <Ionicons name="heart" size={14} color="#FF6B6B" />
+                        <Ionicons name="heart" size={14} color="#FFFFFF" />
                         <Text style={styles.selectFavoritesPillText}>
                           Favorites ({favoriteTaskIds.length})
                         </Text>
@@ -1526,6 +1526,7 @@ export default function TodayScreen() {
                   <TouchableOpacity
                     style={[
                       styles.confirmButton,
+                      styles.confirmButtonFlex,
                       (selectedKidIds.size === 0 || isAssigning) && styles.confirmButtonDisabled,
                     ]}
                     onPress={showOneOffForm ? handleCreateOneOffTask : handleAssignTask}
@@ -1909,18 +1910,18 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   selectAllPill: {
-    backgroundColor: colors.primaryLight,
+    backgroundColor: colors.primary,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
     borderRadius: borderRadius.full,
   },
   selectAllPillText: {
     fontSize: fontSize.sm,
-    color: colors.primary,
+    color: "#FFFFFF",
     fontWeight: "600",
   },
   selectFavoritesPill: {
-    backgroundColor: "#FFF0F0",
+    backgroundColor: "#FF6B6B",
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
     borderRadius: borderRadius.full,
@@ -1930,7 +1931,7 @@ const styles = StyleSheet.create({
   },
   selectFavoritesPillText: {
     fontSize: fontSize.sm,
-    color: "#FF6B6B",
+    color: "#FFFFFF",
     fontWeight: "600",
   },
   taskCardsContainer: {
@@ -2106,9 +2107,10 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.lg,
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.lg,
     borderWidth: 1,
     borderColor: colors.border,
+    flex: 0.4,
   },
   backButtonText: {
     color: colors.text,
@@ -2274,6 +2276,10 @@ const styles = StyleSheet.create({
   },
   confirmButtonDisabled: {
     backgroundColor: colors.textMuted,
+  },
+  confirmButtonFlex: {
+    flex: 1,
+    marginTop: 0,
   },
   confirmButtonText: {
     color: "#FFFFFF",
