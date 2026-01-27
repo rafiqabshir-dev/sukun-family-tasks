@@ -207,6 +207,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     padding: theme.spacing.lg,
     justifyContent: 'center',
+    alignItems: 'center',
   },
   header: {
     alignItems: 'center',
@@ -230,6 +231,7 @@ const styles = StyleSheet.create({
   },
   form: {
     width: '100%',
+    maxWidth: 400,
   },
   errorContainer: {
     flexDirection: 'row',

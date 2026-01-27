@@ -242,6 +242,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     padding: theme.spacing.lg,
+    alignItems: 'center',
   },
   header: {
     alignItems: 'center',
@@ -276,6 +277,7 @@ const styles = StyleSheet.create({
   },
   form: {
     width: '100%',
+    maxWidth: 400,
   },
   errorContainer: {
     flexDirection: 'row',

@@ -321,6 +321,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     padding: theme.spacing.lg,
+    alignItems: 'center',
   },
   backButton: {
     marginBottom: theme.spacing.md,
@@ -387,6 +388,7 @@ const styles = StyleSheet.create({
   },
   form: {
     width: '100%',
+    maxWidth: 400,
   },
   errorContainer: {
     flexDirection: 'row',
