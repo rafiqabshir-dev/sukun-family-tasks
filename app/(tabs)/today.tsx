@@ -155,9 +155,16 @@ export default function TodayScreen() {
         // Guardians can complete and approve in one action
         const starsEarned = template?.starsReward || template?.defaultStars || 1;
         
-        if (template && isSupabaseConfigured()) {
+        if (template && isSupabaseConfigured() && profile?.family_id && currentMember?.id) {
           await updateCloudTaskInstance(taskId, { status: "approved" });
-          await addStarsLedgerEntry(instance.assignedToMemberId, starsEarned, "earned", `Completed: ${template.title}`);
+          await addStarsLedgerEntry(
+            profile.family_id,
+            instance.assignedToMemberId,
+            starsEarned,
+            `Completed: ${template.title}`,
+            currentMember.id,
+            taskId
+          );
         }
         // Update local store directly since approveTask expects "pending_approval" status
         updateTaskInstance(taskId, { 
@@ -201,21 +208,40 @@ export default function TodayScreen() {
       const template = taskTemplates.find(t => t.id === instance.templateId);
       const member = members.find(m => m.id === instance.assignedToMemberId);
       
-      if (template && isSupabaseConfigured()) {
+      const starsEarned = template?.starsReward || template?.defaultStars || 1;
+      
+      if (template && isSupabaseConfigured() && profile?.family_id && currentMember?.id) {
         await updateCloudTaskInstance(taskId, { status: "approved" });
-        await addStarsLedgerEntry(instance.assignedToMemberId, template.starsReward, "earned", `Completed: ${template.title}`);
+        await addStarsLedgerEntry(
+          profile.family_id,
+          instance.assignedToMemberId,
+          starsEarned,
+          `Completed: ${template.title}`,
+          currentMember.id,
+          taskId
+        );
       }
-      approveTask(taskId);
+      // Update local store - use updateTaskInstance since approveTask requires pending_approval
+      updateTaskInstance(taskId, { 
+        status: "approved", 
+        completedAt: new Date().toISOString() 
+      });
+      // Update member's stars locally
+      if (member) {
+        updateMember(instance.assignedToMemberId, { 
+          starsTotal: member.starsTotal + starsEarned 
+        });
+      }
       
       if (template && member) {
-        notifyTaskApproved(template.title, member.name, template.starsReward);
+        notifyTaskApproved(template.title, member.name, starsEarned);
       }
       trackEvent("task_quick_approved", { taskId });
     } catch (err) {
       console.error('[Today] Quick approve error:', err);
       captureError(err as Error, { context: 'quick_approve', taskId });
     }
-  }, [taskInstances, taskTemplates, members, approveTask]);
+  }, [taskInstances, taskTemplates, members, profile, currentMember, updateTaskInstance, updateMember]);
   
   // Debug logging for ID matching
   useEffect(() => {
