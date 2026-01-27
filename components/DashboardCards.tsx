@@ -22,6 +22,7 @@ interface DashboardCardsProps {
   onApproveTask?: (taskId: string) => void;
   currentUserId?: string;
   isGuardian?: boolean;
+  viewMode?: "family" | "mine"; // "family" shows all family tasks, "mine" shows only current user's tasks
 }
 
 export function SevereWeatherBanner({ weather }: { weather: WeatherData | null }) {
@@ -1644,6 +1645,152 @@ function CompactParksWidget({ weather, location }: { weather: WeatherData | null
   );
 }
 
+// MyTasksView - Shows only the current user's tasks
+function MyTasksView({
+  taskInstances,
+  taskTemplates,
+  members,
+  onCompleteTask,
+  currentUserId,
+}: {
+  taskInstances: TaskInstance[];
+  taskTemplates: TaskTemplate[];
+  members: Member[];
+  onCompleteTask?: (taskId: string) => void;
+  currentUserId?: string;
+}) {
+  const today = startOfDay(new Date());
+  // Find current member - match by id or profileId since profile.id might be different from member.id
+  const currentMember = members.find(m => m.id === currentUserId || m.profileId === currentUserId);
+  const currentMemberId = currentMember?.id;
+  
+  // Get tasks assigned to the current user (using member.id which is what task assignments use)
+  const myTasks = useMemo(() => {
+    if (!currentMemberId) return [];
+    
+    return taskInstances
+      .filter(instance => {
+        if (instance.status === 'approved' || instance.status === 'expired' || instance.status === 'rejected') return false;
+        // Match using member.id since that's what task assignments use
+        if (instance.assignedToMemberId !== currentMemberId) return false;
+        
+        const dueDate = new Date(instance.dueAt);
+        const isOverdue = isBefore(dueDate, today);
+        const isDueToday = isToday(dueDate);
+        
+        // Include overdue, due today, or pending approval
+        return isOverdue || isDueToday || instance.status === 'pending_approval';
+      })
+      .map(instance => {
+        const template = taskTemplates.find(t => t.id === instance.templateId);
+        const dueDate = new Date(instance.dueAt);
+        const isOverdue = isBefore(dueDate, today);
+        return { instance, template, isOverdue };
+      })
+      .filter(t => t.template)
+      .sort((a, b) => {
+        if (a.isOverdue && !b.isOverdue) return -1;
+        if (!a.isOverdue && b.isOverdue) return 1;
+        if (a.instance.status === 'pending_approval' && b.instance.status !== 'pending_approval') return -1;
+        if (a.instance.status !== 'pending_approval' && b.instance.status === 'pending_approval') return 1;
+        return 0;
+      });
+  }, [taskInstances, taskTemplates, currentMemberId, today]);
+
+  const openTasks = myTasks.filter(t => t.instance.status === 'open');
+  const pendingTasks = myTasks.filter(t => t.instance.status === 'pending_approval');
+  const overdueTasks = myTasks.filter(t => t.isOverdue);
+
+  if (myTasks.length === 0) {
+    return (
+      <View style={styles.myTasksContainer} data-testid="my-tasks-empty">
+        <View style={styles.myTasksHeader}>
+          <Ionicons name="person" size={20} color={colors.primary} />
+          <Text style={styles.myTasksTitle}>My Tasks</Text>
+        </View>
+        <View style={styles.myTasksEmptyState}>
+          <Ionicons name="checkmark-done-circle" size={48} color={colors.success} />
+          <Text style={styles.myTasksEmptyTitle}>All done!</Text>
+          <Text style={styles.myTasksEmptyText}>No tasks assigned to you today.</Text>
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.myTasksContainer} data-testid="my-tasks-view">
+      <View style={styles.myTasksHeader}>
+        <Ionicons name="person" size={20} color={colors.primary} />
+        <Text style={styles.myTasksTitle}>My Tasks</Text>
+        <View style={styles.myTasksBadges}>
+          {overdueTasks.length > 0 && (
+            <View style={styles.myTasksBadgeOverdue}>
+              <Text style={styles.myTasksBadgeText}>{overdueTasks.length} late</Text>
+            </View>
+          )}
+          {openTasks.length > 0 && (
+            <View style={styles.myTasksBadge}>
+              <Text style={styles.myTasksBadgeText}>{openTasks.length} to do</Text>
+            </View>
+          )}
+          {pendingTasks.length > 0 && (
+            <View style={styles.myTasksBadgePending}>
+              <Text style={styles.myTasksBadgeText}>{pendingTasks.length} pending</Text>
+            </View>
+          )}
+        </View>
+      </View>
+
+      <View style={styles.myTasksList}>
+        {myTasks.map(({ instance, template, isOverdue }) => (
+          <View 
+            key={instance.id}
+            style={[
+              styles.myTaskItem,
+              isOverdue && styles.myTaskItemOverdue,
+              instance.status === 'pending_approval' && styles.myTaskItemPending,
+            ]}
+          >
+            <View style={styles.myTaskInfo}>
+              <View style={styles.myTaskTitleRow}>
+                {isOverdue && <Ionicons name="alert-circle" size={16} color={colors.error} />}
+                {instance.status === 'pending_approval' && <Ionicons name="hourglass" size={16} color={colors.warning} />}
+                <Text style={styles.myTaskTitle} numberOfLines={1}>
+                  {template!.title}
+                </Text>
+              </View>
+              <View style={styles.myTaskMeta}>
+                <Ionicons name="star" size={12} color="#FFD700" />
+                <Text style={styles.myTaskStars}>{template!.defaultStars}</Text>
+                {instance.status === 'pending_approval' && (
+                  <Text style={styles.myTaskStatusText}>Awaiting approval</Text>
+                )}
+              </View>
+            </View>
+            
+            {instance.status === 'open' && (
+              <TouchableOpacity 
+                style={styles.myTaskCompleteButton}
+                onPress={() => onCompleteTask?.(instance.id)}
+                data-testid={`button-complete-my-${instance.id}`}
+              >
+                <Ionicons name="checkmark" size={18} color="#FFFFFF" />
+                <Text style={styles.myTaskCompleteText}>Done</Text>
+              </TouchableOpacity>
+            )}
+            
+            {instance.status === 'pending_approval' && (
+              <View style={styles.myTaskPendingIcon}>
+                <Ionicons name="time" size={20} color={colors.warning} />
+              </View>
+            )}
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 export function DashboardCards({ 
   taskInstances, 
   taskTemplates, 
@@ -1652,7 +1799,8 @@ export function DashboardCards({
   onCompleteTask,
   onApproveTask,
   currentUserId,
-  isGuardian
+  isGuardian,
+  viewMode = "family"
 }: DashboardCardsProps) {
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [weatherLoadState, setWeatherLoadState] = useState<LoadingState>('loading');
@@ -1689,16 +1837,26 @@ export function DashboardCards({
         <CompactParksWidget weather={weather} location={location} />
       </View>
       
-      {/* TASKS - Participant cards showing each kid's tasks */}
-      <ParticipantTasksGrid 
-        taskInstances={taskInstances}
-        taskTemplates={taskTemplates}
-        members={members}
-        onCompleteTask={onCompleteTask}
-        onApproveTask={onApproveTask}
-        currentUserId={currentUserId}
-        isGuardian={isGuardian}
-      />
+      {/* TASKS - Show based on viewMode */}
+      {viewMode === "family" ? (
+        <ParticipantTasksGrid 
+          taskInstances={taskInstances}
+          taskTemplates={taskTemplates}
+          members={members}
+          onCompleteTask={onCompleteTask}
+          onApproveTask={onApproveTask}
+          currentUserId={currentUserId}
+          isGuardian={isGuardian}
+        />
+      ) : (
+        <MyTasksView
+          taskInstances={taskInstances}
+          taskTemplates={taskTemplates}
+          members={members}
+          onCompleteTask={onCompleteTask}
+          currentUserId={currentUserId}
+        />
+      )}
     </View>
   );
 }
@@ -2734,5 +2892,132 @@ const styles = StyleSheet.create({
   parkSourceText: {
     fontSize: 11,
     color: colors.textMuted,
+  },
+  // MyTasksView styles
+  myTasksContainer: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  myTasksHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  myTasksTitle: {
+    fontSize: fontSize.lg,
+    fontWeight: "700",
+    color: colors.text,
+    flex: 1,
+  },
+  myTasksBadges: {
+    flexDirection: "row",
+    gap: spacing.xs,
+  },
+  myTasksBadge: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: borderRadius.full,
+  },
+  myTasksBadgeOverdue: {
+    backgroundColor: colors.error,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: borderRadius.full,
+  },
+  myTasksBadgePending: {
+    backgroundColor: colors.warning,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: borderRadius.full,
+  },
+  myTasksBadgeText: {
+    color: "#FFFFFF",
+    fontSize: fontSize.xs,
+    fontWeight: "600",
+  },
+  myTasksEmptyState: {
+    alignItems: "center",
+    paddingVertical: spacing.xl,
+    gap: spacing.sm,
+  },
+  myTasksEmptyTitle: {
+    fontSize: fontSize.lg,
+    fontWeight: "600",
+    color: colors.success,
+  },
+  myTasksEmptyText: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+  },
+  myTasksList: {
+    gap: spacing.sm,
+  },
+  myTaskItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.surfaceSecondary,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    gap: spacing.md,
+  },
+  myTaskItemOverdue: {
+    borderLeftWidth: 3,
+    borderLeftColor: colors.error,
+  },
+  myTaskItemPending: {
+    borderLeftWidth: 3,
+    borderLeftColor: colors.warning,
+  },
+  myTaskInfo: {
+    flex: 1,
+    gap: 4,
+  },
+  myTaskTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
+  myTaskTitle: {
+    fontSize: fontSize.md,
+    fontWeight: "600",
+    color: colors.text,
+    flex: 1,
+  },
+  myTaskMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
+  myTaskStars: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    fontWeight: "500",
+  },
+  myTaskStatusText: {
+    fontSize: fontSize.xs,
+    color: colors.warning,
+    marginLeft: spacing.sm,
+  },
+  myTaskCompleteButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.success,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+    gap: spacing.xs,
+  },
+  myTaskCompleteText: {
+    color: "#FFFFFF",
+    fontSize: fontSize.sm,
+    fontWeight: "600",
+  },
+  myTaskPendingIcon: {
+    padding: spacing.sm,
   },
 });

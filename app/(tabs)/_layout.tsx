@@ -308,13 +308,12 @@ export default function TabLayout() {
         <Tabs.Screen
           name="today"
           options={{
-            title: "Today",
+            title: "Home",
             headerLeft: () => <HeaderLocationLeft />,
             headerRight: () => <HeaderAvatarDropdown />,
-            tabBarItemStyle: isParticipant ? { display: "none" } : undefined,
             tabBarIcon: ({ color, focused }) => (
               <Ionicons
-                name={focused ? "today" : "today-outline"}
+                name={focused ? "home" : "home-outline"}
                 size={24}
                 color={color}
               />
