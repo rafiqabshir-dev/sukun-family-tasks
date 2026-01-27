@@ -6,10 +6,11 @@ import { useStore } from "@/lib/store";
 import { useAuth } from "@/lib/authContext";
 import { TaskTemplate, TaskCategory, TaskScheduleType, TaskInstance, Member } from "@/lib/types";
 import { useLocalSearchParams, router } from "expo-router";
-import { isToday, isBefore, startOfDay, parseISO, isAfter } from "date-fns";
+import { isToday, isBefore, startOfDay, parseISO, isAfter, format } from "date-fns";
 import { isSupabaseConfigured } from "@/lib/supabase";
-import { updateCloudTaskInstance, addStarsLedgerEntry } from "@/lib/cloudSync";
-import { notifyTaskApproved, notifyTaskRejected, notifyTaskPendingApproval } from "@/lib/pushNotificationService";
+import { updateCloudTaskInstance, addStarsLedgerEntry, createCloudTaskInstance } from "@/lib/cloudSync";
+import { notifyTaskApproved, notifyTaskRejected, notifyTaskPendingApproval, notifyTaskAssigned } from "@/lib/pushNotificationService";
+import { trackEvent } from "@/lib/analyticsService";
 
 const CATEGORY_ICONS: Record<TaskCategory, string> = {
   cleaning: "sparkles",
@@ -77,6 +78,10 @@ export default function TasksScreen() {
   const isGuardian = profile?.role === 'guardian';
   
   const members = useStore((s) => s.members);
+  // Kids for quick-assign feature - only cloud-synced members with valid profileId
+  const kids = useMemo(() => members.filter(m => 
+    m.role === 'kid' && m.profileId && !m.id.startsWith('member-')
+  ), [members]);
   const taskTemplates = useStore((s) => s.taskTemplates);
   const taskInstances = useStore((s) => s.taskInstances);
   const addTaskTemplate = useStore((s) => s.addTaskTemplate);
@@ -406,6 +411,45 @@ export default function TasksScreen() {
     });
   };
 
+  // Quick assign - one-tap task assignment from template to kid
+  const addTaskInstance = useStore((s) => s.addTaskInstance);
+  const handleQuickAssign = async (task: TaskTemplate, kidId: string) => {
+    const kid = members.find(m => m.id === kidId);
+    if (!kid) return;
+    
+    const today = new Date();
+    const dueAt = format(today, "yyyy-MM-dd");
+    
+    try {
+      // Create task instance locally
+      const localInstance = addTaskInstance({
+        templateId: task.id,
+        assignedToMemberId: kidId,
+        dueAt,
+      });
+      
+      // Sync to cloud
+      if (isSupabaseConfigured() && family?.id && localInstance) {
+        const cloudInstance = await createCloudTaskInstance(
+          task.id,
+          family.id,
+          kid.profileId || kidId,
+          dueAt
+        );
+        if (cloudInstance) {
+          // Notify the kid
+          notifyTaskAssigned(family.id, kid.profileId || kidId, task.title, task.defaultStars);
+          trackEvent("task_quick_assigned", { templateId: task.id, kidId });
+        }
+      }
+      
+      Alert.alert("Task Assigned", `"${task.title}" assigned to ${kid.name} for today!`);
+    } catch (err) {
+      console.error('[Tasks] Quick assign error:', err);
+      Alert.alert("Error", "Could not assign task. Please try again.");
+    }
+  };
+
   const handleMarkDone = async (instance: TaskInstance) => {
     const template = taskTemplates.find(t => t.id === instance.templateId);
     if (!template || !profile?.id) return;
@@ -554,43 +598,65 @@ export default function TasksScreen() {
         </View>
       )}
       
-      <View style={styles.taskInfo}>
-        <Text style={styles.taskTitle}>{task.title}</Text>
-        <View style={styles.taskMeta}>
-          <Ionicons name={CATEGORY_ICONS[task.category] as any} size={14} color={colors.textMuted} />
-          <Text style={styles.taskCategory}>{task.category}</Text>
-          <View style={styles.taskStars}>
-            <Ionicons name="star" size={12} color={colors.secondary} />
-            <Text style={styles.taskStarsText}>{task.defaultStars}</Text>
+      <View style={styles.taskInfoWithAssign}>
+        <View style={styles.taskInfoRow}>
+          <View style={styles.taskInfo}>
+            <Text style={styles.taskTitle}>{task.title}</Text>
+            <View style={styles.taskMeta}>
+              <Ionicons name={CATEGORY_ICONS[task.category] as any} size={14} color={colors.textMuted} />
+              <Text style={styles.taskCategory}>{task.category}</Text>
+              <View style={styles.taskStars}>
+                <Ionicons name="star" size={12} color={colors.secondary} />
+                <Text style={styles.taskStarsText}>{task.defaultStars}</Text>
+              </View>
+            </View>
           </View>
+          
+          {showActions && isGuardian && (
+            <View style={styles.taskActions}>
+              <TouchableOpacity 
+                style={styles.actionButton}
+                onPress={() => handleAddToSpin(task)}
+                data-testid={`button-add-to-spin-${task.id}`}
+              >
+                <Ionicons name="add-circle-outline" size={22} color={colors.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.actionButton}
+                onPress={() => openEditModal(task)}
+                data-testid={`button-edit-task-${task.id}`}
+              >
+                <Ionicons name="create-outline" size={22} color={colors.textSecondary} />
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.actionButton}
+                onPress={() => handleArchive(task)}
+                data-testid={`button-archive-task-${task.id}`}
+              >
+                <Ionicons name="archive-outline" size={22} color={colors.error} />
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
+        
+        {/* Quick Assign Avatar Chips - Guardians only, enabled tasks only */}
+        {isGuardian && task.enabled && kids.length > 0 && (
+          <View style={styles.quickAssignRow}>
+            <Text style={styles.quickAssignLabel}>Assign now:</Text>
+            {kids.map((kid) => (
+              <TouchableOpacity
+                key={kid.id}
+                style={styles.quickAssignAvatar}
+                onPress={() => handleQuickAssign(task, kid.id)}
+                data-testid={`quick-assign-${task.id}-${kid.id}`}
+              >
+                <Ionicons name="person" size={16} color={colors.primary} />
+                <Text style={styles.quickAssignAvatarInitial}>{kid.name.charAt(0)}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
       </View>
-
-      {showActions && isGuardian && (
-        <View style={styles.taskActions}>
-          <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={() => handleAddToSpin(task)}
-            data-testid={`button-add-to-spin-${task.id}`}
-          >
-            <Ionicons name="add-circle-outline" size={22} color={colors.primary} />
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={() => openEditModal(task)}
-            data-testid={`button-edit-task-${task.id}`}
-          >
-            <Ionicons name="create-outline" size={22} color={colors.textSecondary} />
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={() => handleArchive(task)}
-            data-testid={`button-archive-task-${task.id}`}
-          >
-            <Ionicons name="archive-outline" size={22} color={colors.error} />
-          </TouchableOpacity>
-        </View>
-      )}
     </View>
   );
 
@@ -1426,6 +1492,14 @@ const styles = StyleSheet.create({
   taskInfo: {
     flex: 1,
   },
+  taskInfoWithAssign: {
+    flex: 1,
+    gap: spacing.sm,
+  },
+  taskInfoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
   taskTitle: {
     fontSize: fontSize.md,
     fontWeight: "500",
@@ -1459,6 +1533,34 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     padding: spacing.xs,
+  },
+  quickAssignRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingLeft: spacing.xs,
+  },
+  quickAssignLabel: {
+    fontSize: fontSize.xs,
+    color: colors.textMuted,
+  },
+  quickAssignAvatar: {
+    minWidth: 36,
+    height: 28,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.primary + "15",
+    justifyContent: "center",
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 2,
+    paddingHorizontal: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.primary + "40",
+  },
+  quickAssignAvatarInitial: {
+    fontSize: fontSize.xs,
+    fontWeight: "700",
+    color: colors.primary,
   },
   memberGroup: {
     marginBottom: spacing.md,

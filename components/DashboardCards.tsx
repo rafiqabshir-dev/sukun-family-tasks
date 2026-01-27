@@ -18,6 +18,10 @@ interface DashboardCardsProps {
   taskTemplates: TaskTemplate[];
   members: Member[];
   currentTime: Date;
+  onCompleteTask?: (taskId: string) => void;
+  onApproveTask?: (taskId: string) => void;
+  currentUserId?: string;
+  isGuardian?: boolean;
 }
 
 export function SevereWeatherBanner({ weather }: { weather: WeatherData | null }) {
@@ -540,153 +544,184 @@ export function WhatToWearCard({ weather, loadState }: WhatToWearCardProps) {
 
 type NextUpTask = { title: string; memberName: string } | null;
 
-export function TodayTasksSummary({ taskInstances, taskTemplates, members }: Omit<DashboardCardsProps, 'currentTime'>) {
+interface TodayTasksSummaryProps extends Omit<DashboardCardsProps, 'currentTime'> {}
+
+export function TodayTasksSummary({ 
+  taskInstances, 
+  taskTemplates, 
+  members, 
+  onCompleteTask, 
+  onApproveTask,
+  currentUserId,
+  isGuardian 
+}: TodayTasksSummaryProps) {
+  const today = startOfDay(new Date());
+  
+  // Get actionable tasks (overdue first, then due today, always include pending)
+  const actionableTasks = useMemo(() => {
+    return taskInstances
+      .filter(instance => {
+        // Exclude completed, expired, and rejected tasks
+        if (instance.status === "approved" || instance.status === "expired" || instance.status === "rejected") return false;
+        // Always show pending_approval tasks (even if future due date)
+        if (instance.status === "pending_approval") return true;
+        // For open tasks, only show overdue or due today
+        const dueDate = new Date(instance.dueAt);
+        return isBefore(dueDate, today) || isToday(dueDate);
+      })
+      .map(instance => {
+        const template = taskTemplates.find(t => t.id === instance.templateId);
+        const member = members.find(m => m.id === instance.assignedToMemberId);
+        const dueDate = new Date(instance.dueAt);
+        const isOverdue = isBefore(dueDate, today);
+        return { instance, template, member, isOverdue };
+      })
+      .filter(t => t.template && t.member)
+      .sort((a, b) => {
+        // Overdue first
+        if (a.isOverdue && !b.isOverdue) return -1;
+        if (!a.isOverdue && b.isOverdue) return 1;
+        // Then pending approval (guardians see these)
+        if (a.instance.status === "pending_approval" && b.instance.status !== "pending_approval") return -1;
+        if (a.instance.status !== "pending_approval" && b.instance.status === "pending_approval") return 1;
+        return 0;
+      })
+      .slice(0, 5); // Show top 5 tasks
+  }, [taskInstances, taskTemplates, members, today]);
+
   const taskStats = useMemo(() => {
-    const today = startOfDay(new Date());
     let dueToday = 0;
     let overdue = 0;
-    let nextUp: NextUpTask = null;
+    let pendingApproval = 0;
 
     for (const instance of taskInstances) {
-      if (instance.status === "approved" || instance.status === "expired") continue;
+      // Exclude completed, expired, and rejected tasks
+      if (instance.status === "approved" || instance.status === "expired" || instance.status === "rejected") continue;
+      if (instance.status === "pending_approval") {
+        pendingApproval++;
+        continue;
+      }
       
       const dueDate = new Date(instance.dueAt);
-      const isOverdueTask = isBefore(dueDate, today);
-      const isDueTodayTask = isToday(dueDate);
-
-      if (isOverdueTask) {
+      if (isBefore(dueDate, today)) {
         overdue++;
-        if (nextUp === null) {
-          const template = taskTemplates.find(t => t.id === instance.templateId);
-          const member = members.find(m => m.id === instance.assignedToMemberId);
-          if (template && member) {
-            nextUp = { title: template.title, memberName: member.name };
-          }
-        }
-      } else if (isDueTodayTask) {
+      } else if (isToday(dueDate)) {
         dueToday++;
-        if (nextUp === null && overdue === 0) {
-          const template = taskTemplates.find(t => t.id === instance.templateId);
-          const member = members.find(m => m.id === instance.assignedToMemberId);
-          if (template && member) {
-            nextUp = { title: template.title, memberName: member.name };
-          }
-        }
       }
     }
 
-    return { dueToday, overdue, nextUp };
-  }, [taskInstances, taskTemplates, members]);
+    return { dueToday, overdue, pendingApproval, total: dueToday + overdue + pendingApproval };
+  }, [taskInstances, today]);
 
   const handleViewTasks = () => {
     router.push({ pathname: "/(tabs)/tasks", params: { view: "assigned", filter: "today" } });
   };
 
-  const isEmpty = taskStats.dueToday === 0 && taskStats.overdue === 0;
-
-  // Generate smart, context-aware tip based on time and task status
-  const getSmartTip = (): string | null => {
-    const hour = new Date().getHours();
-    const hasOverdue = taskStats.overdue > 0;
-    const hasDueTasks = taskStats.dueToday > 0;
-    
-    // Priority: Address overdue tasks first
-    if (hasOverdue) {
-      if (hour < 12) {
-        return "Start the day by tackling overdue tasks first";
-      } else if (hour < 17) {
-        return "Clear overdue tasks before the day winds down";
-      } else {
-        return "Try to complete overdue tasks before bedtime";
-      }
-    }
-    
-    // Time-based tips when tasks are due
-    if (hasDueTasks) {
-      if (hour >= 5 && hour < 9) {
-        // Early morning
-        return "Great time for morning chores before school";
-      } else if (hour >= 9 && hour < 12) {
-        // Morning
-        return "Complete tasks before lunch for a productive day";
-      } else if (hour >= 12 && hour < 14) {
-        // Midday
-        return "Finish up any tasks before afternoon activities";
-      } else if (hour >= 14 && hour < 17) {
-        // Afternoon
-        return "Wrap up tasks before dinner time";
-      } else if (hour >= 17 && hour < 20) {
-        // Evening
-        return "Evening is a good time for quick household tasks";
-      } else {
-        // Night
-        return "Remember to check off completed tasks";
-      }
-    }
-    
-    return null;
-  };
-
-  const smartTip = getSmartTip();
+  const isEmpty = actionableTasks.length === 0;
 
   return (
-    <TouchableOpacity 
-      style={styles.card} 
-      onPress={handleViewTasks}
-      activeOpacity={0.7}
-      data-testid="today-tasks-summary"
-    >
-      <View style={styles.cardHeader}>
-        <View style={styles.cardIconContainer}>
-          <Ionicons name="list" size={24} color={colors.primary} />
+    <View style={styles.tasksSection} data-testid="today-tasks-summary">
+      {/* Header */}
+      <View style={styles.tasksSectionHeader}>
+        <View style={styles.tasksSectionTitleRow}>
+          <Ionicons name="checkbox" size={24} color={colors.primary} />
+          <Text style={styles.tasksSectionTitle}>Today's Tasks</Text>
         </View>
-        <Text style={styles.cardTitle}>Today's Tasks</Text>
-        <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+        {taskStats.total > 0 && (
+          <View style={styles.tasksBadgeRow}>
+            {taskStats.overdue > 0 && (
+              <View style={[styles.taskCountBadge, styles.taskCountBadgeOverdue]}>
+                <Text style={styles.taskCountBadgeText}>{taskStats.overdue} overdue</Text>
+              </View>
+            )}
+            {taskStats.dueToday > 0 && (
+              <View style={styles.taskCountBadge}>
+                <Text style={styles.taskCountBadgeText}>{taskStats.dueToday} due</Text>
+              </View>
+            )}
+            {isGuardian && taskStats.pendingApproval > 0 && (
+              <View style={[styles.taskCountBadge, styles.taskCountBadgePending]}>
+                <Text style={styles.taskCountBadgeText}>{taskStats.pendingApproval} pending</Text>
+              </View>
+            )}
+          </View>
+        )}
       </View>
 
       {isEmpty ? (
-        <View style={styles.emptyTasksContent}>
-          <Ionicons name="checkmark-done-circle" size={32} color={colors.success} />
-          <Text style={styles.emptyTasksText}>All clear today</Text>
-          <Text style={styles.browseTasksLink}>Browse tasks</Text>
-        </View>
+        <TouchableOpacity style={styles.emptyTasksCard} onPress={handleViewTasks}>
+          <Ionicons name="checkmark-done-circle" size={40} color={colors.success} />
+          <Text style={styles.emptyTasksText}>All clear for today!</Text>
+          <Text style={styles.browseTasksLink}>Browse task templates</Text>
+        </TouchableOpacity>
       ) : (
-        <View style={styles.tasksSummaryContent}>
-          <View style={styles.taskStatRow}>
-            <Ionicons name="checkbox-outline" size={16} color={colors.primary} />
-            <Text style={styles.taskStatText}>{taskStats.dueToday} tasks due today</Text>
-          </View>
-          
-          {taskStats.nextUp && (
-            <View style={styles.taskStatRow}>
-              <Ionicons name="arrow-forward" size={16} color={colors.textSecondary} />
-              <Text style={styles.taskStatText}>
-                Next up: <Text style={styles.taskStatHighlight}>{taskStats.nextUp.memberName}</Text> - {taskStats.nextUp.title}
-              </Text>
+        <View style={styles.taskCardsList}>
+          {actionableTasks.map(({ instance, template, member, isOverdue }) => (
+            <View 
+              key={instance.id} 
+              style={[
+                styles.quickTaskCard,
+                isOverdue && styles.quickTaskCardOverdue,
+                instance.status === "pending_approval" && styles.quickTaskCardPending,
+              ]}
+            >
+              <View style={styles.quickTaskInfo}>
+                <View style={styles.quickTaskTitleRow}>
+                  {isOverdue && <Ionicons name="alert-circle" size={16} color={colors.error} />}
+                  {instance.status === "pending_approval" && <Ionicons name="hourglass" size={16} color={colors.warning} />}
+                  <Text style={styles.quickTaskTitle} numberOfLines={1}>
+                    {template!.title}
+                  </Text>
+                </View>
+                <View style={styles.quickTaskMeta}>
+                  <Text style={styles.quickTaskMember}>{member!.name}</Text>
+                  <View style={styles.quickTaskStars}>
+                    <Ionicons name="star" size={12} color="#FFD700" />
+                    <Text style={styles.quickTaskStarsText}>{template!.starsReward}</Text>
+                  </View>
+                </View>
+              </View>
+              
+              {/* Quick Action Button */}
+              {instance.status === "pending_approval" && isGuardian ? (
+                <TouchableOpacity 
+                  style={styles.quickApproveButton}
+                  onPress={() => onApproveTask?.(instance.id)}
+                  data-testid={`button-approve-${instance.id}`}
+                >
+                  <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+                  <Text style={styles.quickActionText}>Approve</Text>
+                </TouchableOpacity>
+              ) : instance.status === "open" && (instance.assignedToMemberId === currentUserId || isGuardian) ? (
+                <TouchableOpacity 
+                  style={styles.quickCompleteButton}
+                  onPress={() => onCompleteTask?.(instance.id)}
+                  data-testid={`button-complete-${instance.id}`}
+                >
+                  <Ionicons name="checkmark" size={20} color="#FFFFFF" />
+                  <Text style={styles.quickActionText}>Done</Text>
+                </TouchableOpacity>
+              ) : (
+                <View style={styles.quickTaskStatus}>
+                  <Text style={styles.quickTaskStatusText}>
+                    {instance.status === "pending_approval" ? "Pending" : "Open"}
+                  </Text>
+                </View>
+              )}
             </View>
-          )}
+          ))}
           
-          {taskStats.overdue > 0 && (
-            <View style={styles.taskStatRow}>
-              <Ionicons name="alert-circle" size={16} color={colors.error} />
-              <Text style={[styles.taskStatText, styles.taskStatOverdue]}>
-                Overdue: {taskStats.overdue} task{taskStats.overdue > 1 ? 's' : ''}
+          {taskStats.total > 5 && (
+            <TouchableOpacity style={styles.viewAllTasksButton} onPress={handleViewTasks}>
+              <Text style={styles.viewAllTasksText}>
+                View all {taskStats.total} tasks
               </Text>
-            </View>
-          )}
-
-          {smartTip && (
-            <Text style={styles.taskTip}>
-              Tip: {smartTip}
-            </Text>
+              <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+            </TouchableOpacity>
           )}
         </View>
       )}
-
-      <TouchableOpacity style={styles.viewTasksButton} onPress={handleViewTasks}>
-        <Text style={styles.viewTasksButtonText}>View Tasks</Text>
-      </TouchableOpacity>
-    </TouchableOpacity>
+    </View>
   );
 }
 
@@ -947,7 +982,104 @@ export function LocationBadge({ location }: { location: UserLocation | null }) {
   );
 }
 
-export function DashboardCards({ taskInstances, taskTemplates, members, currentTime }: DashboardCardsProps) {
+// Compact Prayer Widget for side-by-side display
+function CompactPrayerWidget({ currentTime, location }: { currentTime: Date; location: UserLocation | null }) {
+  const [prayerTimes, setPrayerTimes] = useState<PrayerTimes | null>(null);
+  const [currentPrayer, setCurrentPrayer] = useState<CurrentPrayer | null>(null);
+  const [loadState, setLoadState] = useState<LoadingState>('loading');
+
+  useEffect(() => {
+    if (!location) return;
+    const loadPrayerTimes = async () => {
+      try {
+        const times = await getPrayerTimesFresh(location.latitude, location.longitude);
+        setPrayerTimes(times);
+        setLoadState('success');
+      } catch {
+        setLoadState('error');
+      }
+    };
+    loadPrayerTimes();
+  }, [location]);
+
+  useEffect(() => {
+    if (prayerTimes) {
+      setCurrentPrayer(getCurrentPrayer(prayerTimes));
+    }
+  }, [prayerTimes, currentTime]);
+
+  if (loadState === 'loading' || !currentPrayer) {
+    return (
+      <View style={styles.compactWidget}>
+        <ActivityIndicator size="small" color={colors.primary} />
+      </View>
+    );
+  }
+
+  if (loadState === 'error') {
+    return (
+      <View style={styles.compactWidget}>
+        <Ionicons name="moon-outline" size={20} color={colors.textMuted} />
+        <Text style={styles.compactWidgetLabel}>Prayer</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.compactWidget} data-testid="compact-prayer-widget">
+      <Ionicons name="moon" size={20} color={colors.primary} />
+      <Text style={styles.compactWidgetLabel}>{currentPrayer.name}</Text>
+      <Text style={styles.compactWidgetValue}>{formatMinutesRemaining(currentPrayer.minutesRemaining)}</Text>
+    </View>
+  );
+}
+
+// Compact Weather Widget for side-by-side display
+function CompactWeatherWidget({ weather, loadState }: { weather: WeatherData | null; loadState: LoadingState }) {
+  if (loadState === 'loading') {
+    return (
+      <View style={styles.compactWidget}>
+        <ActivityIndicator size="small" color={colors.primary} />
+      </View>
+    );
+  }
+
+  if (loadState === 'error' || !weather) {
+    return (
+      <View style={styles.compactWidget}>
+        <Ionicons name="partly-sunny-outline" size={20} color={colors.textMuted} />
+        <Text style={styles.compactWidgetLabel}>Weather</Text>
+      </View>
+    );
+  }
+
+  const getWeatherIcon = (): keyof typeof Ionicons.glyphMap => {
+    if (weather.isDay === false) return "moon";
+    if (weather.condition.includes("rain") || weather.condition.includes("Rain")) return "rainy";
+    if (weather.condition.includes("cloud") || weather.condition.includes("Cloud")) return "cloudy";
+    if (weather.condition.includes("sun") || weather.condition.includes("clear")) return "sunny";
+    return "partly-sunny";
+  };
+
+  return (
+    <View style={styles.compactWidget} data-testid="compact-weather-widget">
+      <Ionicons name={getWeatherIcon()} size={20} color={colors.secondary} />
+      <Text style={styles.compactWidgetValue}>{Math.round(weather.temperature)}°</Text>
+      <Text style={styles.compactWidgetLabel}>{weather.condition}</Text>
+    </View>
+  );
+}
+
+export function DashboardCards({ 
+  taskInstances, 
+  taskTemplates, 
+  members, 
+  currentTime,
+  onCompleteTask,
+  onApproveTask,
+  currentUserId,
+  isGuardian
+}: DashboardCardsProps) {
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [weatherLoadState, setWeatherLoadState] = useState<LoadingState>('loading');
   const [weatherError, setWeatherError] = useState<string | null>(null);
@@ -976,16 +1108,24 @@ export function DashboardCards({ taskInstances, taskTemplates, members, currentT
 
   return (
     <View style={styles.dashboardContainer}>
-      <SevereWeatherBanner weather={weather} />
-      <PrayerCountdownCard currentTime={currentTime} location={location} />
-      <WeatherCard weather={weather} loadState={weatherLoadState} errorMessage={weatherError} />
-      <WhatToWearCard weather={weather} loadState={weatherLoadState} />
-      <NearbyParksCard weather={weather} location={location} />
+      {/* TASKS FIRST - Primary Purpose */}
       <TodayTasksSummary 
         taskInstances={taskInstances}
         taskTemplates={taskTemplates}
         members={members}
+        onCompleteTask={onCompleteTask}
+        onApproveTask={onApproveTask}
+        currentUserId={currentUserId}
+        isGuardian={isGuardian}
       />
+      
+      {/* Secondary Info - Weather & Prayer */}
+      <SevereWeatherBanner weather={weather} />
+      <View style={styles.compactInfoRow}>
+        <CompactPrayerWidget currentTime={currentTime} location={location} />
+        <CompactWeatherWidget weather={weather} loadState={weatherLoadState} />
+      </View>
+      <NearbyParksCard weather={weather} location={location} />
     </View>
   );
 }
@@ -993,6 +1133,32 @@ export function DashboardCards({ taskInstances, taskTemplates, members, currentT
 const styles = StyleSheet.create({
   dashboardContainer: {
     gap: spacing.md,
+  },
+  compactInfoRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+  },
+  compactWidget: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.xs,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  compactWidgetLabel: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    fontWeight: "500",
+  },
+  compactWidgetValue: {
+    fontSize: fontSize.md,
+    fontWeight: "700",
+    color: colors.text,
   },
   locationBadge: {
     flexDirection: "row",
@@ -1255,19 +1421,177 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontWeight: "600",
   },
-  emptyTasksContent: {
+  // New Task-First Styles
+  tasksSection: {
+    gap: spacing.md,
+  },
+  tasksSectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: spacing.md,
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+  tasksSectionTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  tasksSectionTitle: {
+    fontSize: fontSize.xl,
+    fontWeight: "700",
+    color: colors.text,
+  },
+  tasksBadgeRow: {
+    flexDirection: "row",
     gap: spacing.xs,
   },
+  taskCountBadge: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.full,
+  },
+  taskCountBadgeOverdue: {
+    backgroundColor: colors.error,
+  },
+  taskCountBadgePending: {
+    backgroundColor: colors.warning,
+  },
+  taskCountBadgeText: {
+    fontSize: fontSize.xs,
+    fontWeight: "600",
+    color: "#FFFFFF",
+  },
+  emptyTasksCard: {
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.xl,
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderStyle: "dashed",
+  },
   emptyTasksText: {
-    fontSize: fontSize.md,
+    fontSize: fontSize.lg,
     fontWeight: "600",
     color: colors.success,
   },
   browseTasksLink: {
     fontSize: fontSize.sm,
     color: colors.primary,
+    fontWeight: "500",
+  },
+  taskCardsList: {
+    gap: spacing.sm,
+  },
+  quickTaskCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    gap: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  quickTaskCardOverdue: {
+    borderLeftWidth: 4,
+    borderLeftColor: colors.error,
+    backgroundColor: "rgba(239, 68, 68, 0.05)",
+  },
+  quickTaskCardPending: {
+    borderLeftWidth: 4,
+    borderLeftColor: colors.warning,
+    backgroundColor: "rgba(245, 158, 11, 0.05)",
+  },
+  quickTaskInfo: {
+    flex: 1,
+    gap: spacing.xs,
+  },
+  quickTaskTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
+  quickTaskTitle: {
+    fontSize: fontSize.md,
+    fontWeight: "600",
+    color: colors.text,
+    flex: 1,
+  },
+  quickTaskMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+  },
+  quickTaskMember: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+  },
+  quickTaskStars: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+  },
+  quickTaskStarsText: {
+    fontSize: fontSize.sm,
+    fontWeight: "600",
+    color: colors.text,
+  },
+  quickCompleteButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    backgroundColor: colors.success,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+  },
+  quickApproveButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+  },
+  quickActionText: {
+    fontSize: fontSize.sm,
+    fontWeight: "600",
+    color: "#FFFFFF",
+  },
+  quickTaskStatus: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    backgroundColor: colors.surfaceSecondary,
+    borderRadius: borderRadius.md,
+  },
+  quickTaskStatusText: {
+    fontSize: fontSize.xs,
+    color: colors.textMuted,
+    fontWeight: "500",
+  },
+  viewAllTasksButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.xs,
+    paddingVertical: spacing.md,
+  },
+  viewAllTasksText: {
+    fontSize: fontSize.md,
+    fontWeight: "600",
+    color: colors.primary,
+  },
+  // Legacy styles kept for compatibility
+  emptyTasksContent: {
+    alignItems: "center",
+    paddingVertical: spacing.md,
+    gap: spacing.xs,
   },
   tasksSummaryContent: {
     gap: spacing.sm,

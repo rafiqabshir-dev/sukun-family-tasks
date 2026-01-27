@@ -132,6 +132,70 @@ export default function TodayScreen() {
   // Current user is strictly the authenticated user - no fallback to cached data
   const currentMember = profile ? members.find((m) => m.id === profile.id || m.profileId === profile.id) : null;
   const isCurrentUserGuardian = currentMember?.role === "guardian";
+
+  // Quick complete handler for one-tap task completion
+  const handleQuickComplete = useCallback(async (taskId: string) => {
+    try {
+      const instance = taskInstances.find(t => t.id === taskId);
+      if (!instance) return;
+      
+      const template = taskTemplates.find(t => t.id === instance.templateId);
+      const member = members.find(m => m.id === instance.assignedToMemberId);
+      
+      // If guardian completing, auto-approve. Otherwise mark pending approval
+      if (isCurrentUserGuardian) {
+        // Guardians can complete and approve in one action
+        if (template && isSupabaseConfigured()) {
+          await updateCloudTaskInstance(taskId, { status: "approved" });
+          await addStarsLedgerEntry(instance.assignedToMemberId, template.starsReward, "earned", `Completed: ${template.title}`);
+        }
+        approveTask(taskId);
+        // Send approval notification to the kid (same as quick-approve)
+        if (template && member) {
+          notifyTaskApproved(template.title, member.name, template.starsReward);
+        }
+        trackEvent("task_quick_approved", { taskId });
+      } else {
+        // Participants mark as pending approval
+        if (isSupabaseConfigured()) {
+          await updateCloudTaskInstance(taskId, { status: "pending_approval" });
+        }
+        completeTask(taskId);
+        if (template) {
+          notifyTaskPendingApproval(template.title, currentMember?.name || "Someone");
+        }
+        trackEvent("task_quick_completed", { taskId });
+      }
+    } catch (err) {
+      console.error('[Today] Quick complete error:', err);
+      captureError(err as Error, { context: 'quick_complete', taskId });
+    }
+  }, [taskInstances, taskTemplates, members, isCurrentUserGuardian, currentMember, approveTask, completeTask]);
+
+  // Quick approve handler for one-tap task approval
+  const handleQuickApprove = useCallback(async (taskId: string) => {
+    try {
+      const instance = taskInstances.find(t => t.id === taskId);
+      if (!instance) return;
+      
+      const template = taskTemplates.find(t => t.id === instance.templateId);
+      const member = members.find(m => m.id === instance.assignedToMemberId);
+      
+      if (template && isSupabaseConfigured()) {
+        await updateCloudTaskInstance(taskId, { status: "approved" });
+        await addStarsLedgerEntry(instance.assignedToMemberId, template.starsReward, "earned", `Completed: ${template.title}`);
+      }
+      approveTask(taskId);
+      
+      if (template && member) {
+        notifyTaskApproved(template.title, member.name, template.starsReward);
+      }
+      trackEvent("task_quick_approved", { taskId });
+    } catch (err) {
+      console.error('[Today] Quick approve error:', err);
+      captureError(err as Error, { context: 'quick_approve', taskId });
+    }
+  }, [taskInstances, taskTemplates, members, approveTask]);
   
   // Debug logging for ID matching
   useEffect(() => {
@@ -1049,6 +1113,10 @@ export default function TodayScreen() {
           taskTemplates={taskTemplates}
           members={members}
           currentTime={currentTime}
+          onCompleteTask={handleQuickComplete}
+          onApproveTask={handleQuickApprove}
+          currentUserId={profile?.id}
+          isGuardian={isCurrentUserGuardian}
         />
 
         {isCurrentUserGuardian && (
