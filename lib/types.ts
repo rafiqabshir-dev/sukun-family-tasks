@@ -117,6 +117,7 @@ export interface AppState {
   rewards: Reward[];
   starDeductions: StarDeduction[];
   settings: Settings;
+  favoriteTaskIds: string[];
 }
 
 export const DEFAULT_STATE: AppState = {
@@ -131,7 +132,8 @@ export const DEFAULT_STATE: AppState = {
   settings: {
     islamicValuesMode: true,
     soundsEnabled: false
-  }
+  },
+  favoriteTaskIds: []
 };
 
 export const POWER_INFO: Record<PowerKey, { name: string; emoji: string; description: string }> = {

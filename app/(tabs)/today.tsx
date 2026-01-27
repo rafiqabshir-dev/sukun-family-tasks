@@ -71,6 +71,8 @@ export default function TodayScreen() {
   const approveTask = useStore((s) => s.approveTask);
   const rejectTask = useStore((s) => s.rejectTask);
   const deductStars = useStore((s) => s.deductStars);
+  const favoriteTaskIds = useStore((s) => s.favoriteTaskIds) || [];
+  const toggleFavoriteTask = useStore((s) => s.toggleFavoriteTask);
   const [currentTime, setCurrentTime] = useState(new Date());
   
   // Timer for countdown display updates only - does NOT call store actions
@@ -253,14 +255,24 @@ export default function TodayScreen() {
 
   // Filter templates by search query
   const filteredTemplates = useMemo(() => {
-    if (!taskSearchQuery.trim()) return enabledTemplates;
-    const query = taskSearchQuery.toLowerCase();
-    return enabledTemplates.filter(t => 
-      t.title.toLowerCase().includes(query) ||
-      (t.tags || []).some(tag => tag.toLowerCase().includes(query)) ||
-      t.category.toLowerCase().includes(query)
-    );
-  }, [enabledTemplates, taskSearchQuery]);
+    let templates = enabledTemplates;
+    if (taskSearchQuery.trim()) {
+      const query = taskSearchQuery.toLowerCase();
+      templates = templates.filter(t => 
+        t.title.toLowerCase().includes(query) ||
+        (t.tags || []).some(tag => tag.toLowerCase().includes(query)) ||
+        t.category.toLowerCase().includes(query)
+      );
+    }
+    // Sort favorites to the top
+    return templates.sort((a, b) => {
+      const aIsFav = favoriteTaskIds.includes(a.id);
+      const bIsFav = favoriteTaskIds.includes(b.id);
+      if (aIsFav && !bIsFav) return -1;
+      if (!aIsFav && bIsFav) return 1;
+      return 0;
+    });
+  }, [enabledTemplates, taskSearchQuery, favoriteTaskIds]);
 
   // Group templates by tag
   const templatesByTag = useMemo(() => {
@@ -1216,40 +1228,76 @@ export default function TodayScreen() {
                   )}
                 </View>
 
-                {/* Select All Button */}
+                {/* Select Buttons Row */}
                 <View style={styles.selectAllRow}>
                   <Text style={styles.modalLabelSmall}>
                     {selectedTemplateIds.size} task{selectedTemplateIds.size !== 1 ? 's' : ''} selected
                   </Text>
-                  <TouchableOpacity 
-                    style={styles.selectAllPill}
-                    onPress={() => {
-                      const allSelected = filteredTemplates.every(t => selectedTemplateIds.has(t.id));
-                      if (allSelected) {
-                        setSelectedTemplateIds(new Set());
-                      } else {
-                        setSelectedTemplateIds(new Set(filteredTemplates.map(t => t.id)));
-                      }
-                    }}
-                  >
-                    <Text style={styles.selectAllPillText}>
-                      {filteredTemplates.every(t => selectedTemplateIds.has(t.id)) ? "Clear All" : "Select All"}
-                    </Text>
-                  </TouchableOpacity>
+                  <View style={styles.selectButtonsRow}>
+                    {/* Select Favorites Button - only show if there are favorites */}
+                    {favoriteTaskIds.length > 0 && (
+                      <TouchableOpacity 
+                        style={styles.selectFavoritesPill}
+                        onPress={() => {
+                          const favoritesInList = filteredTemplates.filter(t => favoriteTaskIds.includes(t.id));
+                          setSelectedTemplateIds(new Set(favoritesInList.map(t => t.id)));
+                        }}
+                        data-testid="button-select-favorites"
+                      >
+                        <Ionicons name="heart" size={14} color="#FF6B6B" />
+                        <Text style={styles.selectFavoritesPillText}>
+                          Favorites ({favoriteTaskIds.length})
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                    <TouchableOpacity 
+                      style={styles.selectAllPill}
+                      onPress={() => {
+                        const allSelected = filteredTemplates.every(t => selectedTemplateIds.has(t.id));
+                        if (allSelected) {
+                          setSelectedTemplateIds(new Set());
+                        } else {
+                          setSelectedTemplateIds(new Set(filteredTemplates.map(t => t.id)));
+                        }
+                      }}
+                    >
+                      <Text style={styles.selectAllPillText}>
+                        {filteredTemplates.every(t => selectedTemplateIds.has(t.id)) ? "Clear" : "All"}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
 
                 {/* Large Task Cards */}
                 <ScrollView style={styles.taskCardsContainer} showsVerticalScrollIndicator={false}>
-                  {filteredTemplates.map((template) => (
+                  {filteredTemplates.map((template) => {
+                    const isFavorite = favoriteTaskIds.includes(template.id);
+                    return (
                     <TouchableOpacity
                       key={template.id}
                       style={[
                         styles.taskSelectCard,
                         selectedTemplateIds.has(template.id) && styles.taskSelectCardSelected,
+                        isFavorite && !selectedTemplateIds.has(template.id) && styles.taskSelectCardFavorite,
                       ]}
                       onPress={() => toggleTemplateSelection(template.id)}
                       data-testid={`button-select-task-${template.id}`}
                     >
+                      {/* Favorite star button */}
+                      <TouchableOpacity 
+                        style={styles.favoriteButton}
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          toggleFavoriteTask(template.id);
+                        }}
+                        data-testid={`button-favorite-${template.id}`}
+                      >
+                        <Ionicons 
+                          name={isFavorite ? "heart" : "heart-outline"} 
+                          size={22} 
+                          color={isFavorite ? "#FF6B6B" : (selectedTemplateIds.has(template.id) ? colors.surface : colors.textMuted)} 
+                        />
+                      </TouchableOpacity>
                       <View style={styles.taskSelectCardLeft}>
                         <Ionicons 
                           name={template.iconKey as any || "checkbox-outline"} 
@@ -1284,7 +1332,7 @@ export default function TodayScreen() {
                         )}
                       </View>
                     </TouchableOpacity>
-                  ))}
+                  );})}
 
                   {/* No Results - Create One-Off */}
                   {filteredTemplates.length === 0 && taskSearchQuery.trim().length > 0 && !showOneOffForm && (
@@ -1856,6 +1904,10 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     color: colors.textSecondary,
   },
+  selectButtonsRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+  },
   selectAllPill: {
     backgroundColor: colors.primaryLight,
     paddingHorizontal: spacing.md,
@@ -1865,6 +1917,20 @@ const styles = StyleSheet.create({
   selectAllPillText: {
     fontSize: fontSize.sm,
     color: colors.primary,
+    fontWeight: "600",
+  },
+  selectFavoritesPill: {
+    backgroundColor: "#FFF0F0",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.full,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
+  selectFavoritesPillText: {
+    fontSize: fontSize.sm,
+    color: "#FF6B6B",
     fontWeight: "600",
   },
   taskCardsContainer: {
@@ -1884,6 +1950,14 @@ const styles = StyleSheet.create({
   taskSelectCardSelected: {
     backgroundColor: colors.primary,
     borderColor: colors.primary,
+  },
+  taskSelectCardFavorite: {
+    borderColor: "#FFCCD5",
+    backgroundColor: "#FFF5F6",
+  },
+  favoriteButton: {
+    padding: spacing.xs,
+    marginRight: spacing.xs,
   },
   taskSelectCardLeft: {
     width: 48,

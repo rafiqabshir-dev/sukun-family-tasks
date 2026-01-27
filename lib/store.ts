@@ -47,6 +47,7 @@ interface StoreActions {
   deleteReward: (id: string) => void;
   deductStars: (memberId: string, stars: number, reason: string, createdBy: string) => void;
   toggleSound: () => void;
+  toggleFavoriteTask: (templateId: string) => void;
   reset: () => Promise<void>;
 }
 
@@ -63,7 +64,8 @@ function saveToStorage(state: AppState): void {
         lastWinnerIds: state.lastWinnerIds,
         rewards: state.rewards,
         starDeductions: state.starDeductions,
-        settings: state.settings
+        settings: state.settings,
+        favoriteTaskIds: state.favoriteTaskIds || []
       };
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
     } catch (e) {
@@ -146,6 +148,7 @@ export const useStore = create<AppState & StoreActions & { isReady: boolean; aut
             lastWinnerIds: parsed.lastWinnerIds || [],
             rewards: parsed.rewards || [],
             starDeductions: parsed.starDeductions || [],
+            favoriteTaskIds: parsed.favoriteTaskIds || [],
             isReady: true 
           });
           return;
@@ -767,6 +770,16 @@ export const useStore = create<AppState & StoreActions & { isReady: boolean; aut
     const settings = { ...get().settings, soundsEnabled: !get().settings.soundsEnabled };
     set({ settings });
     saveToStorage({ ...get(), settings });
+  },
+
+  toggleFavoriteTask: (templateId: string) => {
+    const currentFavorites = get().favoriteTaskIds || [];
+    const isFavorite = currentFavorites.includes(templateId);
+    const favoriteTaskIds = isFavorite
+      ? currentFavorites.filter(id => id !== templateId)
+      : [...currentFavorites, templateId];
+    set({ favoriteTaskIds });
+    saveToStorage({ ...get(), favoriteTaskIds });
   },
 
   reset: async () => {
