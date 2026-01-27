@@ -1122,42 +1122,8 @@ export default function TodayScreen() {
           />
         }
       >
-        {/* Guardian Tab Switcher */}
+        {/* Guardian Actions - Always visible for guardians */}
         {isCurrentUserGuardian && (
-          <View style={styles.tabContainer}>
-            <TouchableOpacity
-              style={[styles.tabButton, activeTab === "family" && styles.tabButtonActive]}
-              onPress={() => setActiveTab("family")}
-              data-testid="tab-family-tasks"
-            >
-              <Ionicons 
-                name="people" 
-                size={18} 
-                color={activeTab === "family" ? "#FFFFFF" : colors.textSecondary} 
-              />
-              <Text style={[styles.tabButtonText, activeTab === "family" && styles.tabButtonTextActive]}>
-                Family Tasks
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.tabButton, activeTab === "mine" && styles.tabButtonActive]}
-              onPress={() => setActiveTab("mine")}
-              data-testid="tab-my-tasks"
-            >
-              <Ionicons 
-                name="person" 
-                size={18} 
-                color={activeTab === "mine" ? "#FFFFFF" : colors.textSecondary} 
-              />
-              <Text style={[styles.tabButtonText, activeTab === "mine" && styles.tabButtonTextActive]}>
-                My Tasks
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* Guardian Actions */}
-        {isCurrentUserGuardian && activeTab === "family" && (
           <View style={styles.guardianActionsTop}>
             <TouchableOpacity
               style={styles.assignButton}
@@ -1187,7 +1153,8 @@ export default function TodayScreen() {
           onApproveTask={handleQuickApprove}
           currentUserId={profile?.id}
           isGuardian={isCurrentUserGuardian}
-          viewMode={isCurrentUserGuardian ? activeTab : "mine"}
+          activeTab={isCurrentUserGuardian ? activeTab : "mine"}
+          onTabChange={isCurrentUserGuardian ? setActiveTab : undefined}
         />
 
         {/* Clear Overdue Button */}
@@ -2327,35 +2294,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: spacing.sm,
     marginBottom: spacing.md,
-  },
-  // Tab switcher styles
-  tabContainer: {
-    flexDirection: "row",
-    backgroundColor: colors.surfaceSecondary,
-    borderRadius: borderRadius.lg,
-    padding: 4,
-    marginBottom: spacing.md,
-  },
-  tabButton: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.xs,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: borderRadius.md,
-  },
-  tabButtonActive: {
-    backgroundColor: colors.primary,
-  },
-  tabButtonText: {
-    fontSize: fontSize.sm,
-    fontWeight: "600",
-    color: colors.textSecondary,
-  },
-  tabButtonTextActive: {
-    color: "#FFFFFF",
   },
   deductButton: {
     flex: 1,

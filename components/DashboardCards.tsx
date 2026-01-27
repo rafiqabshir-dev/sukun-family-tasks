@@ -22,7 +22,8 @@ interface DashboardCardsProps {
   onApproveTask?: (taskId: string) => void;
   currentUserId?: string;
   isGuardian?: boolean;
-  viewMode?: "family" | "mine"; // "family" shows all family tasks, "mine" shows only current user's tasks
+  activeTab?: "family" | "mine"; // Current active tab
+  onTabChange?: (tab: "family" | "mine") => void; // Callback when tab changes
 }
 
 export function SevereWeatherBanner({ weather }: { weather: WeatherData | null }) {
@@ -571,7 +572,8 @@ export function ParticipantTaskCard({
   const pendingTasks = tasks.filter(t => t.instance.status === 'pending_approval');
   const overdueTasks = tasks.filter(t => t.isOverdue);
   
-  const isCurrentUser = currentUserId === member.id;
+  // Check if current user is this member (match by member.id or member.profileId)
+  const isCurrentUser = currentUserId === member.id || currentUserId === member.profileId;
   const canComplete = isCurrentUser || isGuardian;
 
   if (tasks.length === 0) {
@@ -1800,7 +1802,8 @@ export function DashboardCards({
   onApproveTask,
   currentUserId,
   isGuardian,
-  viewMode = "family"
+  activeTab = "family",
+  onTabChange
 }: DashboardCardsProps) {
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [weatherLoadState, setWeatherLoadState] = useState<LoadingState>('loading');
@@ -1837,8 +1840,42 @@ export function DashboardCards({
         <CompactParksWidget weather={weather} location={location} />
       </View>
       
-      {/* TASKS - Show based on viewMode */}
-      {viewMode === "family" ? (
+      {/* Tab Switcher - Only show for guardians */}
+      {isGuardian && onTabChange && (
+        <View style={styles.tabContainer}>
+          <TouchableOpacity
+            style={[styles.tabButton, activeTab === "family" && styles.tabButtonActive]}
+            onPress={() => onTabChange("family")}
+            data-testid="tab-family-tasks"
+          >
+            <Ionicons 
+              name="people" 
+              size={18} 
+              color={activeTab === "family" ? "#FFFFFF" : colors.textSecondary} 
+            />
+            <Text style={[styles.tabButtonText, activeTab === "family" && styles.tabButtonTextActive]}>
+              Family Tasks
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tabButton, activeTab === "mine" && styles.tabButtonActive]}
+            onPress={() => onTabChange("mine")}
+            data-testid="tab-my-tasks"
+          >
+            <Ionicons 
+              name="person" 
+              size={18} 
+              color={activeTab === "mine" ? "#FFFFFF" : colors.textSecondary} 
+            />
+            <Text style={[styles.tabButtonText, activeTab === "mine" && styles.tabButtonTextActive]}>
+              My Tasks
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+      
+      {/* TASKS - Show based on activeTab */}
+      {activeTab === "family" ? (
         <ParticipantTasksGrid 
           taskInstances={taskInstances}
           taskTemplates={taskTemplates}
@@ -1902,6 +1939,37 @@ const styles = StyleSheet.create({
   compactWidgetWarning: {
     borderColor: colors.warning,
     borderWidth: 1.5,
+  },
+  // Tab styles
+  tabContainer: {
+    flexDirection: "row",
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: 4,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  tabButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.md,
+  },
+  tabButtonActive: {
+    backgroundColor: colors.primary,
+  },
+  tabButtonText: {
+    fontSize: fontSize.sm,
+    fontWeight: "600",
+    color: colors.textSecondary,
+  },
+  tabButtonTextActive: {
+    color: "#FFFFFF",
   },
   // Modal styles
   modalOverlay: {
