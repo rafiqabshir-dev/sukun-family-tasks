@@ -70,6 +70,7 @@ export default function TodayScreen() {
   const completeTask = useStore((s) => s.completeTask);
   const approveTask = useStore((s) => s.approveTask);
   const rejectTask = useStore((s) => s.rejectTask);
+  const updateTaskInstance = useStore((s) => s.updateTaskInstance);
   const deductStars = useStore((s) => s.deductStars);
   const favoriteTaskIds = useStore((s) => s.favoriteTaskIds) || [];
   const toggleFavoriteTask = useStore((s) => s.toggleFavoriteTask);
@@ -155,7 +156,11 @@ export default function TodayScreen() {
           await updateCloudTaskInstance(taskId, { status: "approved" });
           await addStarsLedgerEntry(instance.assignedToMemberId, template.starsReward, "earned", `Completed: ${template.title}`);
         }
-        approveTask(taskId);
+        // Update local store directly since approveTask expects "pending_approval" status
+        updateTaskInstance(taskId, { 
+          status: "approved", 
+          completedAt: new Date().toISOString() 
+        });
         // Send approval notification to the kid (same as quick-approve)
         if (template && member) {
           notifyTaskApproved(template.title, member.name, template.starsReward);
@@ -176,7 +181,7 @@ export default function TodayScreen() {
       console.error('[Today] Quick complete error:', err);
       captureError(err as Error, { context: 'quick_complete', taskId });
     }
-  }, [taskInstances, taskTemplates, members, isCurrentUserGuardian, currentMember, approveTask, completeTask]);
+  }, [taskInstances, taskTemplates, members, isCurrentUserGuardian, currentMember, updateTaskInstance, completeTask]);
 
   // Quick approve handler for one-tap task approval
   const handleQuickApprove = useCallback(async (taskId: string) => {
