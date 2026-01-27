@@ -14,7 +14,7 @@ Preferred communication style: Simple, everyday language.
 - **Styling**: Native React Native StyleSheet.
 - **Icons**: @expo/vector-icons (Ionicons).
 - **Branding**: App name "Sukun", tagline "Family Tasks Made Simple", and a specific logo (`assets/sukun-logo.png`).
-- **UI/UX**: Tab-based navigation (Today, Spin, Leaderboard, Setup), onboarding flow, consistent typography, and a gentle tone reflecting Islamic values. No emojis are used; UI exclusively uses Ionicons or @expo/vector-icons.
+- **UI/UX**: Tab-based navigation (Home, Spin, Leaderboard, Setup), onboarding flow, consistent typography, and a gentle tone reflecting Islamic values. No emojis are used; UI exclusively uses Ionicons or @expo/vector-icons.
 
 ### Core Features
 - **Gamification**: "Powers" system for kids (e.g., Organizer, Fast Cleaner), a "Spin" game for task assignment, and a "Leaderboard" to track stars.
@@ -45,7 +45,7 @@ Preferred communication style: Simple, everyday language.
 - **Notification Events**: Service functions (`lib/pushNotificationService.ts`) send notifications for task assignments, approvals, rejections, join requests, and reward claims.
 
 ### Pull-to-Refresh
-- Implemented on key pages (Today, Leaderboard, Rewards, Setup) using `RefreshControl` to reload data from Supabase via `refreshProfile()` from AuthContext.
+- Implemented on key pages (Home, Leaderboard, Rewards, Setup) using `RefreshControl` to reload data from Supabase via `refreshProfile()` from AuthContext.
 
 ### Sound System
 - Uses `expo-av` with `lib/soundService.ts` for audio playback (spin, winner, click, success sounds). Sound toggle is available in Setup, persisted locally.
@@ -61,10 +61,13 @@ Preferred communication style: Simple, everyday language.
   - **Family Game** (Spin): Turn-based star-collection game with selectable players, target scores, scoreboard, and winner celebrations. Guardian-only.
   - **Charades Mini** (Party): Coming soon placeholder in `app/games/charades-mini.tsx`.
 
-### Family Day Dashboard (Today Page)
+### Home Page (formerly Today)
 - Located in `app/(tabs)/today.tsx`, provides a personalized greeting with task-first UX design.
+- **View Mode Switching**: Guardians see a "Family Tasks" / "My Tasks" tab switcher at the top. "Family Tasks" shows all family members' tasks in a grid view. "My Tasks" shows only tasks assigned to the guardian.
+- **Participant View**: Non-guardian users automatically see only their own assigned tasks without the tab switcher.
 - **Compact Info Row**: Top row shows three tappable compact widgets - CompactPrayerWidget, CompactWeatherWidget, and CompactParksWidget. Each opens a bottom sheet modal with full details.
 - **Participant Task Cards**: ParticipantTasksGrid shows individual cards for each cloud-synced kid displaying their avatar, name, stars, task count badges (overdue/to-do/pending), up to 3 tasks with one-tap complete/approve buttons, and "+X more" link.
+- **ID Matching**: MyTasksView correctly maps profile.id to member.id for task filtering since task assignments use member.id.
 - **Quick Actions**: handleQuickComplete for marking tasks done, handleQuickApprove for guardian approvals - both trigger push notifications and cloud sync.
 - **Modal Details**: Prayer modal shows all 6 daily prayers with urgent warnings. Weather modal shows temperature, humidity, wind, UV, outdoor safety, and severe weather alerts. Parks modal shows nearby parks with amenities and outdoor recommendations.
 - **Location Service** (`lib/locationService.ts`): Uses expo-location for device GPS, requests foreground permissions on first use, 1-hour caching, reverse geocoding to display city name. Falls back to San Francisco if permission denied.
