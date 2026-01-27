@@ -1168,15 +1168,6 @@ export default function TodayScreen() {
           </TouchableOpacity>
         )}
 
-        {pendingApprovalTasks.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Needs Approval</Text>
-            <Text style={styles.sectionSubtitle}>
-              Someone else must verify these tasks are complete
-            </Text>
-            {pendingApprovalTasks.map((task) => renderApprovalCard(task))}
-          </View>
-        )}
 
       </ScrollView>
 
@@ -2110,7 +2101,8 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.lg,
     borderWidth: 1,
     borderColor: colors.border,
-    flex: 0.4,
+    backgroundColor: colors.surface,
+    height: 48,
   },
   backButtonText: {
     color: colors.text,
@@ -2269,16 +2261,17 @@ const styles = StyleSheet.create({
   },
   confirmButton: {
     backgroundColor: colors.primary,
-    padding: spacing.md,
     borderRadius: borderRadius.lg,
     alignItems: "center",
+    justifyContent: "center",
     marginTop: spacing.lg,
+    height: 48,
   },
   confirmButtonDisabled: {
     backgroundColor: colors.textMuted,
   },
   confirmButtonFlex: {
-    flex: 1,
+    flex: 2,
     marginTop: 0,
   },
   confirmButtonText: {

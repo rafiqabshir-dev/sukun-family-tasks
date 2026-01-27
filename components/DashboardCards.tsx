@@ -586,7 +586,7 @@ export function ParticipantTaskCard({
             <Text style={styles.participantName}>{member.name}</Text>
             <View style={styles.participantStars}>
               <Ionicons name="star" size={14} color="#FFD700" />
-              <Text style={styles.participantStarsText}>{member.stars} stars</Text>
+              <Text style={styles.participantStarsText}>{member.starsTotal} stars</Text>
             </View>
           </View>
         </View>
@@ -613,7 +613,7 @@ export function ParticipantTaskCard({
           <Text style={styles.participantName}>{member.name}</Text>
           <View style={styles.participantStars}>
             <Ionicons name="star" size={14} color="#FFD700" />
-            <Text style={styles.participantStarsText}>{member.stars} stars</Text>
+            <Text style={styles.participantStarsText}>{member.starsTotal} stars</Text>
           </View>
         </View>
         <View style={styles.participantBadges}>
@@ -1713,25 +1713,29 @@ const styles = StyleSheet.create({
   },
   compactWidget: {
     flex: 1,
-    flexDirection: "row",
+    flexDirection: "column",
     alignItems: "center",
     justifyContent: "center",
-    gap: spacing.xs,
+    gap: 4,
     backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,
-    padding: spacing.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.xs,
     borderWidth: 1,
     borderColor: colors.border,
+    minHeight: 72,
   },
   compactWidgetLabel: {
-    fontSize: fontSize.sm,
+    fontSize: fontSize.xs,
     color: colors.textSecondary,
     fontWeight: "500",
+    textAlign: "center",
   },
   compactWidgetValue: {
-    fontSize: fontSize.md,
+    fontSize: fontSize.sm,
     fontWeight: "700",
     color: colors.text,
+    textAlign: "center",
   },
   compactWidgetUrgent: {
     borderColor: colors.error,
