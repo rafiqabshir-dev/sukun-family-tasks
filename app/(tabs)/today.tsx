@@ -71,6 +71,7 @@ export default function TodayScreen() {
   const approveTask = useStore((s) => s.approveTask);
   const rejectTask = useStore((s) => s.rejectTask);
   const updateTaskInstance = useStore((s) => s.updateTaskInstance);
+  const updateMember = useStore((s) => s.updateMember);
   const deductStars = useStore((s) => s.deductStars);
   const favoriteTaskIds = useStore((s) => s.favoriteTaskIds) || [];
   const toggleFavoriteTask = useStore((s) => s.toggleFavoriteTask);
@@ -152,18 +153,26 @@ export default function TodayScreen() {
       // If guardian completing, auto-approve. Otherwise mark pending approval
       if (isCurrentUserGuardian) {
         // Guardians can complete and approve in one action
+        const starsEarned = template?.starsReward || template?.defaultStars || 1;
+        
         if (template && isSupabaseConfigured()) {
           await updateCloudTaskInstance(taskId, { status: "approved" });
-          await addStarsLedgerEntry(instance.assignedToMemberId, template.starsReward, "earned", `Completed: ${template.title}`);
+          await addStarsLedgerEntry(instance.assignedToMemberId, starsEarned, "earned", `Completed: ${template.title}`);
         }
         // Update local store directly since approveTask expects "pending_approval" status
         updateTaskInstance(taskId, { 
           status: "approved", 
           completedAt: new Date().toISOString() 
         });
+        // Update member's stars locally
+        if (member) {
+          updateMember(instance.assignedToMemberId, { 
+            starsTotal: member.starsTotal + starsEarned 
+          });
+        }
         // Send approval notification to the kid (same as quick-approve)
         if (template && member) {
-          notifyTaskApproved(template.title, member.name, template.starsReward);
+          notifyTaskApproved(template.title, member.name, starsEarned);
         }
         trackEvent("task_quick_approved", { taskId });
       } else {
@@ -181,7 +190,7 @@ export default function TodayScreen() {
       console.error('[Today] Quick complete error:', err);
       captureError(err as Error, { context: 'quick_complete', taskId });
     }
-  }, [taskInstances, taskTemplates, members, isCurrentUserGuardian, currentMember, updateTaskInstance, completeTask]);
+  }, [taskInstances, taskTemplates, members, isCurrentUserGuardian, currentMember, updateTaskInstance, updateMember, completeTask]);
 
   // Quick approve handler for one-tap task approval
   const handleQuickApprove = useCallback(async (taskId: string) => {
