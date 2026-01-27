@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { parseISO, differenceInMinutes, format, isAfter, isBefore, addDays } from "date-fns";
+import { prayer } from "./api";
 
 const PRAYER_CACHE_KEY = "sukun_prayer_cache";
 const CACHE_DURATION_MS = 6 * 60 * 60 * 1000; // 6 hours
@@ -63,17 +64,9 @@ export async function getPrayerTimes(latitude: number, longitude: number): Promi
     }
 
     // Fetch from AlAdhan API (free, no key required)
-    const response = await fetch(
-      `https://api.aladhan.com/v1/timings?latitude=${latitude}&longitude=${longitude}&method=2`
-    );
-
-    if (!response.ok) {
-      throw new Error("Prayer API request failed");
-    }
-
-    const data = await response.json();
-    const timings = data.data.timings;
-    const dateInfo = data.data.date;
+    const apiResponse = await prayer.getTimings(latitude, longitude);
+    const timings = apiResponse.data.timings;
+    const dateInfo = apiResponse.data.date;
     
     const prayerTimes: PrayerTimes = {
       fajr: timings.Fajr,
@@ -99,17 +92,9 @@ export async function getPrayerTimes(latitude: number, longitude: number): Promi
 
 // Fresh fetch - never uses cache, throws on error
 export async function getPrayerTimesFresh(latitude: number, longitude: number): Promise<PrayerTimes> {
-  const response = await fetch(
-    `https://api.aladhan.com/v1/timings?latitude=${latitude}&longitude=${longitude}&method=2`
-  );
-
-  if (!response.ok) {
-    throw new Error("Prayer API request failed");
-  }
-
-  const data = await response.json();
-  const timings = data.data.timings;
-  const dateInfo = data.data.date;
+  const apiResponse = await prayer.getTimings(latitude, longitude);
+  const timings = apiResponse.data.timings;
+  const dateInfo = apiResponse.data.date;
   
   const prayerTimes: PrayerTimes = {
     fajr: timings.Fajr,

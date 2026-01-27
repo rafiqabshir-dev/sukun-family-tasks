@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { weather } from "./api";
 
 const WEATHER_CACHE_KEY = "sukun_weather_cache";
 const CACHE_DURATION_MS = 30 * 60 * 1000; // 30 minutes
@@ -88,15 +89,7 @@ export async function getWeather(latitude: number, longitude: number): Promise<W
       return cached;
     }
 
-    const response = await fetch(
-      `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,wind_gusts_10m,precipitation,precipitation_probability&hourly=uv_index,visibility&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto&forecast_days=1`
-    );
-
-    if (!response.ok) {
-      throw new Error("Weather API request failed");
-    }
-
-    const data = await response.json();
+    const data = await weather.getCurrent(latitude, longitude);
     const current = data.current;
     const hourly = data.hourly;
     
@@ -335,15 +328,7 @@ async function cacheWeather(data: WeatherData, latitude: number, longitude: numb
 
 // Fresh fetch - never uses cache, throws on error instead of returning stale data
 export async function getWeatherFresh(latitude: number, longitude: number): Promise<WeatherData> {
-  const response = await fetch(
-    `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,wind_gusts_10m,precipitation,precipitation_probability&hourly=uv_index,visibility&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto&forecast_days=1`
-  );
-
-  if (!response.ok) {
-    throw new Error("Weather API request failed");
-  }
-
-  const data = await response.json();
+  const data = await weather.getCurrent(latitude, longitude);
   const current = data.current;
   const hourly = data.hourly;
   

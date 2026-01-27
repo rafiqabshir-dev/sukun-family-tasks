@@ -1,4 +1,5 @@
 import { getCurrentLocation } from './locationService';
+import { parks } from './api';
 
 export interface Park {
   id: string;
@@ -133,130 +134,66 @@ export async function getNearbyParks(radiusMeters: number = 5000): Promise<ParkD
   
   const { latitude: lat, longitude: lon } = location;
   
-  // Overpass QL query to find parks, playgrounds, and gardens
-  // Using a larger timeout and including more leisure types
-  const query = `
-    [out:json][timeout:30];
-    (
-      way["leisure"="park"](around:${radiusMeters},${lat},${lon});
-      way["leisure"="playground"](around:${radiusMeters},${lat},${lon});
-      way["leisure"="garden"]["access"!="private"](around:${radiusMeters},${lat},${lon});
-      way["leisure"="nature_reserve"](around:${radiusMeters},${lat},${lon});
-      way["leisure"="recreation_ground"](around:${radiusMeters},${lat},${lon});
-      node["leisure"="playground"](around:${radiusMeters},${lat},${lon});
-      node["leisure"="park"](around:${radiusMeters},${lat},${lon});
-      relation["leisure"="park"](around:${radiusMeters},${lat},${lon});
-      relation["boundary"="national_park"](around:${radiusMeters},${lat},${lon});
-    );
-    out center tags;
-  `;
-  
   console.log('[Parks] Searching within', radiusMeters, 'meters of', lat, lon);
   
-  // Multiple Overpass API servers for fallback
-  const overpassServers = [
-    'https://overpass-api.de/api/interpreter',
-    'https://overpass.kumi.systems/api/interpreter',
-    'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
-  ];
+  // Use standardized API layer with automatic server fallback
+  const data = await parks.getNearby(lat, lon, radiusMeters);
   
-  let lastError: Error | null = null;
+  console.log('[Parks] API returned', data.elements?.length || 0, 'elements');
   
-  for (const server of overpassServers) {
-    try {
-      console.log('[Parks] Trying server:', server);
-      
-      const response = await fetch(server, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: `data=${encodeURIComponent(query)}`,
-      });
-      
-      if (!response.ok) {
-        // Use warn instead of error for transient server issues (won't trigger Expo error console)
-        console.warn('[Parks] Server unavailable:', server, response.status);
-        lastError = new Error(`Failed to fetch parks: ${response.status}`);
-        continue;
-      }
-      
-      const text = await response.text();
-      
-      // Check if response is HTML error page
-      if (text.includes('<!DOCTYPE') || text.includes('<html')) {
-        console.warn('[Parks] Server returned HTML error:', server);
-        lastError = new Error('Server busy, returned error page');
-        continue;
-      }
-      
-      const data = JSON.parse(text);
-      console.log('[Parks] API returned', data.elements?.length || 0, 'elements from', server);
-      
-      // Success - continue with this data
-      const parks: Park[] = [];
-      const seenIds = new Set<string>();
-      
-      for (const element of data.elements) {
-        let parkLat: number;
-        let parkLon: number;
-        
-        if (element.center) {
-          parkLat = element.center.lat;
-          parkLon = element.center.lon;
-        } else if (element.lat && element.lon) {
-          parkLat = element.lat;
-          parkLon = element.lon;
-        } else {
-          continue;
-        }
-        
-        const tags = element.tags || {};
-        const type = getParkType(tags);
-        const name = getParkName(tags, type);
-        const id = `${element.type}-${element.id}`;
-        
-        if (seenIds.has(id)) continue;
-        seenIds.add(id);
-        
-        if (tags.access === 'private') continue;
-        
-        const distance = calculateDistance(lat, lon, parkLat, parkLon);
-        const amenities = parseAmenities(tags);
-        
-        parks.push({
-          id,
-          name,
-          type,
-          distance,
-          lat: parkLat,
-          lon: parkLon,
-          amenities,
-        });
-      }
-      
-      parks.sort((a, b) => a.distance - b.distance);
-      const nearestParks = parks.slice(0, 10);
-      
-      console.log('[Parks] Found', nearestParks.length, 'parks:', 
-        nearestParks.map(p => `${p.name} (${Math.round(p.distance)}m)`).join(', '));
-      
-      return {
-        parks: nearestParks,
-        fetchedAt: new Date(),
-        location: { lat, lon },
-      };
-      
-    } catch (error) {
-      // Use warn for network errors - these are expected when servers are busy
-      console.warn('[Parks] Server failed:', server, error instanceof Error ? error.message : error);
-      lastError = error instanceof Error ? error : new Error(String(error));
+  // Parse the response
+  const parkList: Park[] = [];
+  const seenIds = new Set<string>();
+  
+  for (const element of data.elements) {
+    let parkLat: number;
+    let parkLon: number;
+    
+    if (element.center) {
+      parkLat = element.center.lat;
+      parkLon = element.center.lon;
+    } else if (element.lat && element.lon) {
+      parkLat = element.lat;
+      parkLon = element.lon;
+    } else {
       continue;
     }
+    
+    const tags = element.tags || {};
+    const type = getParkType(tags);
+    const name = getParkName(tags, type);
+    const id = `${element.type}-${element.id}`;
+    
+    if (seenIds.has(id)) continue;
+    seenIds.add(id);
+    
+    if (tags.access === 'private') continue;
+    
+    const distance = calculateDistance(lat, lon, parkLat, parkLon);
+    const amenities = parseAmenities(tags);
+    
+    parkList.push({
+      id,
+      name,
+      type,
+      distance,
+      lat: parkLat,
+      lon: parkLon,
+      amenities,
+    });
   }
   
-  // All servers failed
-  throw lastError || new Error('All Overpass servers failed');
+  parkList.sort((a, b) => a.distance - b.distance);
+  const nearestParks = parkList.slice(0, 10);
+  
+  console.log('[Parks] Found', nearestParks.length, 'parks:', 
+    nearestParks.map(p => `${p.name} (${Math.round(p.distance)}m)`).join(', '));
+  
+  return {
+    parks: nearestParks,
+    fetchedAt: new Date(),
+    location: { lat, lon },
+  };
 }
 
 // Get outdoor play recommendation based on weather

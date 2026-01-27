@@ -1,6 +1,5 @@
 import { fetchPushTokensForFamily } from './cloudSync';
-
-const EXPO_PUSH_API = 'https://exp.host/--/api/v2/push/send';
+import { push } from './api';
 
 export type NotificationType = 
   | 'task_assigned'
@@ -24,23 +23,7 @@ async function sendPushNotifications(messages: PushMessage[]): Promise<{ success
   }
 
   try {
-    const response = await fetch(EXPO_PUSH_API, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Accept-encoding': 'gzip, deflate',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(messages),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('[PushService] API error:', errorText);
-      return { success: false, error: errorText };
-    }
-
-    const result = await response.json();
+    const result = await push.send(messages);
     console.log('[PushService] Sent', messages.length, 'notifications:', result);
     return { success: true };
   } catch (error) {
