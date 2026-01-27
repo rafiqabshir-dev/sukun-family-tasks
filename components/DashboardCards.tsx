@@ -709,9 +709,13 @@ export function ParticipantTasksGrid({
 }: ParticipantTasksGridProps) {
   const today = startOfDay(new Date());
   
-  // Get kids (participants) only
+  // Get kids only - cloud-synced members with profileId (not local member-* IDs)
   const kids = useMemo(() => {
-    return members.filter(m => m.role === 'participant');
+    return members.filter(m => 
+      m.role === 'kid' && 
+      m.profileId && 
+      !m.id.startsWith('member-')
+    );
   }, [members]);
 
   // Group tasks by member
@@ -2095,14 +2099,16 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.md,
     padding: spacing.sm,
     gap: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   participantTaskItemOverdue: {
-    borderLeftWidth: 3,
-    borderLeftColor: colors.error,
+    backgroundColor: `${colors.error}15`,
+    borderColor: colors.error,
   },
   participantTaskItemPending: {
-    borderLeftWidth: 3,
-    borderLeftColor: colors.warning,
+    backgroundColor: `${colors.warning}15`,
+    borderColor: colors.warning,
   },
   participantTaskInfo: {
     flex: 1,

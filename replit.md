@@ -63,14 +63,17 @@ Preferred communication style: Simple, everyday language.
 
 ### Family Day Dashboard (Today Page)
 - Located in `app/(tabs)/today.tsx`, provides a personalized greeting with task-first UX design.
-- **Task-First Layout**: TodayTasksSummary appears at the top as the primary focus, showing up to 5 actionable tasks with one-tap "Done" and "Approve" buttons.
+- **Compact Info Row**: Top row shows three tappable compact widgets - CompactPrayerWidget, CompactWeatherWidget, and CompactParksWidget. Each opens a bottom sheet modal with full details.
+- **Participant Task Cards**: ParticipantTasksGrid shows individual cards for each cloud-synced kid displaying their avatar, name, stars, task count badges (overdue/to-do/pending), up to 3 tasks with one-tap complete/approve buttons, and "+X more" link.
 - **Quick Actions**: handleQuickComplete for marking tasks done, handleQuickApprove for guardian approvals - both trigger push notifications and cloud sync.
-- **Compact Widgets**: CompactPrayerWidget and CompactWeatherWidget display side-by-side below tasks, replacing large full-width cards.
+- **Modal Details**: Prayer modal shows all 6 daily prayers with urgent warnings. Weather modal shows temperature, humidity, wind, UV, outdoor safety, and severe weather alerts. Parks modal shows nearby parks with amenities and outdoor recommendations.
 - **Location Service** (`lib/locationService.ts`): Uses expo-location for device GPS, requests foreground permissions on first use, 1-hour caching, reverse geocoding to display city name. Falls back to San Francisco if permission denied.
 - **Weather Service**: Uses Open-Meteo API for 30-minute cached weather, severe weather detection, outdoor play safety, and "what to wear" suggestions. Uses user's actual GPS location.
 - **Prayer Service**: Uses AlAdhan API for 6-hour cached prayer times, countdowns, and urgency indicators. Uses user's actual GPS location.
-- **Dashboard Cards** (`components/DashboardCards.tsx`): Renders TodayTasksSummary first, then compact prayer/weather row, then SevereWeatherBanner, location badge, and WhatToWearCard.
-- **Deep-link Navigation**: Tasks summary links to the Tasks page with pre-applied filters.
+- **Parks Service**: Uses Overpass API for nearby parks with 1-hour caching, park count, amenity detection.
+- **Dashboard Cards** (`components/DashboardCards.tsx`): Renders compact info row (prayer/weather/parks) at top, then ParticipantTasksGrid below showing individual member task cards.
+- **Deep-link Navigation**: Task cards link to Tasks page with pre-applied member filters.
+- **Cloud-Synced Only**: ParticipantTasksGrid only shows kids with valid cloud profileId (not local member-* IDs).
 
 ### Enhanced Tasks Page
 - Offers "Browse Templates" and "Assigned Tasks" view modes.
