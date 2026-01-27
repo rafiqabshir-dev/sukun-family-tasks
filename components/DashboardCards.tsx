@@ -1256,6 +1256,152 @@ function CompactWeatherWidget({ weather, loadState }: { weather: WeatherData | n
   );
 }
 
+// Compact Parks Widget for side-by-side display with modal
+function CompactParksWidget({ weather, location }: { weather: WeatherData | null; location: UserLocation | null }) {
+  const [parks, setParks] = useState<Park[]>([]);
+  const [loadState, setLoadState] = useState<LoadingState>('loading');
+  const [showModal, setShowModal] = useState(false);
+
+  useEffect(() => {
+    if (!location) return;
+    const loadParks = async () => {
+      try {
+        const parkData = await getNearbyParks(5000);
+        setParks(parkData.parks);
+        setLoadState('success');
+      } catch {
+        setLoadState('error');
+      }
+    };
+    loadParks();
+  }, [location]);
+
+  const outdoorRec = useMemo(() => {
+    if (!weather) return null;
+    return getOutdoorRecommendation({
+      temperature: weather.temperature,
+      conditions: weather.condition,
+      humidity: weather.humidity,
+      windSpeed: weather.windSpeed,
+      uvIndex: weather.uvIndex,
+    });
+  }, [weather]);
+
+  const openMapsApp = (park: Park) => {
+    const url = `https://www.openstreetmap.org/?mlat=${park.lat}&mlon=${park.lon}#map=17/${park.lat}/${park.lon}`;
+    Linking.openURL(url);
+  };
+
+  const getRatingStyle = (rating: 'perfect' | 'good' | 'caution' | 'not_recommended') => {
+    switch (rating) {
+      case 'perfect': return { bg: '#E8F5E9', text: colors.success, icon: 'sunny' as const };
+      case 'good': return { bg: '#E3F2FD', text: colors.primary, icon: 'partly-sunny' as const };
+      case 'caution': return { bg: '#FFF3E0', text: colors.warning, icon: 'warning' as const };
+      case 'not_recommended': return { bg: '#FFE5E5', text: colors.error, icon: 'close-circle' as const };
+    }
+  };
+
+  if (loadState === 'loading') {
+    return (
+      <View style={styles.compactWidget}>
+        <ActivityIndicator size="small" color={colors.success} />
+      </View>
+    );
+  }
+
+  if (loadState === 'error' || parks.length === 0) {
+    return (
+      <View style={styles.compactWidget}>
+        <Ionicons name="leaf-outline" size={20} color={colors.textMuted} />
+        <Text style={styles.compactWidgetLabel}>Parks</Text>
+      </View>
+    );
+  }
+
+  const ratingStyle = outdoorRec ? getRatingStyle(outdoorRec.rating) : null;
+  const notRecommended = outdoorRec?.rating === 'not_recommended';
+
+  return (
+    <>
+      <TouchableOpacity 
+        style={[styles.compactWidget, notRecommended && styles.compactWidgetWarning]} 
+        onPress={() => setShowModal(true)}
+        data-testid="compact-parks-widget"
+      >
+        <Ionicons name="leaf" size={20} color={notRecommended ? colors.warning : colors.success} />
+        <Text style={styles.compactWidgetValue}>{parks.length}</Text>
+        <Text style={styles.compactWidgetLabel}>Parks</Text>
+      </TouchableOpacity>
+
+      <Modal visible={showModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalTitleRow}>
+                <Ionicons name="leaf" size={24} color={colors.success} />
+                <Text style={styles.modalTitle}>Nearby Parks</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowModal(false)} data-testid="button-close-parks-modal">
+                <Ionicons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            {outdoorRec && ratingStyle && (
+              <View style={[styles.parkRecommendationBanner, { backgroundColor: ratingStyle.bg }]}>
+                <Ionicons name={ratingStyle.icon} size={20} color={ratingStyle.text} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.parkRecTitle, { color: ratingStyle.text }]}>
+                    {outdoorRec.message}
+                  </Text>
+                  {outdoorRec.tips.length > 0 && (
+                    <Text style={[styles.parkRecTipText, { color: ratingStyle.text }]}>
+                      {outdoorRec.tips[0]}
+                    </Text>
+                  )}
+                </View>
+              </View>
+            )}
+
+            <ScrollView style={styles.parksModalList} showsVerticalScrollIndicator={false}>
+              {parks.map((park) => (
+                <TouchableOpacity 
+                  key={park.id} 
+                  style={styles.parkModalItem}
+                  onPress={() => openMapsApp(park)}
+                  data-testid={`park-modal-item-${park.id}`}
+                >
+                  <View style={styles.parkModalIcon}>
+                    <Ionicons name={getParkIcon(park.type) as any} size={20} color={colors.success} />
+                  </View>
+                  <View style={styles.parkModalInfo}>
+                    <Text style={styles.parkModalName} numberOfLines={1}>{park.name}</Text>
+                    <View style={styles.parkModalMeta}>
+                      <Text style={styles.parkModalDistance}>{formatDistanceMiles(park.distance)}</Text>
+                      {park.amenities.length > 0 && (
+                        <Text style={styles.parkModalAmenities} numberOfLines={1}>
+                          {park.amenities.slice(0, 3).join(', ')}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                  <Ionicons name="navigate-outline" size={18} color={colors.primary} />
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            <TouchableOpacity 
+              style={styles.modalCloseButton}
+              onPress={() => setShowModal(false)}
+            >
+              <Text style={styles.modalCloseButtonText}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </>
+  );
+}
+
 export function DashboardCards({ 
   taskInstances, 
   taskTemplates, 
@@ -1305,13 +1451,12 @@ export function DashboardCards({
         isGuardian={isGuardian}
       />
       
-      {/* Secondary Info - Weather & Prayer */}
-      <SevereWeatherBanner weather={weather} />
+      {/* Secondary Info - Weather, Prayer & Parks in compact row */}
       <View style={styles.compactInfoRow}>
         <CompactPrayerWidget currentTime={currentTime} location={location} />
         <CompactWeatherWidget weather={weather} loadState={weatherLoadState} />
+        <CompactParksWidget weather={weather} location={location} />
       </View>
-      <NearbyParksCard weather={weather} location={location} />
     </View>
   );
 }
@@ -1535,6 +1680,68 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     color: colors.textSecondary,
     marginTop: 2,
+  },
+  // Parks modal styles
+  parkRecommendationBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    marginBottom: spacing.md,
+  },
+  parkRecTitle: {
+    fontSize: fontSize.sm,
+    fontWeight: "600",
+  },
+  parkRecTipText: {
+    fontSize: fontSize.xs,
+    marginTop: 2,
+    opacity: 0.85,
+  },
+  parksModalList: {
+    maxHeight: 320,
+  },
+  parkModalItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    padding: spacing.md,
+    backgroundColor: colors.surfaceSecondary,
+    borderRadius: borderRadius.md,
+    marginBottom: spacing.sm,
+  },
+  parkModalIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  parkModalInfo: {
+    flex: 1,
+  },
+  parkModalName: {
+    fontSize: fontSize.md,
+    fontWeight: "600",
+    color: colors.text,
+  },
+  parkModalMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginTop: 2,
+  },
+  parkModalDistance: {
+    fontSize: fontSize.sm,
+    color: colors.primary,
+    fontWeight: "600",
+  },
+  parkModalAmenities: {
+    fontSize: fontSize.xs,
+    color: colors.textMuted,
+    flex: 1,
   },
   locationBadge: {
     flexDirection: "row",
