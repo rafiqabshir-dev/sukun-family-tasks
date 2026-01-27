@@ -23,7 +23,7 @@ const RETRY_DELAYS = [1000, 2000, 4000];
 function shouldRetry(error: AppError, attempt: number, maxRetries: number, idempotent: boolean): boolean {
   if (attempt >= maxRetries) return false;
   if (!error.retryable) return false;
-  if (!idempotent && error.code !== 'NETWORK_ERROR' && error.code !== 'TIMEOUT_ERROR') return false;
+  if (!idempotent) return false;
   return true;
 }
 
@@ -59,16 +59,35 @@ export async function apiRequest<T>(
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
 
-    const combinedSignal = externalSignal
-      ? AbortSignal.any?.([controller.signal, externalSignal]) || controller.signal
-      : controller.signal;
+    let externalAbortHandler: (() => void) | null = null;
+    if (externalSignal) {
+      if (externalSignal.aborted) {
+        clearTimeout(timeoutId);
+        throw new AppError({
+          operationName,
+          requestId,
+          code: 'NETWORK_ERROR',
+          message: 'Request was cancelled',
+          retryable: false,
+        });
+      }
+      externalAbortHandler = () => controller.abort();
+      externalSignal.addEventListener('abort', externalAbortHandler);
+    }
+
+    const cleanup = () => {
+      clearTimeout(timeoutId);
+      if (externalSignal && externalAbortHandler) {
+        externalSignal.removeEventListener('abort', externalAbortHandler);
+      }
+    };
 
     try {
       const startTime = Date.now();
 
       const response = await fetch(url, {
         ...options,
-        signal: combinedSignal,
+        signal: controller.signal,
         headers: {
           ...options.headers,
           ...extraHeaders,
@@ -77,7 +96,7 @@ export async function apiRequest<T>(
         },
       });
 
-      clearTimeout(timeoutId);
+      cleanup();
       const duration = Date.now() - startTime;
 
       if (__DEV__) {
@@ -117,7 +136,7 @@ export async function apiRequest<T>(
         });
       }
     } catch (error) {
-      clearTimeout(timeoutId);
+      cleanup();
 
       if (error instanceof AppError) {
         lastError = error;

@@ -111,11 +111,12 @@ async function loadProfile(userId: string) {
 - Overpass (parks): 35 seconds (server can be slow)
 
 ### Retry Policy
-- **GET/HEAD requests**: Automatically retryable
-- **POST/PUT/DELETE**: Only retry if explicitly marked `idempotent: true`
+- **GET/HEAD requests**: Automatically retryable (marked as `idempotent` by default)
+- **POST/PUT/DELETE**: Never retry unless explicitly marked `idempotent: true`
 - **Retryable errors**: Network errors, timeouts, 429, 502, 503, 504
 - **Max retries**: 2 by default (configurable per operation)
 - **Backoff**: 1s, 2s, 4s with jitter
+- **Important**: Non-idempotent operations are never retried, even for network/timeout errors, to prevent duplicate actions
 
 ## Request IDs
 
