@@ -544,6 +544,244 @@ export function WhatToWearCard({ weather, loadState }: WhatToWearCardProps) {
 
 type NextUpTask = { title: string; memberName: string } | null;
 
+// Participant Task Card - Shows tasks for a single family member
+interface ParticipantTaskCardProps {
+  member: Member;
+  tasks: Array<{
+    instance: TaskInstance;
+    template: TaskTemplate;
+    isOverdue: boolean;
+  }>;
+  onCompleteTask?: (taskId: string) => void;
+  onApproveTask?: (taskId: string) => void;
+  currentUserId?: string;
+  isGuardian?: boolean;
+}
+
+export function ParticipantTaskCard({
+  member,
+  tasks,
+  onCompleteTask,
+  onApproveTask,
+  currentUserId,
+  isGuardian,
+}: ParticipantTaskCardProps) {
+  const openTasks = tasks.filter(t => t.instance.status === 'open');
+  const pendingTasks = tasks.filter(t => t.instance.status === 'pending_approval');
+  const overdueTasks = tasks.filter(t => t.isOverdue);
+  
+  const isCurrentUser = currentUserId === member.id;
+  const canComplete = isCurrentUser || isGuardian;
+
+  if (tasks.length === 0) {
+    return (
+      <View style={styles.participantCard} data-testid={`participant-card-${member.id}`}>
+        <View style={styles.participantHeader}>
+          <View style={styles.participantAvatar}>
+            <Text style={styles.participantAvatarText}>
+              {member.avatar || member.name.slice(0, 2).toUpperCase()}
+            </Text>
+          </View>
+          <View style={styles.participantInfo}>
+            <Text style={styles.participantName}>{member.name}</Text>
+            <View style={styles.participantStars}>
+              <Ionicons name="star" size={14} color="#FFD700" />
+              <Text style={styles.participantStarsText}>{member.stars} stars</Text>
+            </View>
+          </View>
+        </View>
+        <View style={styles.participantEmpty}>
+          <Ionicons name="checkmark-done-circle" size={28} color={colors.success} />
+          <Text style={styles.participantEmptyText}>All done for today!</Text>
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.participantCard} data-testid={`participant-card-${member.id}`}>
+      <View style={styles.participantHeader}>
+        <View style={[
+          styles.participantAvatar,
+          overdueTasks.length > 0 && styles.participantAvatarOverdue
+        ]}>
+          <Text style={styles.participantAvatarText}>
+            {member.avatar || member.name.slice(0, 2).toUpperCase()}
+          </Text>
+        </View>
+        <View style={styles.participantInfo}>
+          <Text style={styles.participantName}>{member.name}</Text>
+          <View style={styles.participantStars}>
+            <Ionicons name="star" size={14} color="#FFD700" />
+            <Text style={styles.participantStarsText}>{member.stars} stars</Text>
+          </View>
+        </View>
+        <View style={styles.participantBadges}>
+          {overdueTasks.length > 0 && (
+            <View style={styles.participantBadgeOverdue}>
+              <Text style={styles.participantBadgeText}>{overdueTasks.length} late</Text>
+            </View>
+          )}
+          {openTasks.length > 0 && (
+            <View style={styles.participantBadge}>
+              <Text style={styles.participantBadgeText}>{openTasks.length} to do</Text>
+            </View>
+          )}
+          {pendingTasks.length > 0 && (
+            <View style={styles.participantBadgePending}>
+              <Text style={styles.participantBadgeText}>{pendingTasks.length} pending</Text>
+            </View>
+          )}
+        </View>
+      </View>
+
+      <View style={styles.participantTasksList}>
+        {tasks.slice(0, 3).map(({ instance, template, isOverdue }) => (
+          <View 
+            key={instance.id}
+            style={[
+              styles.participantTaskItem,
+              isOverdue && styles.participantTaskItemOverdue,
+              instance.status === 'pending_approval' && styles.participantTaskItemPending,
+            ]}
+          >
+            <View style={styles.participantTaskInfo}>
+              <View style={styles.participantTaskTitleRow}>
+                {isOverdue && <Ionicons name="alert-circle" size={14} color={colors.error} />}
+                {instance.status === 'pending_approval' && <Ionicons name="hourglass" size={14} color={colors.warning} />}
+                <Text style={styles.participantTaskTitle} numberOfLines={1}>
+                  {template.title}
+                </Text>
+              </View>
+              <View style={styles.participantTaskMeta}>
+                <Ionicons name="star" size={10} color="#FFD700" />
+                <Text style={styles.participantTaskStars}>{template.defaultStars}</Text>
+              </View>
+            </View>
+            
+            {instance.status === 'pending_approval' && isGuardian ? (
+              <TouchableOpacity 
+                style={styles.participantApproveButton}
+                onPress={() => onApproveTask?.(instance.id)}
+                data-testid={`button-approve-participant-${instance.id}`}
+              >
+                <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+              </TouchableOpacity>
+            ) : instance.status === 'open' && canComplete ? (
+              <TouchableOpacity 
+                style={styles.participantCompleteButton}
+                onPress={() => onCompleteTask?.(instance.id)}
+                data-testid={`button-complete-participant-${instance.id}`}
+              >
+                <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        ))}
+        
+        {tasks.length > 3 && (
+          <TouchableOpacity 
+            style={styles.participantMoreButton}
+            onPress={() => router.push({ pathname: "/(tabs)/tasks", params: { view: "assigned", member: member.id } })}
+          >
+            <Text style={styles.participantMoreText}>
+              +{tasks.length - 3} more tasks
+            </Text>
+            <Ionicons name="chevron-forward" size={14} color={colors.primary} />
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
+  );
+}
+
+// Grid of participant task cards
+interface ParticipantTasksGridProps extends Omit<DashboardCardsProps, 'currentTime'> {}
+
+export function ParticipantTasksGrid({
+  taskInstances,
+  taskTemplates,
+  members,
+  onCompleteTask,
+  onApproveTask,
+  currentUserId,
+  isGuardian,
+}: ParticipantTasksGridProps) {
+  const today = startOfDay(new Date());
+  
+  // Get kids (participants) only
+  const kids = useMemo(() => {
+    return members.filter(m => m.role === 'participant');
+  }, [members]);
+
+  // Group tasks by member
+  const tasksByMember = useMemo(() => {
+    const map = new Map<string, Array<{ instance: TaskInstance; template: TaskTemplate; isOverdue: boolean }>>();
+    
+    for (const member of kids) {
+      map.set(member.id, []);
+    }
+    
+    for (const instance of taskInstances) {
+      if (instance.status === 'approved' || instance.status === 'expired' || instance.status === 'rejected') continue;
+      
+      const dueDate = new Date(instance.dueAt);
+      const isOverdue = isBefore(dueDate, today);
+      const isDueToday = isToday(dueDate);
+      
+      // Include overdue, due today, or pending approval
+      if (!isOverdue && !isDueToday && instance.status !== 'pending_approval') continue;
+      
+      const template = taskTemplates.find(t => t.id === instance.templateId);
+      if (!template) continue;
+      
+      const memberTasks = map.get(instance.assignedToMemberId);
+      if (memberTasks) {
+        memberTasks.push({ instance, template, isOverdue });
+      }
+    }
+    
+    // Sort each member's tasks
+    for (const [, tasks] of map) {
+      tasks.sort((a, b) => {
+        if (a.isOverdue && !b.isOverdue) return -1;
+        if (!a.isOverdue && b.isOverdue) return 1;
+        if (a.instance.status === 'pending_approval' && b.instance.status !== 'pending_approval') return -1;
+        if (a.instance.status !== 'pending_approval' && b.instance.status === 'pending_approval') return 1;
+        return 0;
+      });
+    }
+    
+    return map;
+  }, [kids, taskInstances, taskTemplates, today]);
+
+  if (kids.length === 0) {
+    return null;
+  }
+
+  return (
+    <View style={styles.participantGrid} data-testid="participant-tasks-grid">
+      <View style={styles.participantGridHeader}>
+        <Ionicons name="people" size={20} color={colors.primary} />
+        <Text style={styles.participantGridTitle}>Family Tasks</Text>
+      </View>
+      <View style={styles.participantCards}>
+        {kids.map(member => (
+          <ParticipantTaskCard
+            key={member.id}
+            member={member}
+            tasks={tasksByMember.get(member.id) || []}
+            onCompleteTask={onCompleteTask}
+            onApproveTask={onApproveTask}
+            currentUserId={currentUserId}
+            isGuardian={isGuardian}
+          />
+        ))}
+      </View>
+    </View>
+  );
+}
+
 interface TodayTasksSummaryProps extends Omit<DashboardCardsProps, 'currentTime'> {}
 
 export function TodayTasksSummary({ 
@@ -1440,8 +1678,15 @@ export function DashboardCards({
 
   return (
     <View style={styles.dashboardContainer}>
-      {/* TASKS FIRST - Primary Purpose */}
-      <TodayTasksSummary 
+      {/* Secondary Info - Weather, Prayer & Parks in compact row at top */}
+      <View style={styles.compactInfoRow}>
+        <CompactPrayerWidget currentTime={currentTime} location={location} />
+        <CompactWeatherWidget weather={weather} loadState={weatherLoadState} />
+        <CompactParksWidget weather={weather} location={location} />
+      </View>
+      
+      {/* TASKS - Participant cards showing each kid's tasks */}
+      <ParticipantTasksGrid 
         taskInstances={taskInstances}
         taskTemplates={taskTemplates}
         members={members}
@@ -1450,13 +1695,6 @@ export function DashboardCards({
         currentUserId={currentUserId}
         isGuardian={isGuardian}
       />
-      
-      {/* Secondary Info - Weather, Prayer & Parks in compact row */}
-      <View style={styles.compactInfoRow}>
-        <CompactPrayerWidget currentTime={currentTime} location={location} />
-        <CompactWeatherWidget weather={weather} loadState={weatherLoadState} />
-        <CompactParksWidget weather={weather} location={location} />
-      </View>
     </View>
   );
 }
@@ -1742,6 +1980,182 @@ const styles = StyleSheet.create({
     fontSize: fontSize.xs,
     color: colors.textMuted,
     flex: 1,
+  },
+  // Participant Task Card styles
+  participantGrid: {
+    gap: spacing.md,
+  },
+  participantGridHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  participantGridTitle: {
+    fontSize: fontSize.lg,
+    fontWeight: "700",
+    color: colors.text,
+  },
+  participantCards: {
+    gap: spacing.sm,
+  },
+  participantCard: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  participantHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  participantAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.primaryLight,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  participantAvatarOverdue: {
+    borderWidth: 2,
+    borderColor: colors.error,
+  },
+  participantAvatarText: {
+    fontSize: fontSize.md,
+    fontWeight: "700",
+    color: colors.primary,
+  },
+  participantInfo: {
+    flex: 1,
+  },
+  participantName: {
+    fontSize: fontSize.md,
+    fontWeight: "600",
+    color: colors.text,
+  },
+  participantStars: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  participantStarsText: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+  },
+  participantBadges: {
+    flexDirection: "row",
+    gap: spacing.xs,
+  },
+  participantBadge: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: borderRadius.full,
+  },
+  participantBadgeOverdue: {
+    backgroundColor: colors.error,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: borderRadius.full,
+  },
+  participantBadgePending: {
+    backgroundColor: colors.warning,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: borderRadius.full,
+  },
+  participantBadgeText: {
+    fontSize: fontSize.xs,
+    fontWeight: "600",
+    color: "#FFFFFF",
+  },
+  participantEmpty: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+  },
+  participantEmptyText: {
+    fontSize: fontSize.sm,
+    color: colors.success,
+    fontWeight: "500",
+  },
+  participantTasksList: {
+    gap: spacing.xs,
+  },
+  participantTaskItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.surfaceSecondary,
+    borderRadius: borderRadius.md,
+    padding: spacing.sm,
+    gap: spacing.sm,
+  },
+  participantTaskItemOverdue: {
+    borderLeftWidth: 3,
+    borderLeftColor: colors.error,
+  },
+  participantTaskItemPending: {
+    borderLeftWidth: 3,
+    borderLeftColor: colors.warning,
+  },
+  participantTaskInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  participantTaskTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
+  participantTaskTitle: {
+    fontSize: fontSize.sm,
+    fontWeight: "500",
+    color: colors.text,
+    flex: 1,
+  },
+  participantTaskMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+  },
+  participantTaskStars: {
+    fontSize: fontSize.xs,
+    color: colors.textMuted,
+    fontWeight: "600",
+  },
+  participantCompleteButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.success,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  participantApproveButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  participantMoreButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.xs,
+    paddingVertical: spacing.sm,
+  },
+  participantMoreText: {
+    fontSize: fontSize.sm,
+    color: colors.primary,
+    fontWeight: "500",
   },
   locationBadge: {
     flexDirection: "row",
