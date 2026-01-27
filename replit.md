@@ -89,6 +89,23 @@ Preferred communication style: Simple, everyday language.
 - **Event Tracking**: Key user actions tracked: `task_assigned`, `task_completed`, etc.
 - **Configuration**: Set `EXPO_PUBLIC_SENTRY_DSN` and `EXPO_PUBLIC_POSTHOG_API_KEY` environment variables to enable.
 
+### Standardized API Layer (`lib/api/`)
+A centralized API layer provides consistent error handling, retry logic, and request tracing for all external API calls.
+
+- **Error Handling**: All errors normalized to `AppError` with typed error codes (NETWORK_ERROR, TIMEOUT_ERROR, AUTH_ERROR, RATE_LIMIT_ERROR, VALIDATION_ERROR, NOT_FOUND_ERROR, SERVER_ERROR, UNKNOWN_ERROR).
+- **Request IDs**: Every request gets a unique `req_{timestamp}_{random}` ID for debugging and tracing.
+- **Retry Policy**: Automatic retry for idempotent operations (GET/HEAD) with exponential backoff (1s/2s/4s + jitter). Non-idempotent operations are never retried.
+- **Timeouts**: Configurable per-operation (default 15s, external APIs 10s, Overpass 35s).
+- **Abort Support**: React Native-compatible abort signal handling via manual event chaining.
+- **Files**:
+  - `lib/api/errors.ts`: AppError class, error normalization, error code types
+  - `lib/api/request.ts`: Request wrapper with retry, timeout, abort handling
+  - `lib/api/supabaseOperations.ts`: Typed Supabase operation wrappers
+  - `lib/api/externalOperations.ts`: Weather, prayer, parks, push notification operations
+  - `lib/api/diagnostics.ts`: API health checks and diagnostics utilities
+  - `docs/API_CONVENTIONS.md`: Full documentation of patterns and best practices
+- **Usage**: Import from `lib/api` - e.g., `import { weather, prayer, parks, push } from './api'`
+
 ## External Dependencies
 - `expo` (core, router, constants, linking, status-bar)
 - `react-native` (core, web, screens, safe-area-context, gesture-handler, reanimated)
