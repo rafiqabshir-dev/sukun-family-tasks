@@ -1,0 +1,102 @@
+You are the senior engineer for this codebase. The app is almost complete, but we’re seeing random failures across different API calls. I want a full “API sanity check + standardization” pass that makes every API operation consistent, reliable, and debuggable.
+
+GOALS
+1) Standardize ALL API calls to use ONE consistent client + ONE consistent request wrapper.
+2) Make error handling consistent and user-safe (no silent failures, no random crashes, no confusing messages).
+3) Flush out common bugs: wrong base URL, bad headers, auth token issues, JSON parsing, timeouts, retries, race conditions, non-idempotent retries, inconsistent response shapes.
+4) Add minimal-but-strong instrumentation so we can pinpoint the failing operation quickly.
+
+SCOPE (DO THIS NOW)
+A) Inventory & audit
+- Find every API call in the codebase (fetch/axios/supabase/functions/etc.).
+- List each operation (name, endpoint, method, request shape, response shape, auth needs).
+- Identify inconsistencies (headers, error handling, parsing, timeout behavior, auth injection, environment usage).
+
+B) Create a single API layer (source of truth)
+- Create /src/api/ with:
+  1) apiClient.ts (or similar): sets baseURL, default headers, timeout, and request/response interceptors if available.
+  2) request.ts: a single wrapper function used by all operations:
+     - Accepts: method, path, query, body, headers, signal, idempotent flag, requestId
+     - Enforces: JSON content-type when applicable
+     - Adds: requestId + operationName to headers for tracing
+     - Handles: parsing, non-2xx responses, network errors, aborts, timeouts
+     - Returns: { ok: true, data, meta } OR throws a typed AppError (prefer throwing typed error)
+  3) errors.ts: define AppError types and normalization:
+     - NetworkError, TimeoutError, AuthError, RateLimitError, ValidationError, ServerError, UnknownError
+     - Always include: operationName, status (if any), code, message, details, requestId, retryable boolean
+  4) operations/*: each API operation is a small function calling the wrapper (no direct fetch elsewhere)
+
+C) Consistent error strategy (MUST APPLY EVERYWHERE)
+- The API wrapper should:
+  - Normalize all errors into AppError.
+  - Never swallow errors.
+  - Attach operationName + requestId to every error.
+- UI layer should:
+  - Show consistent user-facing messages (short, friendly).
+  - Log the detailed error (operationName, requestId, status, details) to console in dev only.
+  - For auth errors: trigger sign-in flow or token refresh (if app has it).
+  - For rate limit/timeouts: show “Try again” and allow retry.
+
+D) Consistent response strategy
+- Normalize responses so operations return data in predictable shapes.
+- Validate response shape lightly:
+  - If critical fields are missing, throw ValidationError with details.
+- Ensure JSON parsing is consistent (handle empty body, non-JSON error responses).
+
+E) Reliability features (safe defaults)
+- Add request timeout (e.g., 15s; make it configurable).
+- Add retry ONLY for retryable failures and ONLY when idempotent:
+  - Retry on: network errors, 429, 503, timeouts
+  - Backoff with jitter (small).
+  - Never retry non-idempotent POST unless explicitly marked idempotent and supported by backend.
+- Support AbortController signals for cancellations.
+
+F) Remove sources of “randomness”
+- Ensure baseURL/env vars are read from one place and validated at app start.
+- Ensure auth token retrieval is consistent (one function).
+- Ensure headers are consistent.
+- Ensure all operations use the same wrapper and do not duplicate logic.
+
+G) Add an “API Diagnostics” mode (small but powerful)
+- Add a developer-only screen or console command that:
+  - Runs a quick health check against each operation (or at least a representative set).
+  - Prints results in a clear table: operationName, ok/fail, status, requestId, timing.
+- Add a simple “logRequest” toggle (dev-only) to log:
+  - operationName, method, url, status, duration, requestId
+  - Do NOT log sensitive tokens or PII.
+
+H) Automated sanity tests
+- Add unit tests for:
+  - error normalization (each error type)
+  - retry policy (idempotent vs non-idempotent)
+  - timeout behavior
+  - JSON parsing edge cases
+- Add integration-style tests with mocked server (or MSW) to simulate:
+  - 401, 403, 429, 500, 503, slow responses, invalid JSON
+
+DELIVERABLES
+1) Refactored codebase so ALL API calls go through the new API layer.
+2) A short doc in /docs/API_CONVENTIONS.md describing:
+   - how to add a new operation
+   - error types and UI handling rules
+   - retry + timeout rules
+   - required operationName usage
+3) A clear list of bugs found during audit and what you changed to fix them.
+
+IMPORTANT IMPLEMENTATION RULES
+- Do not change product behavior unless required for correctness and consistency.
+- Keep changes focused: standardize API calls + fix correctness issues.
+- If you find ambiguous endpoints or response shapes, add defensive validation and log details in dev.
+- After refactor, search the repo to ensure there are NO remaining direct fetch/axios calls outside /src/api (except the apiClient itself).
+
+EXECUTION PLAN
+1) Audit + list all operations.
+2) Implement api layer (client, wrapper, errors).
+3) Migrate operations one-by-one.
+4) Add diagnostics + tests.
+5) Run the app and confirm no random failures remain; if any remain, surface them via operationName + requestId logs.
+
+Start now and show me:
+- the audit list of operations
+- the new /src/api structure
+- and the first 2-3 migrated operations as examples
