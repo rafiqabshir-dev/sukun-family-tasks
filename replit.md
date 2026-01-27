@@ -62,16 +62,20 @@ Preferred communication style: Simple, everyday language.
   - **Charades Mini** (Party): Coming soon placeholder in `app/games/charades-mini.tsx`.
 
 ### Family Day Dashboard (Today Page)
-- Located in `app/(tabs)/today.tsx`, provides a personalized greeting.
+- Located in `app/(tabs)/today.tsx`, provides a personalized greeting with task-first UX design.
+- **Task-First Layout**: TodayTasksSummary appears at the top as the primary focus, showing up to 5 actionable tasks with one-tap "Done" and "Approve" buttons.
+- **Quick Actions**: handleQuickComplete for marking tasks done, handleQuickApprove for guardian approvals - both trigger push notifications and cloud sync.
+- **Compact Widgets**: CompactPrayerWidget and CompactWeatherWidget display side-by-side below tasks, replacing large full-width cards.
 - **Location Service** (`lib/locationService.ts`): Uses expo-location for device GPS, requests foreground permissions on first use, 1-hour caching, reverse geocoding to display city name. Falls back to San Francisco if permission denied.
 - **Weather Service**: Uses Open-Meteo API for 30-minute cached weather, severe weather detection, outdoor play safety, and "what to wear" suggestions. Uses user's actual GPS location.
 - **Prayer Service**: Uses AlAdhan API for 6-hour cached prayer times, countdowns, and urgency indicators. Uses user's actual GPS location.
-- **Dashboard Cards**: Displays location badge with city name, `SevereWeatherBanner`, `PrayerCountdownCard`, `WeatherCard`, `WhatToWearCard`, and `TodayTasksSummary`.
+- **Dashboard Cards** (`components/DashboardCards.tsx`): Renders TodayTasksSummary first, then compact prayer/weather row, then SevereWeatherBanner, location badge, and WhatToWearCard.
 - **Deep-link Navigation**: Tasks summary links to the Tasks page with pre-applied filters.
 
 ### Enhanced Tasks Page
 - Offers "Browse Templates" and "Assigned Tasks" view modes.
 - **Browse Templates**: Categorized templates with assignee chips. Full template management for guardians.
+- **Quick-Assign Chips**: Guardians see avatar chips below each enabled template for one-tap task assignment to cloud-synced kids.
 - **Assigned Tasks**: Tasks grouped by family member, with due/overdue indicators and inline actions. Supports deep-linking with `view` and `filter` parameters.
 
 ### Analytics & Error Tracking (Beta Prep)
