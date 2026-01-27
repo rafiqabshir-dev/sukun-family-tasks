@@ -677,7 +677,7 @@ export function TodayTasksSummary({
                   <Text style={styles.quickTaskMember}>{member!.name}</Text>
                   <View style={styles.quickTaskStars}>
                     <Ionicons name="star" size={12} color="#FFD700" />
-                    <Text style={styles.quickTaskStarsText}>{template!.starsReward}</Text>
+                    <Text style={styles.quickTaskStarsText}>{template!.defaultStars}</Text>
                   </View>
                 </View>
               </View>
@@ -1054,7 +1054,7 @@ function CompactWeatherWidget({ weather, loadState }: { weather: WeatherData | n
   }
 
   const getWeatherIcon = (): keyof typeof Ionicons.glyphMap => {
-    if (weather.isDay === false) return "moon";
+    if ((weather as any).isDay === false) return "moon";
     if (weather.condition.includes("rain") || weather.condition.includes("Rain")) return "rainy";
     if (weather.condition.includes("cloud") || weather.condition.includes("Cloud")) return "cloudy";
     if (weather.condition.includes("sun") || weather.condition.includes("clear")) return "sunny";

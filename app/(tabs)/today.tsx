@@ -108,6 +108,8 @@ export default function TodayScreen() {
   const [expandedTags, setExpandedTags] = useState<Set<string>>(new Set(["all"]));
   const [dueDate, setDueDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [isAssigning, setIsAssigning] = useState(false);
+  // 2-step wizard for assign modal
+  const [assignStep, setAssignStep] = useState<1 | 2>(1);
   const [deductKid, setDeductKid] = useState<string>("");
   const [deductAmount, setDeductAmount] = useState<number>(1);
   const [deductReason, setDeductReason] = useState<string>("");
@@ -218,12 +220,10 @@ export default function TodayScreen() {
   const guardianCount = members.filter((m) => m.role === "guardian").length;
 
   const openAssignModal = () => {
-    // Auto-select all cloud-synced family members by default (guardians + kids)
-    // Filter out local-only members that don't have cloud profiles
-    const cloudMemberIds = members
-      .filter(m => m.profileId || !m.id.startsWith('member-'))
-      .map(m => m.id);
-    setSelectedKidIds(new Set(cloudMemberIds));
+    // Reset to step 1
+    setAssignStep(1);
+    // Clear selections
+    setSelectedKidIds(new Set());
     setSelectedTemplateIds(new Set());
     setTaskSearchQuery("");
     setExpandedTags(new Set(["all"]));
@@ -1108,6 +1108,28 @@ export default function TodayScreen() {
           />
         }
       >
+        {/* Guardian Actions at Top */}
+        {isCurrentUserGuardian && (
+          <View style={styles.guardianActionsTop}>
+            <TouchableOpacity
+              style={styles.assignButton}
+              onPress={openAssignModal}
+              data-testid="button-assign-task"
+            >
+              <Ionicons name="add-circle" size={22} color="#FFFFFF" />
+              <Text style={styles.assignButtonText}>Assign</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.deductButton}
+              onPress={openDeductModal}
+              data-testid="button-deduct-stars"
+            >
+              <Ionicons name="remove-circle" size={22} color="#FFFFFF" />
+              <Text style={styles.deductButtonText}>Deduct</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         <DashboardCards 
           taskInstances={taskInstances}
           taskTemplates={taskTemplates}
@@ -1119,41 +1141,19 @@ export default function TodayScreen() {
           isGuardian={isCurrentUserGuardian}
         />
 
-        {isCurrentUserGuardian && (
-          <>
-            <View style={styles.guardianActions}>
-              <TouchableOpacity
-                style={styles.assignButton}
-                onPress={openAssignModal}
-                data-testid="button-assign-task"
-              >
-                <Ionicons name="add-circle" size={24} color="#FFFFFF" />
-                <Text style={styles.assignButtonText}>Assign Task</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.deductButton}
-                onPress={openDeductModal}
-                data-testid="button-deduct-stars"
-              >
-                <Ionicons name="remove-circle" size={24} color="#FFFFFF" />
-                <Text style={styles.deductButtonText}>Deduct Stars</Text>
-              </TouchableOpacity>
-            </View>
-            
-            {overdueTasks.length > 0 && (
-              <TouchableOpacity
-                style={styles.clearOverdueButton}
-                onPress={handleClearOverdueTasks}
-                disabled={isClearingOverdue}
-                data-testid="button-clear-overdue"
-              >
-                <Ionicons name="trash-outline" size={20} color={colors.error} />
-                <Text style={styles.clearOverdueText}>
-                  {isClearingOverdue ? "Clearing..." : `Clear ${overdueTasks.length} Overdue Task${overdueTasks.length > 1 ? 's' : ''}`}
-                </Text>
-              </TouchableOpacity>
-            )}
-          </>
+        {/* Clear Overdue Button */}
+        {isCurrentUserGuardian && overdueTasks.length > 0 && (
+          <TouchableOpacity
+            style={styles.clearOverdueButton}
+            onPress={handleClearOverdueTasks}
+            disabled={isClearingOverdue}
+            data-testid="button-clear-overdue"
+          >
+            <Ionicons name="trash-outline" size={20} color={colors.error} />
+            <Text style={styles.clearOverdueText}>
+              {isClearingOverdue ? "Clearing..." : `Clear ${overdueTasks.length} Overdue Task${overdueTasks.length > 1 ? 's' : ''}`}
+            </Text>
+          </TouchableOpacity>
         )}
 
         {pendingApprovalTasks.length > 0 && (
@@ -1174,321 +1174,321 @@ export default function TodayScreen() {
           behavior={Platform.OS === "ios" ? "padding" : "height"}
         >
           <View style={styles.assignModalContent}>
+            {/* Header with Step Indicator */}
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Assign Tasks</Text>
+              <Text style={styles.modalTitle}>
+                {assignStep === 1 ? "Choose Tasks" : "Choose Who"}
+              </Text>
               <TouchableOpacity onPress={() => setShowAssignModal(false)}>
                 <Ionicons name="close" size={28} color={colors.text} />
               </TouchableOpacity>
             </View>
 
-            {/* Search Input */}
-            <View style={styles.searchContainer}>
-              <Ionicons name="search-outline" size={20} color={colors.textMuted} />
-              <TextInput
-                style={styles.searchInput}
-                value={taskSearchQuery}
-                onChangeText={setTaskSearchQuery}
-                placeholder="Search tasks..."
-                placeholderTextColor={colors.textMuted}
-                data-testid="input-task-search"
-              />
-              {taskSearchQuery.length > 0 && (
-                <TouchableOpacity onPress={() => setTaskSearchQuery("")}>
-                  <Ionicons name="close-circle" size={20} color={colors.textMuted} />
-                </TouchableOpacity>
-              )}
+            {/* Step Indicator */}
+            <View style={styles.stepIndicator}>
+              <View style={[styles.stepDot, assignStep >= 1 && styles.stepDotActive]} />
+              <View style={[styles.stepLine, assignStep >= 2 && styles.stepLineActive]} />
+              <View style={[styles.stepDot, assignStep >= 2 && styles.stepDotActive]} />
+            </View>
+            <View style={styles.stepLabels}>
+              <Text style={[styles.stepLabel, assignStep === 1 && styles.stepLabelActive]}>Tasks</Text>
+              <Text style={[styles.stepLabel, assignStep === 2 && styles.stepLabelActive]}>Family</Text>
             </View>
 
-            {/* Task Selection with Tag Groups */}
-            <Text style={styles.modalLabel}>
-              Select Tasks ({selectedTemplateIds.size} selected)
-            </Text>
-            <ScrollView style={styles.tagGroupContainer} showsVerticalScrollIndicator={false}>
-              {/* All Tasks Group */}
-              <View style={styles.tagGroup}>
-                <TouchableOpacity 
-                  style={styles.tagHeader}
-                  onPress={() => toggleTagExpanded("all")}
-                >
-                  <View style={styles.tagHeaderLeft}>
-                    <Ionicons 
-                      name={expandedTags.has("all") ? "chevron-down" : "chevron-forward"} 
-                      size={20} 
-                      color={colors.text} 
-                    />
-                    <Ionicons name="list-outline" size={18} color={colors.primary} />
-                    <Text style={styles.tagLabel}>All Tasks ({filteredTemplates.length})</Text>
-                  </View>
-                  <TouchableOpacity 
-                    style={styles.selectAllButton}
-                    onPress={() => toggleTagTemplates("all", !areAllTagTemplatesSelected("all"))}
-                  >
-                    <Text style={styles.selectAllText}>
-                      {areAllTagTemplatesSelected("all") ? "Clear All" : "Select All"}
-                    </Text>
-                  </TouchableOpacity>
-                </TouchableOpacity>
-                {expandedTags.has("all") && (
-                  <View style={styles.tagTemplates}>
-                    {filteredTemplates.map((template) => (
-                      <TouchableOpacity
-                        key={template.id}
-                        style={[
-                          styles.templateChip,
-                          selectedTemplateIds.has(template.id) && styles.templateChipSelected,
-                        ]}
-                        onPress={() => toggleTemplateSelection(template.id)}
-                        data-testid={`button-select-task-${template.id}`}
-                      >
-                        <View style={styles.templateChipInner}>
-                          {selectedTemplateIds.has(template.id) && (
-                            <Ionicons name="checkmark-circle" size={16} color={colors.surface} />
-                          )}
-                          <Text
-                            style={[
-                              styles.templateChipText,
-                              selectedTemplateIds.has(template.id) && styles.templateChipTextSelected,
-                            ]}
-                            numberOfLines={1}
-                          >
-                            {template.title}
-                          </Text>
-                        </View>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )}
-              </View>
-
-              {/* Tag-based Groups */}
-              {TASK_TAGS.map((tag) => {
-                const tagTemplatesList = templatesByTag[tag.key] || [];
-                if (tagTemplatesList.length === 0) return null;
-                
-                return (
-                  <View key={tag.key} style={styles.tagGroup}>
-                    <TouchableOpacity 
-                      style={styles.tagHeader}
-                      onPress={() => toggleTagExpanded(tag.key)}
-                    >
-                      <View style={styles.tagHeaderLeft}>
-                        <Ionicons 
-                          name={expandedTags.has(tag.key) ? "chevron-down" : "chevron-forward"} 
-                          size={20} 
-                          color={colors.text} 
-                        />
-                        <Ionicons name={tag.icon} size={18} color={colors.primary} />
-                        <Text style={styles.tagLabel}>{tag.label} ({tagTemplatesList.length})</Text>
-                      </View>
-                      <TouchableOpacity 
-                        style={styles.selectAllButton}
-                        onPress={() => toggleTagTemplates(tag.key, !areAllTagTemplatesSelected(tag.key))}
-                      >
-                        <Text style={styles.selectAllText}>
-                          {areAllTagTemplatesSelected(tag.key) ? "Clear" : "Select All"}
-                        </Text>
-                      </TouchableOpacity>
-                    </TouchableOpacity>
-                    {expandedTags.has(tag.key) && (
-                      <View style={styles.tagTemplates}>
-                        {tagTemplatesList.map((template) => (
-                          <TouchableOpacity
-                            key={template.id}
-                            style={[
-                              styles.templateChip,
-                              selectedTemplateIds.has(template.id) && styles.templateChipSelected,
-                            ]}
-                            onPress={() => toggleTemplateSelection(template.id)}
-                          >
-                            <View style={styles.templateChipInner}>
-                              {selectedTemplateIds.has(template.id) && (
-                                <Ionicons name="checkmark-circle" size={16} color={colors.surface} />
-                              )}
-                              <Text
-                                style={[
-                                  styles.templateChipText,
-                                  selectedTemplateIds.has(template.id) && styles.templateChipTextSelected,
-                                ]}
-                                numberOfLines={1}
-                              >
-                                {template.title}
-                              </Text>
-                            </View>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    )}
-                  </View>
-                );
-              })}
-              
-              {/* No Results - Create One-Off Task Option (only when cloud is configured) */}
-              {filteredTemplates.length === 0 && taskSearchQuery.trim().length > 0 && !showOneOffForm && (
-                <View style={styles.noResultsContainer}>
-                  <Text style={styles.noResultsText}>No tasks match "{taskSearchQuery}"</Text>
-                  {isSupabaseConfigured() && profile?.family_id && (
-                    <TouchableOpacity 
-                      style={styles.createOneOffButton}
-                      onPress={() => {
-                        setShowOneOffForm(true);
-                        setOneOffTitle(taskSearchQuery.trim());
-                      }}
-                      data-testid="button-create-one-off"
-                    >
-                      <Ionicons name="flash-outline" size={18} color={colors.surface} />
-                      <Text style={styles.createOneOffButtonText}>Create One-Off Task</Text>
+            {/* Step 1: Task Selection */}
+            {assignStep === 1 && (
+              <>
+                {/* Search Input */}
+                <View style={styles.searchContainer}>
+                  <Ionicons name="search-outline" size={20} color={colors.textMuted} />
+                  <TextInput
+                    style={styles.searchInput}
+                    value={taskSearchQuery}
+                    onChangeText={setTaskSearchQuery}
+                    placeholder="Search tasks..."
+                    placeholderTextColor={colors.textMuted}
+                    data-testid="input-task-search"
+                  />
+                  {taskSearchQuery.length > 0 && (
+                    <TouchableOpacity onPress={() => setTaskSearchQuery("")}>
+                      <Ionicons name="close-circle" size={20} color={colors.textMuted} />
                     </TouchableOpacity>
                   )}
                 </View>
-              )}
-              
-              {/* One-Off Task Form */}
-              {showOneOffForm && (
-                <View style={styles.oneOffFormContainer}>
-                  <View style={styles.oneOffFormHeader}>
-                    <Ionicons name="flash" size={20} color={colors.primary} />
-                    <Text style={styles.oneOffFormTitle}>One-Off Task</Text>
-                    <TouchableOpacity 
-                      style={styles.oneOffCancelButton}
-                      onPress={() => setShowOneOffForm(false)}
-                    >
-                      <Text style={styles.oneOffCancelText}>Cancel</Text>
-                    </TouchableOpacity>
-                  </View>
-                  
-                  <TextInput
-                    style={styles.oneOffTitleInput}
-                    value={oneOffTitle}
-                    onChangeText={setOneOffTitle}
-                    placeholder="Task name..."
-                    placeholderTextColor={colors.textMuted}
-                    data-testid="input-one-off-title"
-                  />
-                  
-                  <View style={styles.oneOffStarsRow}>
-                    <Text style={styles.oneOffStarsLabel}>Stars:</Text>
-                    <View style={styles.starsSelector}>
-                      {[1, 2, 3, 4, 5].map((stars) => (
-                        <TouchableOpacity
-                          key={stars}
-                          style={[
-                            styles.starOption,
-                            oneOffStars === stars && styles.starOptionSelected,
-                          ]}
-                          onPress={() => setOneOffStars(stars)}
-                          data-testid={`button-stars-${stars}`}
-                        >
-                          <Text style={[
-                            styles.starOptionText,
-                            oneOffStars === stars && styles.starOptionTextSelected,
-                          ]}>{stars}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </View>
-                </View>
-              )}
-            </ScrollView>
 
-            {/* Assignees Multi-Select (Guardians + Kids) */}
-            <Text style={styles.modalLabel}>
-              Assign To ({selectedKidIds.size} selected)
-            </Text>
-            <View style={styles.kidsMultiSelect}>
-              <TouchableOpacity 
-                style={styles.selectAllKidsButton}
-                onPress={() => {
-                  const allSelected = assignees.every(a => selectedKidIds.has(a.id));
-                  setSelectedKidIds(allSelected ? new Set() : new Set(assignees.map(a => a.id)));
-                }}
-              >
-                <Text style={styles.selectAllText}>
-                  {assignees.every(a => selectedKidIds.has(a.id)) ? "Clear All" : "Select All"}
-                </Text>
-              </TouchableOpacity>
-              <View style={styles.kidsList}>
-                {assignees.map((member) => (
-                  <TouchableOpacity
-                    key={member.id}
-                    style={[
-                      styles.kidChip,
-                      selectedKidIds.has(member.id) && styles.kidChipSelected,
-                    ]}
-                    onPress={() => toggleKidSelection(member.id)}
-                    data-testid={`button-select-member-${member.id}`}
+                {/* Select All Button */}
+                <View style={styles.selectAllRow}>
+                  <Text style={styles.modalLabelSmall}>
+                    {selectedTemplateIds.size} task{selectedTemplateIds.size !== 1 ? 's' : ''} selected
+                  </Text>
+                  <TouchableOpacity 
+                    style={styles.selectAllPill}
+                    onPress={() => {
+                      const allSelected = filteredTemplates.every(t => selectedTemplateIds.has(t.id));
+                      if (allSelected) {
+                        setSelectedTemplateIds(new Set());
+                      } else {
+                        setSelectedTemplateIds(new Set(filteredTemplates.map(t => t.id)));
+                      }
+                    }}
                   >
-                    <View style={styles.kidChipContent}>
-                      {selectedKidIds.has(member.id) && (
-                        <Ionicons name="checkmark-circle" size={16} color={colors.surface} />
-                      )}
-                      <Text
-                        style={[
-                          styles.kidChipText,
-                          selectedKidIds.has(member.id) && styles.kidChipTextSelected,
-                        ]}
-                      >
-                        {member.name}{member.role === 'guardian' ? ' (Guardian)' : ''}
-                      </Text>
-                    </View>
+                    <Text style={styles.selectAllPillText}>
+                      {filteredTemplates.every(t => selectedTemplateIds.has(t.id)) ? "Clear All" : "Select All"}
+                    </Text>
                   </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            {/* Due Date */}
-            <Text style={styles.modalLabel}>Due Date</Text>
-            <TextInput
-              style={styles.dateInput}
-              value={dueDate}
-              onChangeText={setDueDate}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor={colors.textMuted}
-            />
-
-            {/* Assignment Summary & Confirm Button */}
-            {showOneOffForm ? (
-              <>
-                <View style={styles.assignSummary}>
-                  <Text style={styles.assignSummaryText}>
-                    Create "{oneOffTitle}" for {selectedKidIds.size} member{selectedKidIds.size !== 1 ? 's' : ''} ({oneOffStars} star{oneOffStars !== 1 ? 's' : ''} each)
-                  </Text>
                 </View>
-                
-                <TouchableOpacity
-                  style={[
-                    styles.confirmButton,
-                    (!oneOffTitle.trim() || selectedKidIds.size === 0 || isAssigning) && styles.confirmButtonDisabled,
-                  ]}
-                  onPress={handleCreateOneOffTask}
-                  disabled={!oneOffTitle.trim() || selectedKidIds.size === 0 || isAssigning}
-                  data-testid="button-confirm-one-off"
-                >
-                  <Text style={styles.confirmButtonText}>
-                    {isAssigning ? "Creating..." : `Create & Assign`}
-                  </Text>
-                </TouchableOpacity>
+
+                {/* Large Task Cards */}
+                <ScrollView style={styles.taskCardsContainer} showsVerticalScrollIndicator={false}>
+                  {filteredTemplates.map((template) => (
+                    <TouchableOpacity
+                      key={template.id}
+                      style={[
+                        styles.taskSelectCard,
+                        selectedTemplateIds.has(template.id) && styles.taskSelectCardSelected,
+                      ]}
+                      onPress={() => toggleTemplateSelection(template.id)}
+                      data-testid={`button-select-task-${template.id}`}
+                    >
+                      <View style={styles.taskSelectCardLeft}>
+                        <Ionicons 
+                          name={template.iconKey as any || "checkbox-outline"} 
+                          size={28} 
+                          color={selectedTemplateIds.has(template.id) ? colors.surface : colors.primary} 
+                        />
+                      </View>
+                      <View style={styles.taskSelectCardContent}>
+                        <Text style={[
+                          styles.taskSelectCardTitle,
+                          selectedTemplateIds.has(template.id) && styles.taskSelectCardTitleSelected,
+                        ]} numberOfLines={1}>
+                          {template.title}
+                        </Text>
+                        <View style={styles.taskSelectCardMeta}>
+                          <Ionicons name="star" size={14} color={selectedTemplateIds.has(template.id) ? colors.surface : "#FFD700"} />
+                          <Text style={[
+                            styles.taskSelectCardStars,
+                            selectedTemplateIds.has(template.id) && styles.taskSelectCardStarsSelected,
+                          ]}>{template.defaultStars}</Text>
+                          <Text style={[
+                            styles.taskSelectCardCategory,
+                            selectedTemplateIds.has(template.id) && styles.taskSelectCardCategorySelected,
+                          ]}>{template.category}</Text>
+                        </View>
+                      </View>
+                      <View style={styles.taskSelectCardCheck}>
+                        {selectedTemplateIds.has(template.id) ? (
+                          <Ionicons name="checkmark-circle" size={28} color={colors.surface} />
+                        ) : (
+                          <Ionicons name="ellipse-outline" size={28} color={colors.border} />
+                        )}
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+
+                  {/* No Results - Create One-Off */}
+                  {filteredTemplates.length === 0 && taskSearchQuery.trim().length > 0 && !showOneOffForm && (
+                    <View style={styles.noResultsContainer}>
+                      <Text style={styles.noResultsText}>No tasks match "{taskSearchQuery}"</Text>
+                      {isSupabaseConfigured() && profile?.family_id && (
+                        <TouchableOpacity 
+                          style={styles.createOneOffButton}
+                          onPress={() => {
+                            setShowOneOffForm(true);
+                            setOneOffTitle(taskSearchQuery.trim());
+                          }}
+                          data-testid="button-create-one-off"
+                        >
+                          <Ionicons name="flash-outline" size={18} color={colors.surface} />
+                          <Text style={styles.createOneOffButtonText}>Create One-Off Task</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  )}
+
+                  {/* One-Off Task Form */}
+                  {showOneOffForm && (
+                    <View style={styles.oneOffFormContainer}>
+                      <View style={styles.oneOffFormHeader}>
+                        <Ionicons name="flash" size={20} color={colors.primary} />
+                        <Text style={styles.oneOffFormTitle}>One-Off Task</Text>
+                        <TouchableOpacity 
+                          style={styles.oneOffCancelButton}
+                          onPress={() => setShowOneOffForm(false)}
+                        >
+                          <Text style={styles.oneOffCancelText}>Cancel</Text>
+                        </TouchableOpacity>
+                      </View>
+                      
+                      <TextInput
+                        style={styles.oneOffTitleInput}
+                        value={oneOffTitle}
+                        onChangeText={setOneOffTitle}
+                        placeholder="Task name..."
+                        placeholderTextColor={colors.textMuted}
+                        data-testid="input-one-off-title"
+                      />
+                      
+                      <View style={styles.oneOffStarsRow}>
+                        <Text style={styles.oneOffStarsLabel}>Stars:</Text>
+                        <View style={styles.starsSelector}>
+                          {[1, 2, 3, 4, 5].map((stars) => (
+                            <TouchableOpacity
+                              key={stars}
+                              style={[
+                                styles.starOption,
+                                oneOffStars === stars && styles.starOptionSelected,
+                              ]}
+                              onPress={() => setOneOffStars(stars)}
+                              data-testid={`button-stars-${stars}`}
+                            >
+                              <Text style={[
+                                styles.starOptionText,
+                                oneOffStars === stars && styles.starOptionTextSelected,
+                              ]}>{stars}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      </View>
+                    </View>
+                  )}
+                </ScrollView>
+
+                {/* Step 1 Bottom Actions */}
+                <View style={styles.stepActions}>
+                  <TouchableOpacity
+                    style={[
+                      styles.nextStepButton,
+                      (selectedTemplateIds.size === 0 && !showOneOffForm) && styles.nextStepButtonDisabled,
+                    ]}
+                    onPress={() => setAssignStep(2)}
+                    disabled={selectedTemplateIds.size === 0 && !showOneOffForm}
+                    data-testid="button-next-step"
+                  >
+                    <Text style={styles.nextStepButtonText}>
+                      Next: Choose Family Members
+                    </Text>
+                    <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
+                  </TouchableOpacity>
+                </View>
               </>
-            ) : (
+            )}
+
+            {/* Step 2: Family Member Selection */}
+            {assignStep === 2 && (
               <>
+                {/* Due Date */}
+                <View style={styles.dueDateRow}>
+                  <Text style={styles.dueDateLabel}>Due Date:</Text>
+                  <TextInput
+                    style={styles.dueDateInput}
+                    value={dueDate}
+                    onChangeText={setDueDate}
+                    placeholder="YYYY-MM-DD"
+                    placeholderTextColor={colors.textMuted}
+                  />
+                </View>
+
+                {/* Select All Family */}
+                <View style={styles.selectAllRow}>
+                  <Text style={styles.modalLabelSmall}>
+                    {selectedKidIds.size} member{selectedKidIds.size !== 1 ? 's' : ''} selected
+                  </Text>
+                  <TouchableOpacity 
+                    style={styles.selectAllPill}
+                    onPress={() => {
+                      const allSelected = assignees.every(a => selectedKidIds.has(a.id));
+                      setSelectedKidIds(allSelected ? new Set() : new Set(assignees.map(a => a.id)));
+                    }}
+                  >
+                    <Text style={styles.selectAllPillText}>
+                      {assignees.every(a => selectedKidIds.has(a.id)) ? "Clear All" : "Select All"}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Large Family Member Cards */}
+                <ScrollView style={styles.familyCardsContainer} showsVerticalScrollIndicator={false}>
+                  {assignees.map((member) => (
+                    <TouchableOpacity
+                      key={member.id}
+                      style={[
+                        styles.familySelectCard,
+                        selectedKidIds.has(member.id) && styles.familySelectCardSelected,
+                      ]}
+                      onPress={() => toggleKidSelection(member.id)}
+                      data-testid={`button-select-member-${member.id}`}
+                    >
+                      <View style={[
+                        styles.familyAvatar,
+                        selectedKidIds.has(member.id) && styles.familyAvatarSelected,
+                      ]}>
+                        <Ionicons 
+                          name={member.role === 'guardian' ? "shield" : "person"} 
+                          size={32} 
+                          color={selectedKidIds.has(member.id) ? colors.surface : colors.primary} 
+                        />
+                      </View>
+                      <View style={styles.familyCardContent}>
+                        <Text style={[
+                          styles.familyCardName,
+                          selectedKidIds.has(member.id) && styles.familyCardNameSelected,
+                        ]}>
+                          {member.name}
+                        </Text>
+                        <Text style={[
+                          styles.familyCardRole,
+                          selectedKidIds.has(member.id) && styles.familyCardRoleSelected,
+                        ]}>
+                          {member.role === 'guardian' ? 'Guardian' : 'Child'}
+                        </Text>
+                      </View>
+                      <View style={styles.familyCardCheck}>
+                        {selectedKidIds.has(member.id) ? (
+                          <Ionicons name="checkmark-circle" size={32} color={colors.surface} />
+                        ) : (
+                          <Ionicons name="ellipse-outline" size={32} color={colors.border} />
+                        )}
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+
+                {/* Assignment Summary */}
                 <View style={styles.assignSummary}>
                   <Text style={styles.assignSummaryText}>
-                    {selectedTemplateIds.size} task{selectedTemplateIds.size !== 1 ? 's' : ''} × {selectedKidIds.size} member{selectedKidIds.size !== 1 ? 's' : ''} = {selectedTemplateIds.size * selectedKidIds.size} assignment{selectedTemplateIds.size * selectedKidIds.size !== 1 ? 's' : ''}
+                    {showOneOffForm 
+                      ? `Create "${oneOffTitle}" for ${selectedKidIds.size} member${selectedKidIds.size !== 1 ? 's' : ''}`
+                      : `${selectedTemplateIds.size} task${selectedTemplateIds.size !== 1 ? 's' : ''} × ${selectedKidIds.size} member${selectedKidIds.size !== 1 ? 's' : ''} = ${selectedTemplateIds.size * selectedKidIds.size} assignment${selectedTemplateIds.size * selectedKidIds.size !== 1 ? 's' : ''}`
+                    }
                   </Text>
                 </View>
-                
-                <TouchableOpacity
-                  style={[
-                    styles.confirmButton,
-                    (selectedTemplateIds.size === 0 || selectedKidIds.size === 0 || isAssigning) && styles.confirmButtonDisabled,
-                  ]}
-                  onPress={handleAssignTask}
-                  disabled={selectedTemplateIds.size === 0 || selectedKidIds.size === 0 || isAssigning}
-                  data-testid="button-confirm-assign"
-                >
-                  <Text style={styles.confirmButtonText}>
-                    {isAssigning ? "Assigning..." : `Assign ${selectedTemplateIds.size * selectedKidIds.size} Task${selectedTemplateIds.size * selectedKidIds.size !== 1 ? 's' : ''}`}
-                  </Text>
-                </TouchableOpacity>
+
+                {/* Step 2 Bottom Actions */}
+                <View style={styles.stepActionsRow}>
+                  <TouchableOpacity
+                    style={styles.backButton}
+                    onPress={() => setAssignStep(1)}
+                    data-testid="button-back-step"
+                  >
+                    <Ionicons name="arrow-back" size={20} color={colors.text} />
+                    <Text style={styles.backButtonText}>Back</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={[
+                      styles.confirmButton,
+                      (selectedKidIds.size === 0 || isAssigning) && styles.confirmButtonDisabled,
+                    ]}
+                    onPress={showOneOffForm ? handleCreateOneOffTask : handleAssignTask}
+                    disabled={selectedKidIds.size === 0 || isAssigning}
+                    data-testid="button-confirm-assign"
+                  >
+                    <Text style={styles.confirmButtonText}>
+                      {isAssigning ? "Assigning..." : (showOneOffForm ? "Create & Assign" : "Assign Tasks")}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               </>
             )}
           </View>
@@ -1806,6 +1806,240 @@ const styles = StyleSheet.create({
     borderTopRightRadius: borderRadius.xl,
     padding: spacing.lg,
     maxHeight: "90%",
+    flex: 1,
+  },
+  stepIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: spacing.xs,
+  },
+  stepDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: colors.border,
+  },
+  stepDotActive: {
+    backgroundColor: colors.primary,
+  },
+  stepLine: {
+    width: 60,
+    height: 3,
+    backgroundColor: colors.border,
+    marginHorizontal: spacing.xs,
+  },
+  stepLineActive: {
+    backgroundColor: colors.primary,
+  },
+  stepLabels: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: spacing.xl * 2,
+    marginBottom: spacing.md,
+  },
+  stepLabel: {
+    fontSize: fontSize.sm,
+    color: colors.textMuted,
+  },
+  stepLabelActive: {
+    color: colors.primary,
+    fontWeight: "600",
+  },
+  selectAllRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: spacing.sm,
+  },
+  modalLabelSmall: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+  },
+  selectAllPill: {
+    backgroundColor: colors.primaryLight,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.full,
+  },
+  selectAllPillText: {
+    fontSize: fontSize.sm,
+    color: colors.primary,
+    fontWeight: "600",
+  },
+  taskCardsContainer: {
+    flex: 1,
+    marginBottom: spacing.md,
+  },
+  taskSelectCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.surfaceSecondary,
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  taskSelectCardSelected: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  taskSelectCardLeft: {
+    width: 48,
+    height: 48,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.primaryLight,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: spacing.md,
+  },
+  taskSelectCardContent: {
+    flex: 1,
+  },
+  taskSelectCardTitle: {
+    fontSize: fontSize.md,
+    fontWeight: "600",
+    color: colors.text,
+    marginBottom: 4,
+  },
+  taskSelectCardTitleSelected: {
+    color: colors.surface,
+  },
+  taskSelectCardMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
+  taskSelectCardStars: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    marginRight: spacing.sm,
+  },
+  taskSelectCardStarsSelected: {
+    color: colors.surface,
+  },
+  taskSelectCardCategory: {
+    fontSize: fontSize.xs,
+    color: colors.textMuted,
+    textTransform: "capitalize",
+  },
+  taskSelectCardCategorySelected: {
+    color: "rgba(255,255,255,0.8)",
+  },
+  taskSelectCardCheck: {
+    marginLeft: spacing.sm,
+  },
+  stepActions: {
+    marginTop: spacing.sm,
+  },
+  nextStepButton: {
+    backgroundColor: colors.primary,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+  },
+  nextStepButtonDisabled: {
+    opacity: 0.5,
+  },
+  nextStepButtonText: {
+    color: "#FFFFFF",
+    fontSize: fontSize.md,
+    fontWeight: "600",
+  },
+  familyCardsContainer: {
+    flex: 1,
+    marginBottom: spacing.md,
+  },
+  familySelectCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.surfaceSecondary,
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  familySelectCardSelected: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  familyAvatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.primaryLight,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: spacing.md,
+  },
+  familyAvatarSelected: {
+    backgroundColor: "rgba(255,255,255,0.2)",
+  },
+  familyCardContent: {
+    flex: 1,
+  },
+  familyCardName: {
+    fontSize: fontSize.lg,
+    fontWeight: "600",
+    color: colors.text,
+  },
+  familyCardNameSelected: {
+    color: colors.surface,
+  },
+  familyCardRole: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    textTransform: "capitalize",
+  },
+  familyCardRoleSelected: {
+    color: "rgba(255,255,255,0.8)",
+  },
+  familyCardCheck: {
+    marginLeft: spacing.sm,
+  },
+  dueDateRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: spacing.md,
+    gap: spacing.sm,
+  },
+  dueDateLabel: {
+    fontSize: fontSize.md,
+    color: colors.text,
+    fontWeight: "500",
+  },
+  dueDateInput: {
+    flex: 1,
+    backgroundColor: colors.surfaceSecondary,
+    borderRadius: borderRadius.md,
+    padding: spacing.sm,
+    fontSize: fontSize.md,
+    color: colors.text,
+  },
+  stepActionsRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+  },
+  backButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.xs,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  backButtonText: {
+    color: colors.text,
+    fontSize: fontSize.md,
+    fontWeight: "500",
   },
   searchContainer: {
     flexDirection: "row",
@@ -1977,6 +2211,11 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     marginTop: spacing.lg,
     marginBottom: spacing.lg,
+  },
+  guardianActionsTop: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    marginBottom: spacing.md,
   },
   deductButton: {
     flex: 1,
