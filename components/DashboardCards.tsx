@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TouchableOpacity, Linking, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Linking, ActivityIndicator, Modal, ScrollView } from "react-native";
 import { useState, useEffect, useMemo } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import Svg, { Path, Circle, Rect, Ellipse } from "react-native-svg";
@@ -982,11 +982,12 @@ export function LocationBadge({ location }: { location: UserLocation | null }) {
   );
 }
 
-// Compact Prayer Widget for side-by-side display
+// Compact Prayer Widget for side-by-side display with modal
 function CompactPrayerWidget({ currentTime, location }: { currentTime: Date; location: UserLocation | null }) {
   const [prayerTimes, setPrayerTimes] = useState<PrayerTimes | null>(null);
   const [currentPrayer, setCurrentPrayer] = useState<CurrentPrayer | null>(null);
   const [loadState, setLoadState] = useState<LoadingState>('loading');
+  const [showModal, setShowModal] = useState(false);
 
   useEffect(() => {
     if (!location) return;
@@ -1008,6 +1009,22 @@ function CompactPrayerWidget({ currentTime, location }: { currentTime: Date; loc
     }
   }, [prayerTimes, currentTime]);
 
+  const formatTime = (time: string) => {
+    const [hours, minutes] = time.split(':').map(Number);
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const h = hours % 12 || 12;
+    return `${h}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+  };
+
+  const prayerList = prayerTimes ? [
+    { name: 'Fajr', time: prayerTimes.fajr, icon: 'moon' },
+    { name: 'Sunrise', time: prayerTimes.sunrise, icon: 'sunny' },
+    { name: 'Dhuhr', time: prayerTimes.dhuhr, icon: 'sunny' },
+    { name: 'Asr', time: prayerTimes.asr, icon: 'partly-sunny' },
+    { name: 'Maghrib', time: prayerTimes.maghrib, icon: 'sunset-outline' },
+    { name: 'Isha', time: prayerTimes.isha, icon: 'moon' },
+  ] : [];
+
   if (loadState === 'loading' || !currentPrayer) {
     return (
       <View style={styles.compactWidget}>
@@ -1026,16 +1043,100 @@ function CompactPrayerWidget({ currentTime, location }: { currentTime: Date; loc
   }
 
   return (
-    <View style={styles.compactWidget} data-testid="compact-prayer-widget">
-      <Ionicons name="moon" size={20} color={colors.primary} />
-      <Text style={styles.compactWidgetLabel}>{currentPrayer.name}</Text>
-      <Text style={styles.compactWidgetValue}>{formatMinutesRemaining(currentPrayer.minutesRemaining)}</Text>
-    </View>
+    <>
+      <TouchableOpacity 
+        style={[styles.compactWidget, currentPrayer.isUrgent && styles.compactWidgetUrgent]} 
+        onPress={() => setShowModal(true)}
+        data-testid="compact-prayer-widget"
+      >
+        <Ionicons name="moon" size={20} color={currentPrayer.isUrgent ? colors.error : colors.primary} />
+        <Text style={styles.compactWidgetLabel}>{currentPrayer.name}</Text>
+        <Text style={[styles.compactWidgetValue, currentPrayer.isUrgent && { color: colors.error }]}>
+          {formatMinutesRemaining(currentPrayer.minutesRemaining)}
+        </Text>
+      </TouchableOpacity>
+
+      <Modal visible={showModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalTitleRow}>
+                <Ionicons name="moon" size={24} color={colors.primary} />
+                <Text style={styles.modalTitle}>Prayer Times</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowModal(false)} data-testid="button-close-prayer-modal">
+                <Ionicons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            {currentPrayer.isUrgent && (
+              <View style={styles.urgentBanner}>
+                <Ionicons name="alert-circle" size={18} color={colors.error} />
+                <Text style={styles.urgentText}>
+                  {currentPrayer.name} ends in {formatMinutesRemaining(currentPrayer.minutesRemaining)}
+                </Text>
+              </View>
+            )}
+
+            <View style={styles.prayerTimesList}>
+              {prayerList.map((prayer, index) => (
+                <View 
+                  key={prayer.name}
+                  style={[
+                    styles.prayerTimeItem,
+                    currentPrayer.name === prayer.name && styles.prayerTimeItemActive
+                  ]}
+                >
+                  <View style={styles.prayerTimeLeft}>
+                    <View style={[
+                      styles.prayerTimeIcon,
+                      currentPrayer.name === prayer.name && styles.prayerTimeIconActive
+                    ]}>
+                      <Ionicons 
+                        name={prayer.icon as any} 
+                        size={18} 
+                        color={currentPrayer.name === prayer.name ? "#FFFFFF" : colors.textSecondary} 
+                      />
+                    </View>
+                    <Text style={[
+                      styles.prayerTimeName,
+                      currentPrayer.name === prayer.name && styles.prayerTimeNameActive
+                    ]}>
+                      {prayer.name}
+                    </Text>
+                  </View>
+                  <Text style={[
+                    styles.prayerTimeValue,
+                    currentPrayer.name === prayer.name && styles.prayerTimeValueActive
+                  ]}>
+                    {formatTime(prayer.time)}
+                  </Text>
+                </View>
+              ))}
+            </View>
+
+            <TouchableOpacity 
+              style={styles.modalCloseButton}
+              onPress={() => setShowModal(false)}
+            >
+              <Text style={styles.modalCloseButtonText}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 }
 
-// Compact Weather Widget for side-by-side display
+// Compact Weather Widget for side-by-side display with modal
 function CompactWeatherWidget({ weather, loadState }: { weather: WeatherData | null; loadState: LoadingState }) {
+  const [showModal, setShowModal] = useState(false);
+
+  const outdoorStatus = useMemo(() => {
+    if (!weather) return null;
+    return canPlayOutside(weather);
+  }, [weather]);
+
   if (loadState === 'loading') {
     return (
       <View style={styles.compactWidget}>
@@ -1061,12 +1162,97 @@ function CompactWeatherWidget({ weather, loadState }: { weather: WeatherData | n
     return "partly-sunny";
   };
 
+  const hasAlerts = weather.isSevere || (weather.alerts && weather.alerts.length > 0);
+
   return (
-    <View style={styles.compactWidget} data-testid="compact-weather-widget">
-      <Ionicons name={getWeatherIcon()} size={20} color={colors.secondary} />
-      <Text style={styles.compactWidgetValue}>{Math.round(weather.temperature)}°</Text>
-      <Text style={styles.compactWidgetLabel}>{weather.condition}</Text>
-    </View>
+    <>
+      <TouchableOpacity 
+        style={[styles.compactWidget, hasAlerts && styles.compactWidgetWarning]} 
+        onPress={() => setShowModal(true)}
+        data-testid="compact-weather-widget"
+      >
+        <Ionicons name={getWeatherIcon()} size={20} color={hasAlerts ? colors.warning : colors.secondary} />
+        <Text style={styles.compactWidgetValue}>{Math.round(weather.temperature)}°</Text>
+        <Text style={styles.compactWidgetLabel} numberOfLines={1}>{weather.condition}</Text>
+        {hasAlerts && <Ionicons name="warning" size={14} color={colors.warning} />}
+      </TouchableOpacity>
+
+      <Modal visible={showModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalTitleRow}>
+                <Ionicons name={getWeatherIcon()} size={24} color={colors.secondary} />
+                <Text style={styles.modalTitle}>Weather Details</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowModal(false)} data-testid="button-close-weather-modal">
+                <Ionicons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            {hasAlerts && (
+              <View style={styles.alertBanner}>
+                <Ionicons name="warning" size={18} color="#FFFFFF" />
+                <Text style={styles.alertText}>
+                  {weather.severeType || 'Weather Advisory'}
+                </Text>
+              </View>
+            )}
+
+            <View style={styles.weatherDetailsGrid}>
+              <View style={styles.weatherDetailMain}>
+                <Text style={styles.weatherDetailTemp}>{Math.round(weather.temperature)}°F</Text>
+                <Text style={styles.weatherDetailCondition}>{weather.condition}</Text>
+                <Text style={styles.weatherDetailFeels}>Feels like {weather.feelsLike}°F</Text>
+              </View>
+              
+              <View style={styles.weatherDetailsRow}>
+                <View style={styles.weatherDetailItem}>
+                  <Ionicons name="water-outline" size={18} color={colors.textSecondary} />
+                  <Text style={styles.weatherDetailLabel}>Humidity</Text>
+                  <Text style={styles.weatherDetailValue}>{weather.humidity}%</Text>
+                </View>
+                <View style={styles.weatherDetailItem}>
+                  <Ionicons name="speedometer-outline" size={18} color={colors.textSecondary} />
+                  <Text style={styles.weatherDetailLabel}>Wind</Text>
+                  <Text style={styles.weatherDetailValue}>{weather.windSpeed} mph</Text>
+                </View>
+                <View style={styles.weatherDetailItem}>
+                  <Ionicons name="sunny-outline" size={18} color={colors.textSecondary} />
+                  <Text style={styles.weatherDetailLabel}>UV Index</Text>
+                  <Text style={styles.weatherDetailValue}>{weather.uvIndex}</Text>
+                </View>
+              </View>
+
+              {outdoorStatus && (
+                <View style={[styles.outdoorStatusBanner, !outdoorStatus.canPlay && styles.outdoorStatusBannerNo]}>
+                  <Ionicons 
+                    name={outdoorStatus.canPlay ? "checkmark-circle" : "close-circle"} 
+                    size={20} 
+                    color={outdoorStatus.canPlay ? colors.success : colors.error} 
+                  />
+                  <View style={styles.outdoorStatusContent}>
+                    <Text style={[styles.outdoorStatusTitle, !outdoorStatus.canPlay && { color: colors.error }]}>
+                      {outdoorStatus.canPlay ? "Safe for outdoor play" : "Stay indoors"}
+                    </Text>
+                    {!outdoorStatus.canPlay && outdoorStatus.reason && (
+                      <Text style={styles.outdoorStatusReason}>{outdoorStatus.reason}</Text>
+                    )}
+                  </View>
+                </View>
+              )}
+            </View>
+
+            <TouchableOpacity 
+              style={styles.modalCloseButton}
+              onPress={() => setShowModal(false)}
+            >
+              <Text style={styles.modalCloseButtonText}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 }
 
@@ -1159,6 +1345,196 @@ const styles = StyleSheet.create({
     fontSize: fontSize.md,
     fontWeight: "700",
     color: colors.text,
+  },
+  compactWidgetUrgent: {
+    borderColor: colors.error,
+    borderWidth: 1.5,
+  },
+  compactWidgetWarning: {
+    borderColor: colors.warning,
+    borderWidth: 1.5,
+  },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: borderRadius.xl,
+    borderTopRightRadius: borderRadius.xl,
+    padding: spacing.lg,
+    maxHeight: "80%",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: spacing.md,
+  },
+  modalTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  modalTitle: {
+    fontSize: fontSize.xl,
+    fontWeight: "700",
+    color: colors.text,
+  },
+  modalCloseButton: {
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.lg,
+    alignItems: "center",
+    marginTop: spacing.lg,
+  },
+  modalCloseButtonText: {
+    color: "#FFFFFF",
+    fontSize: fontSize.md,
+    fontWeight: "600",
+  },
+  // Prayer modal styles
+  urgentBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    backgroundColor: "#FFE5E5",
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    marginBottom: spacing.md,
+  },
+  urgentText: {
+    fontSize: fontSize.sm,
+    fontWeight: "600",
+    color: colors.error,
+  },
+  prayerTimesList: {
+    gap: spacing.sm,
+  },
+  prayerTimeItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.surfaceSecondary,
+  },
+  prayerTimeItemActive: {
+    backgroundColor: colors.primary,
+  },
+  prayerTimeLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  prayerTimeIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  prayerTimeIconActive: {
+    backgroundColor: "rgba(255,255,255,0.2)",
+  },
+  prayerTimeName: {
+    fontSize: fontSize.md,
+    fontWeight: "600",
+    color: colors.text,
+  },
+  prayerTimeNameActive: {
+    color: "#FFFFFF",
+  },
+  prayerTimeValue: {
+    fontSize: fontSize.md,
+    fontWeight: "700",
+    color: colors.textSecondary,
+  },
+  prayerTimeValueActive: {
+    color: "#FFFFFF",
+  },
+  // Weather modal styles
+  alertBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    backgroundColor: colors.warning,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    marginBottom: spacing.md,
+  },
+  alertText: {
+    fontSize: fontSize.sm,
+    fontWeight: "600",
+    color: "#FFFFFF",
+  },
+  weatherDetailsGrid: {
+    gap: spacing.md,
+  },
+  weatherDetailMain: {
+    alignItems: "center",
+    paddingVertical: spacing.lg,
+  },
+  weatherDetailTemp: {
+    fontSize: 48,
+    fontWeight: "700",
+    color: colors.text,
+  },
+  weatherDetailCondition: {
+    fontSize: fontSize.lg,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+  },
+  weatherDetailFeels: {
+    fontSize: fontSize.sm,
+    color: colors.textMuted,
+  },
+  weatherDetailsRow: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    backgroundColor: colors.surfaceSecondary,
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+  },
+  weatherDetailItem: {
+    alignItems: "center",
+    gap: spacing.xs,
+  },
+  weatherDetailLabel: {
+    fontSize: fontSize.xs,
+    color: colors.textMuted,
+  },
+  weatherDetailValue: {
+    fontSize: fontSize.md,
+    fontWeight: "700",
+    color: colors.text,
+  },
+  outdoorStatusBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    backgroundColor: "#E8F5E9",
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+  },
+  outdoorStatusBannerNo: {
+    backgroundColor: "#FFE5E5",
+  },
+  outdoorStatusContent: {
+    flex: 1,
+  },
+  outdoorStatusTitle: {
+    fontSize: fontSize.md,
+    fontWeight: "600",
+    color: colors.success,
+  },
+  outdoorStatusReason: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    marginTop: 2,
   },
   locationBadge: {
     flexDirection: "row",
