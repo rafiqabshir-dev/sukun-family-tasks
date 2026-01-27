@@ -2090,6 +2090,7 @@ const styles = StyleSheet.create({
   stepActionsRow: {
     flexDirection: "row",
     gap: spacing.sm,
+    marginTop: spacing.lg,
   },
   backButton: {
     flexDirection: "row",
