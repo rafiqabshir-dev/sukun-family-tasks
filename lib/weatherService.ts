@@ -238,7 +238,7 @@ export async function getWeather(latitude: number, longitude: number): Promise<W
       });
     }
 
-    const weather: WeatherData = {
+    const weatherData: WeatherData = {
       temperature: temp,
       temperatureUnit: "F",
       feelsLike: feelsLike,
@@ -263,22 +263,22 @@ export async function getWeather(latitude: number, longitude: number): Promise<W
         const sevOrder = { extreme: 0, severe: 1, moderate: 2, minor: 3 };
         return sevOrder[a.severity] - sevOrder[b.severity];
       })[0];
-      weather.severeType = topAlert.event;
-      weather.severeMessage = topAlert.headline;
-    } else if (!weather.isRaining && !weather.isSnowing && weather.windSpeed < 15 && !isCold && !isHot) {
+      weatherData.severeType = topAlert.event;
+      weatherData.severeMessage = topAlert.headline;
+    } else if (!weatherData.isRaining && !weatherData.isSnowing && weatherData.windSpeed < 15 && !isCold && !isHot) {
       const hour = new Date().getHours();
       if (hour < 10) {
-        weather.safeOutdoorWindow = "Good for outdoor play after 10 AM";
+        weatherData.safeOutdoorWindow = "Good for outdoor play after 10 AM";
       } else if (hour < 17) {
-        weather.safeOutdoorWindow = "Great time for outdoor activities";
+        weatherData.safeOutdoorWindow = "Great time for outdoor activities";
       } else {
-        weather.safeOutdoorWindow = "Evening outdoor play possible";
+        weatherData.safeOutdoorWindow = "Evening outdoor play possible";
       }
     }
 
-    await cacheWeather(weather, latitude, longitude);
+    await cacheWeather(weatherData, latitude, longitude);
     
-    return weather;
+    return weatherData;
   } catch (error) {
     console.error("[Weather] Fetch error:", error);
     return await getCachedWeather(latitude, longitude, true);
@@ -432,7 +432,7 @@ export async function getWeatherFresh(latitude: number, longitude: number): Prom
     });
   }
 
-  const weather: WeatherData = {
+  const weatherData: WeatherData = {
     temperature: temp,
     temperatureUnit: "F",
     feelsLike: feelsLike,
@@ -457,20 +457,20 @@ export async function getWeatherFresh(latitude: number, longitude: number): Prom
       const sevOrder = { extreme: 0, severe: 1, moderate: 2, minor: 3 };
       return sevOrder[a.severity] - sevOrder[b.severity];
     })[0];
-    weather.severeType = topAlert.event;
-    weather.severeMessage = topAlert.headline;
-  } else if (!weather.isRaining && !weather.isSnowing && weather.windSpeed < 15 && !isCold && !isHot) {
+    weatherData.severeType = topAlert.event;
+    weatherData.severeMessage = topAlert.headline;
+  } else if (!weatherData.isRaining && !weatherData.isSnowing && weatherData.windSpeed < 15 && !isCold && !isHot) {
     const hour = new Date().getHours();
     if (hour < 10) {
-      weather.safeOutdoorWindow = "Good for outdoor play after 10 AM";
+      weatherData.safeOutdoorWindow = "Good for outdoor play after 10 AM";
     } else if (hour < 17) {
-      weather.safeOutdoorWindow = "Great time for outdoor activities";
+      weatherData.safeOutdoorWindow = "Great time for outdoor activities";
     } else {
-      weather.safeOutdoorWindow = "Evening outdoor play possible";
+      weatherData.safeOutdoorWindow = "Evening outdoor play possible";
     }
   }
 
-  return weather;
+  return weatherData;
 }
 
 export function getClothingSuggestions(weather: WeatherData): ClothingItem[] {
