@@ -1,6 +1,9 @@
 #!/bin/sh
 set -e
 
+# Install Node.js via Homebrew (not available by default in Xcode Cloud)
+brew install node
+
 # Install Node.js dependencies
 cd "$CI_PRIMARY_REPOSITORY_PATH"
 npm install
