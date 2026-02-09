@@ -5,7 +5,7 @@ export default {
     name: "Sukun",
     slug: "sukun-app",
     owner: "rafiq.abshir",
-    version: "1.2.0",
+    version: "1.2.1",
     orientation: "portrait",
     icon: "./assets/sukun-logo.png",
     userInterfaceStyle: "light",
@@ -19,7 +19,7 @@ export default {
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.sukun.familytasks",
-      buildNumber: "2",
+      buildNumber: "3",
       config: {
         usesNonExemptEncryption: false
       }
