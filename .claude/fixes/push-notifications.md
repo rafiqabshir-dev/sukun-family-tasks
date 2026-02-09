@@ -1,4 +1,4 @@
-# Fix: Push Notifications (iOS & Android)
+# Fix: Push Notifications (iOS & Android) - pr
 
 **Date:** 2026-02-09
 **Status:** Code complete, pending device testing
