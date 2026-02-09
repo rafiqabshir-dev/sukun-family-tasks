@@ -1,8 +1,11 @@
+import "dotenv/config";
+
 export default {
   expo: {
     name: "Sukun",
     slug: "sukun-app",
-    version: "1.0.0",
+    owner: "rafiq.abshir",
+    version: "1.2.0",
     orientation: "portrait",
     icon: "./assets/sukun-logo.png",
     userInterfaceStyle: "light",
@@ -16,7 +19,7 @@ export default {
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.sukun.familytasks",
-      buildNumber: "1",
+      buildNumber: "2",
       config: {
         usesNonExemptEncryption: false
       }
@@ -44,11 +47,13 @@ export default {
       ]
     ],
     extra: {
+      eas: {
+        projectId: "90644534-b5b9-4c74-9742-08782c2c4ef4"
+      },
+      EXPO_PUBLIC_SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || "",
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "",
       SUPABASE_URL: process.env.SUPABASE_URL || "",
       SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY || "",
-      eas: {
-        projectId: process.env.EXPO_PROJECT_ID || "sukun-app"
-      }
     }
   }
 };

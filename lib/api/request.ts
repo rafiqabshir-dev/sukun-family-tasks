@@ -91,8 +91,8 @@ export async function apiRequest<T>(
         headers: {
           ...options.headers,
           ...extraHeaders,
-          'X-Request-Id': requestId,
-          'X-Operation-Name': operationName,
+          // 'X-Request-Id': requestId,
+          // 'X-Operation-Name': operationName,
         },
       });
 

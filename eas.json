@@ -14,17 +14,15 @@
       }
     },
     "production": {
-      "ios": {
-        "buildType": "release"
-      }
+      "ios": {}
     }
   },
   "submit": {
     "production": {
       "ios": {
-        "appleId": "",
-        "ascAppId": "",
-        "appleTeamId": ""
+        "appleId": "abshir.engineer@gmail.com",
+        "ascAppId": "18409343116",
+        "appleTeamId": "S27U77J83N"
       }
     }
   }

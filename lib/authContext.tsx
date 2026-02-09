@@ -70,6 +70,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!isSupabaseConfigured()) {
       console.log('[Auth] Supabase not configured');
       setLoading(false);
+      setFamilyCheckComplete(true);
+      useStore.getState().setAuthReady(true);
       return;
     }
 

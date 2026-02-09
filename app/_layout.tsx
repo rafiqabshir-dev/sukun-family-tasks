@@ -107,7 +107,7 @@ function RootLayoutContent() {
   const initialize = useStore((s) => s.initialize);
   const isReady = useStore((s) => s.isReady);
   const storeAuthReady = useStore((s) => s.authReady);
-  const { loading: authLoading } = useAuth();
+  const { loading: authLoading, session } = useAuth();
 
   useEffect(() => {
     initialize();
@@ -126,7 +126,7 @@ function RootLayoutContent() {
 
   // Use store's authReady (persists across remounts) but also gate on authLoading
   // to prevent protected-view flicker during active authentication
-  const showLoading = !isReady || authLoading || !storeAuthReady;
+  const showLoading = !isReady || authLoading || !storeAuthReady
   
   console.log('[Layout] showLoading:', showLoading, 'isReady:', isReady, 'authLoading:', authLoading, 'storeAuthReady:', storeAuthReady);
 
