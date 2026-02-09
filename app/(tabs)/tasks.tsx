@@ -438,7 +438,8 @@ export default function TasksScreen() {
         );
         if (cloudInstance) {
           // Notify the kid
-          notifyTaskAssigned(family.id, kid.profileId || kidId, task.title, task.defaultStars);
+          const assignerName = profile?.display_name || 'Guardian';
+          notifyTaskAssigned(family.id, kid.profileId || kidId, task.title, assignerName);
           trackEvent("task_quick_assigned", { templateId: task.id, kidId });
         }
       }

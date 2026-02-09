@@ -178,8 +178,13 @@ export default function TodayScreen() {
           });
         }
         // Send approval notification to the kid (same as quick-approve)
-        if (template && member) {
-          notifyTaskApproved(template.title, member.name, starsEarned);
+        if (template && member && profile?.family_id) {
+          notifyTaskApproved(
+            profile.family_id,
+            member.profileId || instance.assignedToMemberId,
+            template.title,
+            starsEarned
+          );
         }
         trackEvent("task_quick_approved", { taskId });
       } else {
@@ -188,8 +193,13 @@ export default function TodayScreen() {
           await updateCloudTaskInstance(taskId, { status: "pending_approval" });
         }
         completeTask(taskId);
-        if (template) {
-          notifyTaskPendingApproval(template.title, currentMember?.name || "Someone");
+        if (template && profile?.family_id) {
+          notifyTaskPendingApproval(
+            profile.family_id,
+            currentMember?.name || "Someone",
+            template.title,
+            profile.id
+          );
         }
         trackEvent("task_quick_completed", { taskId });
       }
@@ -233,8 +243,13 @@ export default function TodayScreen() {
         });
       }
       
-      if (template && member) {
-        notifyTaskApproved(template.title, member.name, starsEarned);
+      if (template && member && profile?.family_id) {
+        notifyTaskApproved(
+          profile.family_id,
+          member.profileId || instance.assignedToMemberId,
+          template.title,
+          starsEarned
+        );
       }
       trackEvent("task_quick_approved", { taskId });
     } catch (err) {

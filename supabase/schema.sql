@@ -22,6 +22,8 @@ CREATE TABLE profiles (
   powers TEXT[] DEFAULT '{}',
   requires_login BOOLEAN DEFAULT true,
   passcode TEXT UNIQUE,
+  push_token TEXT,
+  avatar TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
