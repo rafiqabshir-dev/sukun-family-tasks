@@ -5,6 +5,7 @@ import { useStore } from './store';
 import { Persona, derivePersona as derivePersonaFromState, AuthState } from './navigation';
 import { cloudInstanceToLocal, seedStarterTasksToCloud, taskToTemplate } from './cloudSync';
 import { notifyJoinRequest } from './pushNotificationService';
+import { setupRealtimeSubscriptions, cleanupRealtimeSubscriptions } from './realtimeSync';
 
 export type JoinRequestWithProfile = JoinRequest & {
   requester_profile?: Profile;
@@ -63,6 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   
   const mounted = useRef(true);
   const initInProgress = useRef(false);
+  const realtimeCleanup = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     mounted.current = true;
@@ -77,6 +79,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     async function clearAuthState(reason: string, shouldSignOut: boolean = true) {
       console.log('[Auth] Clearing state:', reason);
+      
+      // Clean up real-time subscriptions
+      if (realtimeCleanup.current) {
+        realtimeCleanup.current();
+        realtimeCleanup.current = null;
+      }
+      
       // Only sign out if explicitly requested - don't sign out on timeouts
       // because that triggers SIGNED_OUT/SIGNED_IN loop with cached tokens
       if (shouldSignOut) {
@@ -164,71 +173,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               setFamily(familyData as Family);
               
               // Load family data directly from cloud (no local merging)
-              try {
-                const [
-                  { data: profiles },
-                  { data: starsLedger },
-                  { data: tasks },
-                  { data: taskInstances }
-                ] = await Promise.all([
-                  supabase.from('profiles').select('*').eq('family_id', profileData.family_id),
-                  supabase.from('stars_ledger').select('*').eq('family_id', profileData.family_id),
-                  supabase.from('tasks').select('*').eq('family_id', profileData.family_id),
-                  supabase.from('task_instances').select('*').eq('family_id', profileData.family_id)
-                ]);
-                
-                if (profiles && profiles.length > 0) {
-                  // Convert profiles to members - cloud is the only source of truth
-                  const members = profiles.map((p: any) => ({
-                    id: p.id,
-                    name: p.display_name || '',
-                    role: (p.role === 'kid' ? 'kid' : 'guardian') as 'kid' | 'guardian',
-                    age: p.age || 0,
-                    starsTotal: (starsLedger || [])
-                      .filter((e: any) => e.profile_id === p.id)
-                      .reduce((sum: number, e: any) => sum + e.delta, 0),
-                    powers: (p.powers || []).map((key: string) => ({
-                      powerKey: key,
-                      level: 1,
-                      xp: 0
-                    })),
-                    profileId: p.id,
-                    passcode: p.passcode || undefined,
-                    avatar: p.avatar || undefined,
-                  }));
-                  
-                  // Replace members entirely from cloud - no local merging
-                  useStore.getState().setMembersFromCloud(members);
-                  console.log('[Auth] Loaded', members.length, 'members from cloud for user', currentUser.id);
-                }
-                
-                // Load task templates from cloud, or seed starter tasks if none exist
-                if (tasks && tasks.length > 0) {
-                  const templates = tasks.map((t: any) => taskToTemplate(t));
-                  useStore.getState().setTaskTemplatesFromCloud(templates);
-                  console.log('[Auth] Loaded', templates.length, 'task templates from cloud');
-                } else {
-                  // No tasks in cloud - seed starter tasks with proper UUIDs
-                  console.log('[Auth] No tasks in cloud, seeding starter tasks...');
-                  const { tasks: seededTasks, error: seedError } = await seedStarterTasksToCloud(profileData.family_id);
-                  if (!seedError && seededTasks.length > 0) {
-                    const templates = seededTasks.map((t: any) => taskToTemplate(t));
-                    useStore.getState().setTaskTemplatesFromCloud(templates);
-                    console.log('[Auth] Seeded and loaded', templates.length, 'starter tasks');
-                  } else if (seedError) {
-                    console.log('[Auth] Failed to seed starter tasks:', seedError.message);
-                  }
-                }
-                
-                // Load task instances from cloud using cloudInstanceToLocal helper
-                if (taskInstances && taskInstances.length > 0) {
-                  const instances = taskInstances.map((i: CloudTaskInstance) => cloudInstanceToLocal(i));
-                  useStore.getState().setTaskInstancesFromCloud(instances);
-                  console.log('[Auth] Loaded', instances.length, 'task instances from cloud');
-                }
-              } catch (syncError: any) {
-                console.log('[Auth] Cloud data load error:', syncError?.message);
-              }
+              await loadFamilyData(profileData.family_id, currentUser.id);
             }
             // Clear any pending request since user is already in a family
             setPendingJoinRequest(null);
@@ -415,8 +360,94 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       mounted.current = false;
       subscription.unsubscribe();
+      // Clean up real-time subscriptions on unmount
+      if (realtimeCleanup.current) {
+        realtimeCleanup.current();
+        realtimeCleanup.current = null;
+      }
     };
   }, []);
+
+  // Load all family data (members, tasks, task instances, stars)
+  async function loadFamilyData(familyId: string, currentUserId: string) {
+    console.log('[loadFamilyData] Loading data for family:', familyId);
+    try {
+      const [
+        { data: profiles },
+        { data: starsLedger },
+        { data: tasks },
+        { data: taskInstances }
+      ] = await Promise.all([
+        supabase.from('profiles').select('*').eq('family_id', familyId),
+        supabase.from('stars_ledger').select('*').eq('family_id', familyId),
+        supabase.from('tasks').select('*').eq('family_id', familyId),
+        supabase.from('task_instances').select('*').eq('family_id', familyId)
+      ]);
+      
+      if (profiles && profiles.length > 0) {
+        // Convert profiles to members - cloud is the only source of truth
+        const members = profiles.map((p: any) => ({
+          id: p.id,
+          name: p.display_name || '',
+          role: (p.role === 'kid' ? 'kid' : 'guardian') as 'kid' | 'guardian',
+          age: p.age || 0,
+          starsTotal: (starsLedger || [])
+            .filter((e: any) => e.profile_id === p.id)
+            .reduce((sum: number, e: any) => sum + e.delta, 0),
+          powers: (p.powers || []).map((key: string) => ({
+            powerKey: key,
+            level: 1,
+            xp: 0
+          })),
+          profileId: p.id,
+          passcode: p.passcode || undefined,
+          avatar: p.avatar || undefined,
+        }));
+        
+        // Replace members entirely from cloud - no local merging
+        useStore.getState().setMembersFromCloud(members);
+        console.log('[loadFamilyData] Loaded', members.length, 'members from cloud');
+      }
+      
+      // Load task templates from cloud, or seed starter tasks if none exist
+      if (tasks && tasks.length > 0) {
+        const templates = tasks.map((t: any) => taskToTemplate(t));
+        useStore.getState().setTaskTemplatesFromCloud(templates);
+        console.log('[loadFamilyData] Loaded', templates.length, 'task templates from cloud');
+      } else {
+        // No tasks in cloud - seed starter tasks with proper UUIDs
+        console.log('[loadFamilyData] No tasks in cloud, seeding starter tasks...');
+        const { tasks: seededTasks, error: seedError } = await seedStarterTasksToCloud(familyId);
+        if (!seedError && seededTasks.length > 0) {
+          const templates = seededTasks.map((t: any) => taskToTemplate(t));
+          useStore.getState().setTaskTemplatesFromCloud(templates);
+          console.log('[loadFamilyData] Seeded and loaded', templates.length, 'starter tasks');
+        } else if (seedError) {
+          console.log('[loadFamilyData] Failed to seed starter tasks:', seedError.message);
+        }
+      }
+      
+      // Load task instances from cloud using cloudInstanceToLocal helper
+      if (taskInstances && taskInstances.length > 0) {
+        const instances = taskInstances.map((i: CloudTaskInstance) => cloudInstanceToLocal(i));
+        useStore.getState().setTaskInstancesFromCloud(instances);
+        console.log('[loadFamilyData] Loaded', instances.length, 'task instances from cloud');
+      }
+      
+      // Setup real-time subscriptions for this family
+      // Clean up any existing subscriptions first
+      if (realtimeCleanup.current) {
+        realtimeCleanup.current();
+        realtimeCleanup.current = null;
+      }
+      
+      // Setup new subscriptions
+      realtimeCleanup.current = setupRealtimeSubscriptions(familyId, currentUserId);
+      console.log('[loadFamilyData] Real-time subscriptions established');
+    } catch (syncError: any) {
+      console.log('[loadFamilyData] Cloud data load error:', syncError?.message);
+    }
+  }
 
   async function fetchProfile(userId: string) {
     console.log('[fetchProfile] Starting for userId:', userId.slice(0, 8));
@@ -450,18 +481,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             console.log('[fetchProfile] Got family:', familyData.name, '- setting family state');
             setFamily(familyData as Family);
             
-            // Ensure current user is in local store with their Supabase UUID
-            try {
-              useStore.getState().upsertMemberWithUUID(
-                profileData.id,
-                profileData.display_name,
-                profileData.role,
-                profileData.age || undefined
-              );
-              console.log('[Auth] Synced current user to store:', profileData.display_name);
-            } catch (syncError) {
-              console.error('[Auth] Error syncing current user:', syncError);
-            }
+            // Load all family data (members, tasks, task instances)
+            await loadFamilyData(profileData.family_id, userId);
           }
           // Clear any pending request since user is already in a family
           setPendingJoinRequest(null);
@@ -666,6 +687,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function signOut() {
+    // Clean up real-time subscriptions before signing out
+    if (realtimeCleanup.current) {
+      realtimeCleanup.current();
+      realtimeCleanup.current = null;
+    }
+    
     await supabase.auth.signOut();
     setProfile(null);
     setFamily(null);
