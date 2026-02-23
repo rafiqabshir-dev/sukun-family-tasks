@@ -9,6 +9,7 @@ import { PrayerTimes, CurrentPrayer, getPrayerTimesFresh, getCurrentPrayer, form
 import { getCurrentLocation, UserLocation } from "@/lib/locationService";
 import { Park, getNearbyParks, formatDistanceMiles, getOutdoorRecommendation, getParkIcon } from "@/lib/parkService";
 import { TaskInstance, TaskTemplate, Member } from "@/lib/types";
+import { FEATURE_FLAGS } from "@/lib/featureFlags";
 import { isToday, isBefore, startOfDay } from "date-fns";
 
 type LoadingState = 'loading' | 'success' | 'error';
@@ -1805,12 +1806,14 @@ export function DashboardCards({
   activeTab = "family",
   onTabChange
 }: DashboardCardsProps) {
+  const needsWeather = FEATURE_FLAGS.weatherCard || FEATURE_FLAGS.nearbyParks;
   const [weather, setWeather] = useState<WeatherData | null>(null);
-  const [weatherLoadState, setWeatherLoadState] = useState<LoadingState>('loading');
+  const [weatherLoadState, setWeatherLoadState] = useState<LoadingState>(needsWeather ? 'loading' : 'success');
   const [weatherError, setWeatherError] = useState<string | null>(null);
   const { location } = useLocation();
 
   useEffect(() => {
+    if (!needsWeather) return;
     if (!location) {
       setWeatherLoadState('loading');
       return;
@@ -1829,16 +1832,18 @@ export function DashboardCards({
       }
     };
     loadWeather();
-  }, [location]);
+  }, [location, needsWeather]);
 
   return (
     <View style={styles.dashboardContainer}>
-      {/* Secondary Info - Weather, Prayer & Parks in compact row at top */}
-      <View style={styles.compactInfoRow}>
-        <CompactPrayerWidget currentTime={currentTime} location={location} />
-        <CompactWeatherWidget weather={weather} loadState={weatherLoadState} />
-        <CompactParksWidget weather={weather} location={location} />
-      </View>
+      {/* Secondary Info - compact row at top (feature-flagged) */}
+      {(FEATURE_FLAGS.prayerTimes || FEATURE_FLAGS.weatherCard || FEATURE_FLAGS.nearbyParks) && (
+        <View style={styles.compactInfoRow}>
+          {FEATURE_FLAGS.prayerTimes && <CompactPrayerWidget currentTime={currentTime} location={location} />}
+          {FEATURE_FLAGS.weatherCard && <CompactWeatherWidget weather={weather} loadState={weatherLoadState} />}
+          {FEATURE_FLAGS.nearbyParks && <CompactParksWidget weather={weather} location={location} />}
+        </View>
+      )}
       
       {/* Tab Switcher - Only show for guardians */}
       {isGuardian && onTabChange && (
