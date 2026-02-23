@@ -7,6 +7,8 @@
  * 3. The Games Hub will automatically show the new game in its category
  */
 
+import { FEATURE_FLAGS } from "@/lib/featureFlags";
+
 export type GameCategory = 'spin' | 'party' | 'learning' | 'rewards';
 
 export interface GameDefinition {
@@ -115,7 +117,14 @@ export const GAMES: GameDefinition[] = [
 ];
 
 export function getGamesByCategory(category: GameCategory): GameDefinition[] {
-  return GAMES.filter(game => game.category === category && game.isEnabled !== false);
+  return GAMES.filter(game => {
+    if (game.isEnabled === false) return false;
+    if (game.category !== category) return false;
+    if (game.id === 'family-game' && !FEATURE_FLAGS.familyGame) return false;
+    if (game.id === 'charades-mini' && !FEATURE_FLAGS.charadesGame) return false;
+    if (game.isComingSoon && !FEATURE_FLAGS.comingSoonGames) return false;
+    return true;
+  });
 }
 
 export function getGameById(id: string): GameDefinition | undefined {

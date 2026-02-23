@@ -5,6 +5,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, spacing, borderRadius, fontSize } from "@/lib/theme";
 import { useStore } from "@/lib/store";
 import { POWER_INFO } from "@/lib/types";
+import { FEATURE_FLAGS } from "@/lib/featureFlags";
 import { format, isBefore, startOfDay } from "date-fns";
 import { useMemo } from "react";
 
@@ -89,7 +90,7 @@ export default function MemberDetailScreen() {
             </View>
           )}
 
-          {member.powers.length > 0 && (
+          {FEATURE_FLAGS.powersSystem && member.powers.length > 0 && (
             <View style={styles.powersSection}>
               <Text style={styles.powersTitle}>Powers</Text>
               <View style={styles.powerTags}>

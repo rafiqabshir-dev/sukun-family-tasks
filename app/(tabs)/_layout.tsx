@@ -6,6 +6,7 @@ import { colors, spacing, borderRadius, fontSize } from "@/lib/theme";
 import { useAuth } from "@/lib/authContext";
 import { getCurrentLocation, requestLocationPermission, UserLocation } from "@/lib/locationService";
 import { useStore } from "@/lib/store";
+import { FEATURE_FLAGS } from "@/lib/featureFlags";
 
 type IconName = "today" | "today-outline" | "list" | "list-outline" | "sync" | "sync-outline" | "trophy" | "trophy-outline" | "gift" | "gift-outline" | "menu" | "menu-outline";
 
@@ -274,7 +275,7 @@ export default function TabLayout() {
 
   const menuItems = [
     { title: "Tasks", icon: "list-outline" as const, route: "/(tabs)/tasks" as const },
-    { title: "Spin Game", icon: "sync-outline" as const, route: "/(tabs)/spin" as const },
+    ...(FEATURE_FLAGS.assignTaskSpin ? [{ title: "Spin", icon: "sync-outline" as const, route: "/(tabs)/spin" as const }] : []),
     { title: "Setup", icon: "settings-outline" as const, route: "/(tabs)/setup" as const },
   ];
 
@@ -309,7 +310,7 @@ export default function TabLayout() {
           name="today"
           options={{
             title: "Home",
-            headerLeft: () => <HeaderLocationLeft />,
+            headerLeft: () => FEATURE_FLAGS.locationBadge ? <HeaderLocationLeft /> : undefined,
             headerRight: () => <HeaderAvatarDropdown />,
             tabBarIcon: ({ color, focused }) => (
               <Ionicons
@@ -365,11 +366,11 @@ export default function TabLayout() {
         <Tabs.Screen
           name="spin"
           options={{
-            title: "Games",
-            tabBarItemStyle: isParticipant ? { display: "none" } : undefined,
+            title: "Spin",
+            tabBarItemStyle: (isParticipant || !FEATURE_FLAGS.assignTaskSpin) ? { display: "none" } : undefined,
             tabBarIcon: ({ color, focused }) => (
               <Ionicons
-                name={focused ? "game-controller" : "game-controller-outline"}
+                name={focused ? "sync" : "sync-outline"}
                 size={24}
                 color={color}
               />

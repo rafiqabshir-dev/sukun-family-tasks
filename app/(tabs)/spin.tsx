@@ -13,6 +13,7 @@ import { FamilyWheel } from "@/components/FamilyWheel";
 import { useResponsive } from "@/lib/useResponsive";
 import { GameCard } from "@/components/GameCard";
 import { CATEGORIES, getGamesByCategory, getGameById, GameCategory } from "@/lib/gamesRegistry";
+import { FEATURE_FLAGS } from "@/lib/featureFlags";
 
 /**
  * HOW TO ADD A NEW GAME:
@@ -70,7 +71,9 @@ export default function SpinScreen() {
   const addTaskInstance = useStore((s) => s.addTaskInstance);
   const addTaskTemplate = useStore((s) => s.addTaskTemplate);
 
-  const [hubView, setHubView] = useState<HubView>("hub");
+  // Skip hub when only assign-task is enabled (no other games to browse)
+  const hasMultipleGames = FEATURE_FLAGS.familyGame || FEATURE_FLAGS.charadesGame || FEATURE_FLAGS.comingSoonGames;
+  const [hubView, setHubView] = useState<HubView>(hasMultipleGames ? "hub" : "assign");
   const [selectedCategory, setSelectedCategory] = useState<GameCategory>("spin");
   const [mode, setMode] = useState<WheelMode>("assign");
   const [spinning, setSpinning] = useState(false);
@@ -505,14 +508,18 @@ export default function SpinScreen() {
       }
     >
       <View style={styles.gameHeader}>
-        <TouchableOpacity 
-          style={styles.backToHubButton} 
-          onPress={handleBackToHub}
-          disabled={spinning}
-        >
-          <Ionicons name="arrow-back" size={20} color={colors.primary} />
-          <Text style={styles.backToHubText}>Games</Text>
-        </TouchableOpacity>
+        {hasMultipleGames ? (
+          <TouchableOpacity
+            style={styles.backToHubButton}
+            onPress={handleBackToHub}
+            disabled={spinning}
+          >
+            <Ionicons name="arrow-back" size={20} color={colors.primary} />
+            <Text style={styles.backToHubText}>Games</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.gameHeaderSpacer} />
+        )}
         <Text style={styles.gameHeaderTitle}>
           {mode === "assign" ? "Assign a Task" : "Family Game"}
         </Text>
