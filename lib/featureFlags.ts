@@ -9,10 +9,10 @@ export const FEATURE_FLAGS = {
   // Dashboard widgets
   weatherCard: false,
   nearbyParks: false,
-  prayerTimes: true,
-  locationBadge: true,
+  prayerTimes: false,
+  locationBadge: false,
 
-  // Games
+  // Games & Spin
   familyGame: false,
   charadesGame: false,
   comingSoonGames: false,

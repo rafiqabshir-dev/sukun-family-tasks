@@ -275,7 +275,7 @@ export default function TabLayout() {
 
   const menuItems = [
     { title: "Tasks", icon: "list-outline" as const, route: "/(tabs)/tasks" as const },
-    { title: "Spin", icon: "sync-outline" as const, route: "/(tabs)/spin" as const },
+    ...(FEATURE_FLAGS.assignTaskSpin ? [{ title: "Spin", icon: "sync-outline" as const, route: "/(tabs)/spin" as const }] : []),
     { title: "Setup", icon: "settings-outline" as const, route: "/(tabs)/setup" as const },
   ];
 
@@ -310,7 +310,7 @@ export default function TabLayout() {
           name="today"
           options={{
             title: "Home",
-            headerLeft: () => <HeaderLocationLeft />,
+            headerLeft: () => FEATURE_FLAGS.locationBadge ? <HeaderLocationLeft /> : undefined,
             headerRight: () => <HeaderAvatarDropdown />,
             tabBarIcon: ({ color, focused }) => (
               <Ionicons
@@ -367,7 +367,7 @@ export default function TabLayout() {
           name="spin"
           options={{
             title: "Spin",
-            tabBarItemStyle: isParticipant ? { display: "none" } : undefined,
+            tabBarItemStyle: (isParticipant || !FEATURE_FLAGS.assignTaskSpin) ? { display: "none" } : undefined,
             tabBarIcon: ({ color, focused }) => (
               <Ionicons
                 name={focused ? "sync" : "sync-outline"}
