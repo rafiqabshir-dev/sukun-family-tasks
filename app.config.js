@@ -1,4 +1,5 @@
-import "dotenv/config";
+// Load dotenv locally; in EAS builds env vars are injected by EAS Secrets.
+try { require("dotenv/config"); } catch {}
 
 export default {
   expo: {
@@ -25,6 +26,7 @@ export default {
       }
     },
     android: {
+      package: "com.sukun.familytasks",
       adaptiveIcon: {
         foregroundImage: "./assets/adaptive-icon.png",
         backgroundColor: "#0D9488"
@@ -36,11 +38,13 @@ export default {
       bundler: "metro"
     },
     plugins: [
-      "expo-router", 
+      "expo-router",
       "expo-secure-store",
+      "@sentry/react-native/expo",
       [
         "expo-notifications",
         {
+          // TODO: Create ./assets/notification-icon.png (96x96 white-on-transparent PNG) before Android build
           "icon": "./assets/notification-icon.png",
           "color": "#0D9488"
         }

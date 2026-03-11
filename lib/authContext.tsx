@@ -6,6 +6,7 @@ import { Persona, derivePersona as derivePersonaFromState, AuthState } from './n
 import { cloudInstanceToLocal, seedStarterTasksToCloud, taskToTemplate } from './cloudSync';
 import { notifyJoinRequest } from './pushNotificationService';
 import { setupRealtimeSubscriptions, cleanupRealtimeSubscriptions } from './realtimeSync';
+import { captureError, trackEvent } from './analyticsService';
 
 export type JoinRequestWithProfile = JoinRequest & {
   requester_profile?: Profile;
@@ -524,11 +525,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       });
 
-      if (error) return { error };
+      if (error) {
+        captureError(new Error(error.message), { context: 'auth', action: 'sign_up' });
+        trackEvent('sign_up_failed', { error: error.message });
+        return { error };
+      }
       console.log('[signUp] Done');
+      trackEvent('sign_up_success');
       return { error: null };
     } catch (error: any) {
       console.error('[signUp] Error:', error?.message);
+      captureError(error as Error, { context: 'auth', action: 'sign_up' });
+      trackEvent('sign_up_failed', { error: error?.message });
       return { error: error as Error };
     }
   }
@@ -536,8 +544,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function signIn(email: string, password: string): Promise<{ error: Error | null }> {
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
-      return { error: error ? new Error(error.message) : null };
-    } catch (error) {
+      if (error) {
+        const err = new Error(error.message);
+        captureError(err, { context: 'auth', action: 'sign_in' });
+        trackEvent('sign_in_failed', { error: error.message });
+        return { error: err };
+      }
+      trackEvent('sign_in_success');
+      return { error: null };
+    } catch (error: any) {
+      captureError(error as Error, { context: 'auth', action: 'sign_in' });
+      trackEvent('sign_in_failed', { error: error?.message });
       return { error: error as Error };
     }
   }
@@ -675,13 +692,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (signInError) {
-        return { error: new Error('Login failed. Please try again.') };
+        const err = new Error('Login failed. Please try again.');
+        captureError(err, { context: 'auth', action: 'passcode_login' });
+        trackEvent('passcode_login_failed', { error: err.message });
+        return { error: err };
       }
 
       console.log('[signInWithPasscode] Success for:', profileData.display_name);
+      trackEvent('passcode_login_success');
       return { error: null };
     } catch (error: any) {
       console.error('[signInWithPasscode] Error:', error?.message);
+      captureError(error as Error, { context: 'auth', action: 'passcode_login' });
+      trackEvent('passcode_login_failed', { error: error?.message });
       return { error: error as Error };
     }
   }
@@ -821,8 +844,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const requesterName = profile?.display_name || 'Someone';
       notifyJoinRequest(familyData.id, requesterName);
 
+      trackEvent('join_request_success');
       return { error: null };
-    } catch (error) {
+    } catch (error: any) {
+      captureError(error as Error, { context: 'auth', action: 'join_request' });
+      trackEvent('join_request_failed', { error: error?.message });
       return { error: error as Error };
     }
   }
