@@ -6,6 +6,7 @@ import { useStore } from "@/lib/store";
 import { useAuth } from "@/lib/authContext";
 import { Reward, Member } from "@/lib/types";
 import { useResponsive } from "@/lib/useResponsive";
+import { trackEvent } from "@/lib/analyticsService";
 
 export default function RewardsScreen() {
   const { profile, refreshProfile } = useAuth();
@@ -53,7 +54,8 @@ export default function RewardsScreen() {
       description: newDescription.trim() || undefined,
       starsCost: parseInt(newStarsCost) || 10,
     });
-    
+    trackEvent('reward_created', { title: newTitle.trim(), starsCost: parseInt(newStarsCost) || 10 });
+
     setShowAddModal(false);
     setNewTitle("");
     setNewDescription("");
@@ -82,6 +84,7 @@ export default function RewardsScreen() {
     
     const success = redeemReward(selectedReward.id, selectedKid);
     if (success) {
+      trackEvent('reward_claimed', { rewardId: selectedReward.id, rewardTitle: selectedReward.title, kidId: selectedKid });
       Alert.alert(
         "Reward Claimed!",
         `${kid.name} has claimed "${selectedReward.title}"!`

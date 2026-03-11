@@ -1,4 +1,5 @@
 import { AppError, generateRequestId, normalizeError, normalizeHttpError, logError } from './errors';
+import { captureError } from '../analyticsService';
 
 export interface RequestConfig {
   operationName: string;
@@ -154,22 +155,26 @@ export async function apiRequest<T>(
       }
 
       logError(lastError);
+      captureError(lastError, { operationName, url, status: lastError.status });
       throw lastError;
     }
   }
 
   if (lastError) {
     logError(lastError);
+    captureError(lastError, { operationName, url, status: lastError.status });
     throw lastError;
   }
 
-  throw new AppError({
+  const unknownError = new AppError({
     operationName,
     requestId,
     code: 'UNKNOWN_ERROR',
     message: 'Request failed after retries',
     retryable: false,
   });
+  captureError(unknownError, { operationName, url });
+  throw unknownError;
 }
 
 export async function get<T>(url: string, config: RequestConfig): Promise<T> {

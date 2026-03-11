@@ -10,6 +10,7 @@ import { POWER_INFO } from "@/lib/types";
 import { fetchFamilyData, profileToMember, computeStarsForProfile } from "@/lib/cloudSync";
 import { useAuth, JoinRequestWithProfile } from "@/lib/authContext";
 import { useResponsive } from "@/lib/useResponsive";
+import FeedbackSheet from "@/components/FeedbackSheet";
 
 const STORAGE_KEY = "barakah-kids-race:v1";
 
@@ -59,6 +60,7 @@ export default function SetupScreen() {
   const [savingMember, setSavingMember] = useState(false);
   const [copiedPasscode, setCopiedPasscode] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
   
   // Collapsible section state
   const [expandedSection, setExpandedSection] = useState<'participants' | 'guardians' | null>(null);
@@ -848,6 +850,26 @@ export default function SetupScreen() {
               thumbColor={settings.soundsEnabled ? colors.primary : colors.textMuted}
             />
           </View>
+          <View style={styles.divider} />
+          <TouchableOpacity
+            style={styles.settingRow}
+            onPress={() => setShowFeedback(true)}
+            data-testid="button-send-feedback"
+          >
+            <Ionicons name="chatbubble-ellipses-outline" size={24} color={colors.primary} />
+            <Text style={styles.settingLabel}>Send Feedback</Text>
+            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+          </TouchableOpacity>
+          <View style={styles.divider} />
+          <TouchableOpacity
+            style={styles.settingRow}
+            onPress={() => Linking.openURL("mailto:support@sukunapp.com")}
+            data-testid="button-contact-support"
+          >
+            <Ionicons name="mail-outline" size={24} color={colors.primary} />
+            <Text style={styles.settingLabel}>Contact Support</Text>
+            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+          </TouchableOpacity>
           {isConfigured && (
             <>
               <View style={styles.divider} />
@@ -864,6 +886,8 @@ export default function SetupScreen() {
           )}
         </View>
       </View>
+
+      <FeedbackSheet visible={showFeedback} onClose={() => setShowFeedback(false)} />
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Diagnostics</Text>

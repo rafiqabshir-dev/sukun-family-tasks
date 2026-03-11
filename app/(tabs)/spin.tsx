@@ -14,6 +14,7 @@ import { useResponsive } from "@/lib/useResponsive";
 import { GameCard } from "@/components/GameCard";
 import { CATEGORIES, getGamesByCategory, getGameById, GameCategory } from "@/lib/gamesRegistry";
 import { FEATURE_FLAGS } from "@/lib/featureFlags";
+import { trackEvent } from "@/lib/analyticsService";
 
 /**
  * HOW TO ADD A NEW GAME:
@@ -217,6 +218,7 @@ export default function SpinScreen() {
     if (spinning || allMembers.length === 0) return;
     setSpinning(true);
     playSpinSound();
+    trackEvent('spin_started', { mode: 'assign', memberCount: allMembers.length });
   };
 
   const handleAssignSpinComplete = (segment: WheelSegment) => {
@@ -226,6 +228,7 @@ export default function SpinScreen() {
     const member = allMembers.find(m => m.id === segment.id);
     if (member) {
       setSelectedMember(member);
+      trackEvent('spin_completed', { mode: 'assign', selectedMember: member.name });
     }
   };
 
@@ -261,7 +264,8 @@ export default function SpinScreen() {
           scheduleType: "one_time",
           expiresAt: null,
         });
-        
+
+        trackEvent('spin_accepted', { taskTitle: template.title, assignedTo: selectedMember.name });
         playSuccessSound();
         Alert.alert(
           "Task Assigned!",

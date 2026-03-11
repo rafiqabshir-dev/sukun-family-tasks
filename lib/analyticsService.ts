@@ -28,7 +28,7 @@ export async function initializeAnalytics(): Promise<void> {
       Sentry.init({
         dsn: SENTRY_DSN,
         enableAutoSessionTracking: true,
-        tracesSampleRate: 1.0,
+        tracesSampleRate: 0.2,
         debug: __DEV__,
         environment: __DEV__ ? 'development' : 'production',
         release: Constants.expoConfig?.version || '1.0.0',
@@ -41,6 +41,8 @@ export async function initializeAnalytics(): Promise<void> {
     if (POSTHOG_API_KEY) {
       posthogClient = new PostHog(POSTHOG_API_KEY, {
         host: POSTHOG_HOST,
+        captureNativeAppLifecycleEvents: false,
+        autocapture: false,
       });
       console.log('[Analytics] PostHog initialized');
     } else {
@@ -57,16 +59,18 @@ export async function initializeAnalytics(): Promise<void> {
 export function identifyUser(properties: UserProperties): void {
   try {
     if (properties.userId) {
+      const isKid = properties.role === 'kid';
+
       if (SENTRY_DSN) {
         Sentry.setUser({
           id: properties.userId,
-          email: properties.email,
+          ...(isKid ? {} : { email: properties.email }),
         });
       }
 
       if (posthogClient) {
         posthogClient.identify(properties.userId, {
-          email: properties.email || null,
+          ...(isKid ? {} : { email: properties.email || null }),
           role: properties.role || null,
           familyId: properties.familyId || null,
           platform: Platform.OS,
